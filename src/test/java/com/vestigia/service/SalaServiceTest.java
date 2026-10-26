@@ -227,6 +227,13 @@ class SalaServiceTest {
 		assertThat(estado.expiraEn()).isEqualTo(AHORA.plusSeconds(60));
 	}
 
+	@Test
+	void expirarVencidasUsaLaHoraDelReloj() {
+		service.expirarVencidas();
+
+		verify(salas).expirarVencidas(AHORA, SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+	}
+
 	private static DataIntegrityViolationException violacion(String constraint) {
 		return new DataIntegrityViolationException("violación",
 				new ConstraintViolationException("violación", new SQLException(), constraint));

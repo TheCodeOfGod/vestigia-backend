@@ -17,11 +17,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,6 +42,8 @@ import com.vestigia.repository.SalaRepository;
 
 @Service
 public class SalaService {
+
+	private static final Logger log = LoggerFactory.getLogger(SalaService.class);
 
 	private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -165,6 +170,16 @@ public class SalaService {
 				.toList();
 		return new Sala(sala.getCodigo(), sala.getEstado(), sala.getEscenaActual(), puzzlesSala, descubrimientosSala,
 				new Sala.Dispositivos(false, false), sala.getCreadaEn(), sala.getExpiraEn());
+	}
+
+	/** Marca expirada cada sala viva cuyo expira_en ya pasó. Su código queda libre y la fila se conserva. */
+	@Scheduled(fixedDelayString = "${vestigia.salas.expiracion-revision}")
+	@Transactional
+	public void expirarVencidas() {
+		int expiradas = salas.expirarVencidas(clock.instant(), SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+		if (expiradas > 0) {
+			log.info("[SALAS] {} sala(s) expirada(s)", expiradas);
+		}
 	}
 
 	private static String nuevoToken() {

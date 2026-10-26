@@ -8,6 +8,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -17,12 +19,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import com.vestigia.service.SalaService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -41,7 +46,18 @@ class SalaIT {
 	@Autowired
 	private JsonMapper json;
 
+	@Autowired
+	private RelojDePrueba reloj;
+
+	@Autowired
+	private SalaService salaService;
+
 	private final HttpClient http = HttpClient.newHttpClient();
+
+	@AfterEach
+	void reiniciarReloj() {
+		reloj.reiniciar();
+	}
 
 	@Test
 	void crearDevuelveElTokenUnaVezYGuardaSoloSuHash() throws Exception {
@@ -179,6 +195,61 @@ class SalaIT {
 		assertThat(get("/api/v1/salas/CHIGNAHUAPAN/estado", "no-es-un-token").statusCode()).isEqualTo(401);
 		assertThat(get("/api/v1/salas/CHIGNAHUAPAN/estado", tokenB).statusCode()).isEqualTo(403);
 		assertThat(get("/api/v1/salas/chignahuapan/estado", tokenA).statusCode()).isEqualTo(200);
+	}
+
+	@Test
+	void salaVencidaExpiraLiberaElNombreYSeConservaComoHistorial() throws Exception {
+		String token = tokenDe(crear("COATEPEC"));
+
+		reloj.avanzar(Duration.ofHours(2).plusSeconds(1));
+		salaService.expirarVencidas();
+
+		assertThat(jdbc.queryForList("SELECT estado FROM salas WHERE codigo = 'COATEPEC'", String.class))
+				.containsExactly("expirada");
+		assertThat(get("/api/v1/salas/COATEPEC/estado", token).statusCode()).isEqualTo(401);
+		assertThat(libre(json.readTree(get("/api/v1/pueblos?disponibles=true", null).body()), "COATEPEC"))
+				.isEqualTo("true");
+		assertThat(crear("COATEPEC").statusCode()).isEqualTo(201);
+		assertThat(jdbc.queryForList("SELECT estado FROM salas WHERE codigo = 'COATEPEC' ORDER BY creada_en",
+				String.class)).containsExactly("expirada", "esperando_app");
+	}
+
+	@Test
+	void salaQueAunNoVenceSigueViva() throws Exception {
+		crear("COMALA");
+
+		reloj.avanzar(Duration.ofHours(2).minusSeconds(5));
+		salaService.expirarVencidas();
+
+		assertThat(salasVivas("COMALA")).isEqualTo(1);
+	}
+
+	@Test
+	void unirseRenuevaLaExpiracion() throws Exception {
+		crear("COMITAN");
+		reloj.avanzar(Duration.ofHours(1));
+		Instant alUnirse = reloj.instant();
+
+		post("/api/v1/salas/COMITAN/unirse", "", null);
+		reloj.avanzar(Duration.ofMinutes(90));
+		salaService.expirarVencidas();
+
+		Instant expiraEn = jdbc.queryForObject("SELECT expira_en FROM salas WHERE codigo = 'COMITAN'", Instant.class);
+		assertThat(expiraEn).isBetween(alUnirse.plus(Duration.ofHours(2)),
+				alUnirse.plus(Duration.ofHours(2)).plusSeconds(5));
+		assertThat(salasVivas("COMITAN")).isEqualTo(1);
+	}
+
+	@Test
+	void elJobNoTocaSalasFinalizadas() throws Exception {
+		crear("COMONFORT");
+		jdbc.update("UPDATE salas SET estado = 'finalizada' WHERE codigo = 'COMONFORT'");
+
+		reloj.avanzar(Duration.ofHours(3));
+		salaService.expirarVencidas();
+
+		assertThat(jdbc.queryForList("SELECT estado FROM salas WHERE codigo = 'COMONFORT'", String.class))
+				.containsExactly("finalizada");
 	}
 
 	private String tokenDe(HttpResponse<String> respuesta) {

@@ -6,11 +6,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.config.FixedDelayTask;
+import org.springframework.scheduling.config.ScheduledTaskHolder;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(PostgresTestConfig.class)
@@ -18,6 +22,9 @@ class AplicacionIT {
 
 	@LocalServerPort
 	private int port;
+
+	@Autowired
+	private ScheduledTaskHolder tareas;
 
 	private final HttpClient http = HttpClient.newHttpClient();
 
@@ -46,6 +53,15 @@ class AplicacionIT {
 	@Test
 	void rutaInexistenteBajoSalasDa404SinPedirToken() throws Exception {
 		assertThat(get("/api/v1/salas/ALAMOS/no-existe").statusCode()).isEqualTo(404);
+	}
+
+	@Test
+	void elJobDeExpiracionEstaProgramadoCadaMinuto() {
+		assertThat(tareas.getScheduledTasks()).anySatisfy(tarea -> {
+			assertThat(tarea.toString()).contains("SalaService.expirarVencidas");
+			assertThat(tarea.getTask()).isInstanceOfSatisfying(FixedDelayTask.class,
+					t -> assertThat(t.getIntervalDuration()).isEqualTo(Duration.ofMinutes(1)));
+		});
 	}
 
 	private HttpResponse<String> get(String ruta) throws Exception {
