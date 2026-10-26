@@ -37,3 +37,7 @@ logs/
 
 ### Credenciales locales ###
 application-local.properties
+
+
+### Mac OS
+.DS_Store
