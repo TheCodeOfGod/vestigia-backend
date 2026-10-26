@@ -3,6 +3,8 @@ package com.vestigia.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -17,6 +19,8 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,12 +34,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.dto.AppUnida;
 import com.vestigia.dto.Pueblo;
+import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
 import com.vestigia.model.CodigoPuebloModel;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.model.SalaModel;
 import com.vestigia.repository.CodigoPuebloRepository;
+import com.vestigia.repository.DescubrimientoRepository;
 import com.vestigia.repository.PuzzleEstadoRepository;
 import com.vestigia.repository.SalaRepository;
 
@@ -53,11 +60,14 @@ class SalaServiceTest {
 	@Mock
 	private PuzzleEstadoRepository puzzles;
 
+	@Mock
+	private DescubrimientoRepository descubrimientos;
+
 	private SalaService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new SalaService(pueblos, salas, puzzles, Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
+		service = new SalaService(pueblos, salas, puzzles, descubrimientos, Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
 	}
 
 	@Test
@@ -140,6 +150,81 @@ class SalaServiceTest {
 		assertThat(service.listarPueblos(false)).containsExactly(new Pueblo("ALAMOS", true),
 				new Pueblo("BERNAL", false));
 		assertThat(service.listarPueblos(true)).containsExactly(new Pueblo("ALAMOS", true));
+	}
+
+	@Test
+	void unirseEnlazaConUnSoloUpdateYRenuevaLaExpiracion() throws Exception {
+		ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+		when(salas.unirApp(eq("ALAMOS"), hash.capture(), eq(AHORA), eq(AHORA.plus(Duration.ofHours(2))),
+				eq(SalaModel.Estado.esperando_app), eq(SalaModel.Estado.activa))).thenReturn(1);
+
+		AppUnida unida = service.unirse(" alamos");
+
+		assertThat(hash.getValue()).isEqualTo(sha256(unida.token()));
+		verify(salas, never()).findByCodigoAndEstadoIn(any(), any());
+	}
+
+	@Test
+	void unirseASalaVivaQueYaTieneAppDa409() {
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
+
+		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOfSatisfying(ResponseStatusException.class,
+				ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+	}
+
+	@Test
+	void unirseSinSalaVivaDa404() {
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOfSatisfying(ResponseStatusException.class,
+				ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+	}
+
+	@Test
+	void autenticarDistingueElRolPorElHash() throws Exception {
+		SalaModel sala = new SalaModel();
+		sala.setCodigo("ALAMOS");
+		sala.setTokenJuegoHash(sha256("tok-juego"));
+		sala.setTokenAppHash(sha256("tok-app"));
+		when(salas.findByTokenHashAndEstadoIn(anyString(), eq(SalaModel.Estado.VIVOS))).thenReturn(Optional.of(sala));
+
+		assertThat(service.autenticar("tok-juego")).get().extracting(SalaService.Credencial::rol)
+				.isEqualTo(SalaService.Rol.juego);
+		assertThat(service.autenticar("tok-app")).get().extracting(SalaService.Credencial::rol)
+				.isEqualTo(SalaService.Rol.app);
+		verify(salas).findByTokenHashAndEstadoIn(sha256("tok-juego"), SalaModel.Estado.VIVOS);
+	}
+
+	@Test
+	void autenticarConTokenDesconocidoNoDaCredencial() {
+		when(salas.findByTokenHashAndEstadoIn(anyString(), any())).thenReturn(Optional.empty());
+
+		assertThat(service.autenticar("otro")).isEmpty();
+	}
+
+	@Test
+	void estadoOrdenaLosPuzzlesYReportaDispositivosDesconectados() {
+		UUID id = UUID.randomUUID();
+		SalaModel sala = new SalaModel();
+		sala.setCodigo("ALAMOS");
+		sala.setEstado(SalaModel.Estado.activa);
+		sala.setEscenaActual("introduccion");
+		sala.setCreadaEn(AHORA);
+		sala.setExpiraEn(AHORA.plusSeconds(60));
+		when(salas.findById(id)).thenReturn(Optional.of(sala));
+		when(puzzles.findByClaveSalaId(id)).thenReturn(List.of(
+				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatorio, PuzzleEstadoModel.Estado.bloqueado, AHORA),
+				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado, AHORA)));
+		when(descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(id)).thenReturn(List.of());
+
+		Sala estado = service.estado(id);
+
+		assertThat(estado.puzzles()).extracting(Sala.Puzzle::puzzle)
+				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatorio);
+		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(false, false));
+		assertThat(estado.expiraEn()).isEqualTo(AHORA.plusSeconds(60));
 	}
 
 	private static DataIntegrityViolationException violacion(String constraint) {

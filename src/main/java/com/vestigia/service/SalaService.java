@@ -8,11 +8,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.hibernate.exception.ConstraintViolationException;
@@ -23,11 +26,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.dto.AppUnida;
 import com.vestigia.dto.Pueblo;
+import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.model.SalaModel;
 import com.vestigia.repository.CodigoPuebloRepository;
+import com.vestigia.repository.DescubrimientoRepository;
 import com.vestigia.repository.PuzzleEstadoRepository;
 import com.vestigia.repository.SalaRepository;
 
@@ -38,21 +44,34 @@ public class SalaService {
 
 	private static final String INDICE_SALA_VIVA = "salas_codigo_viva";
 
+	public enum Rol {
+
+		juego, app
+
+	}
+
+	/** Quién hace la petición, según su token. */
+	public record Credencial(UUID salaId, String codigo, Rol rol) {
+	}
+
 	private final CodigoPuebloRepository pueblos;
 
 	private final SalaRepository salas;
 
 	private final PuzzleEstadoRepository puzzles;
 
+	private final DescubrimientoRepository descubrimientos;
+
 	private final Clock clock;
 
 	private final Duration expiracion;
 
 	public SalaService(CodigoPuebloRepository pueblos, SalaRepository salas, PuzzleEstadoRepository puzzles,
-			Clock clock, @Value("${vestigia.salas.expiracion}") Duration expiracion) {
+			DescubrimientoRepository descubrimientos, Clock clock, @Value("${vestigia.salas.expiracion}") Duration expiracion) {
 		this.pueblos = pueblos;
 		this.salas = salas;
 		this.puzzles = puzzles;
+		this.descubrimientos = descubrimientos;
 		this.clock = clock;
 		this.expiracion = expiracion;
 	}
@@ -102,6 +121,50 @@ public class SalaService {
 			puzzles.save(new PuzzleEstadoModel(sala.getId(), puzzle, PuzzleEstadoModel.Estado.bloqueado, ahora));
 		}
 		return new SalaCreada(codigo, sala.getEstado(), token);
+	}
+
+	/**
+	 * Enlaza la única app de la sala. 404 si no hay sala viva con ese código; 409 si la sala viva ya tiene app (incluye
+	 * perder una carrera contra otra app).
+	 */
+	@Transactional
+	public AppUnida unirse(String codigoRecibido) {
+		String codigo = normalizarCodigo(codigoRecibido);
+		Instant ahora = clock.instant();
+		String token = nuevoToken();
+		int enlazadas = salas.unirApp(codigo, hashToken(token), ahora, ahora.plus(expiracion),
+				SalaModel.Estado.esperando_app, SalaModel.Estado.activa);
+		if (enlazadas == 1) {
+			return new AppUnida(token);
+		}
+		if (salas.findByCodigoAndEstadoIn(codigo, SalaModel.Estado.VIVOS).isPresent()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "La sala '" + codigo + "' ya tiene una app enlazada");
+		}
+		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una sala en curso con el código '" + codigo + "'");
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<Credencial> autenticar(String token) {
+		String hash = hashToken(token);
+		return salas.findByTokenHashAndEstadoIn(hash, SalaModel.Estado.VIVOS)
+				.map(s -> new Credencial(s.getId(), s.getCodigo(),
+						hash.equals(s.getTokenJuegoHash()) ? Rol.juego : Rol.app));
+	}
+
+	@Transactional(readOnly = true)
+	public Sala estado(UUID salaId) {
+		SalaModel sala = salas.findById(salaId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "La sala no existe"));
+		List<Sala.Puzzle> puzzlesSala = puzzles.findByClaveSalaId(salaId).stream()
+				.sorted(Comparator.comparing(PuzzleEstadoModel::getPuzzle))
+				.map(p -> new Sala.Puzzle(p.getPuzzle(), p.getEstado(), p.getDatos()))
+				.toList();
+		List<Sala.Descubrimiento> descubrimientosSala = descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(salaId)
+				.stream()
+				.map(d -> new Sala.Descubrimiento(d.getClave(), d.getDatos(), d.getOrigen(), d.getCreadoEn()))
+				.toList();
+		return new Sala(sala.getCodigo(), sala.getEstado(), sala.getEscenaActual(), puzzlesSala, descubrimientosSala,
+				new Sala.Dispositivos(false, false), sala.getCreadaEn(), sala.getExpiraEn());
 	}
 
 	private static String nuevoToken() {

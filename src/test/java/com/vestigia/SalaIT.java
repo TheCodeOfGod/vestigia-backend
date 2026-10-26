@@ -109,6 +109,82 @@ class SalaIT {
 		assertThat(libre(libres, "BACALAR")).isEqualTo("true");
 	}
 
+	@Test
+	void flujoCrearUnirseEstado() throws Exception {
+		String tokenJuego = tokenDe(crear("BATOPILAS"));
+
+		HttpResponse<String> union = post("/api/v1/salas/BATOPILAS/unirse", "", null);
+		assertThat(union.statusCode()).isEqualTo(200);
+		String tokenApp = tokenDe(union);
+		assertThat(jdbc.queryForObject("SELECT token_app_hash FROM salas WHERE codigo = 'BATOPILAS'", String.class))
+				.isEqualTo(sha256(tokenApp));
+
+		for (String token : List.of(tokenJuego, tokenApp)) {
+			HttpResponse<String> respuesta = get("/api/v1/salas/BATOPILAS/estado", token);
+			assertThat(respuesta.statusCode()).isEqualTo(200);
+			JsonNode estado = json.readTree(respuesta.body());
+			assertThat(estado.get("codigo").asString()).isEqualTo("BATOPILAS");
+			assertThat(estado.get("estado").asString()).isEqualTo("activa");
+			assertThat(estado.get("escena_actual").asString()).isEqualTo("introduccion");
+			assertThat(estado.get("puzzles").valueStream().map(p -> p.get("puzzle").asString()))
+					.containsExactly("radio", "fotografia", "mirador", "observatorio");
+			assertThat(estado.get("puzzles").valueStream().map(p -> p.get("estado").asString()))
+					.containsOnly("bloqueado");
+			assertThat(estado.get("puzzles").valueStream().map(p -> p.get("datos").isEmpty())).containsOnly(true);
+			assertThat(estado.get("descubrimientos").isEmpty()).isTrue();
+			assertThat(estado.get("dispositivos").get("juego").asBoolean()).isFalse();
+			assertThat(estado.get("dispositivos").get("app").asBoolean()).isFalse();
+			assertThat(estado.get("creada_en").asString()).endsWith("Z");
+			assertThat(estado.get("expira_en").asString()).endsWith("Z");
+		}
+	}
+
+	@Test
+	void unirseDosVecesDa409() throws Exception {
+		crear("BERNAL");
+
+		assertThat(post("/api/v1/salas/BERNAL/unirse", "", null).statusCode()).isEqualTo(200);
+		assertThat(post("/api/v1/salas/BERNAL/unirse", "", null).statusCode()).isEqualTo(409);
+	}
+
+	@Test
+	void unirseSinSalaVivaDa404() throws Exception {
+		assertThat(post("/api/v1/salas/BUSTAMANTE/unirse", "", null).statusCode()).isEqualTo(404);
+		assertThat(post("/api/v1/salas/ATLANTIDA/unirse", "", null).statusCode()).isEqualTo(404);
+	}
+
+	@Test
+	void unirseAceptaMinusculas() throws Exception {
+		crear("CALVILLO");
+
+		assertThat(post("/api/v1/salas/calvillo/unirse", "", null).statusCode()).isEqualTo(200);
+	}
+
+	@Test
+	void carreraDeAppsPorUnirseDaUn200YSiete409() throws Exception {
+		crear("CANDELA");
+
+		List<Integer> codigos = enParalelo(8, () -> post("/api/v1/salas/CANDELA/unirse", "", null).statusCode());
+
+		assertThat(codigos).filteredOn(c -> c == 200).hasSize(1);
+		assertThat(codigos).filteredOn(c -> c == 409).hasSize(7);
+	}
+
+	@Test
+	void estadoExigeElTokenDeEsaSala() throws Exception {
+		String tokenA = tokenDe(crear("CHIGNAHUAPAN"));
+		String tokenB = tokenDe(crear("CHOLULA"));
+
+		assertThat(get("/api/v1/salas/CHIGNAHUAPAN/estado", null).statusCode()).isEqualTo(401);
+		assertThat(get("/api/v1/salas/CHIGNAHUAPAN/estado", "no-es-un-token").statusCode()).isEqualTo(401);
+		assertThat(get("/api/v1/salas/CHIGNAHUAPAN/estado", tokenB).statusCode()).isEqualTo(403);
+		assertThat(get("/api/v1/salas/chignahuapan/estado", tokenA).statusCode()).isEqualTo(200);
+	}
+
+	private String tokenDe(HttpResponse<String> respuesta) {
+		return json.readTree(respuesta.body()).get("token").asString();
+	}
+
 	private HttpResponse<String> crear(String codigo) throws Exception {
 		return post("/api/v1/salas", "{\"codigo\":\"" + codigo + "\"}", null);
 	}

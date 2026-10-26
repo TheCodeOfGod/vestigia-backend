@@ -35,6 +35,19 @@ class AplicacionIT {
 		assertThat(get("/swagger-ui/index.html").statusCode()).isEqualTo(200);
 	}
 
+	@Test
+	void openApiDocumentaLosEndpointsDeSalasYElToken() throws Exception {
+		String docs = get("/v3/api-docs").body();
+
+		assertThat(docs).contains("/api/v1/pueblos", "/api/v1/salas", "/api/v1/salas/{codigo}/unirse",
+				"/api/v1/salas/{codigo}/estado", "\"scheme\":\"bearer\"");
+	}
+
+	@Test
+	void rutaInexistenteBajoSalasDa404SinPedirToken() throws Exception {
+		assertThat(get("/api/v1/salas/ALAMOS/no-existe").statusCode()).isEqualTo(404);
+	}
+
 	private HttpResponse<String> get(String ruta) throws Exception {
 		HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + ruta)).build();
 		return http.send(request, HttpResponse.BodyHandlers.ofString());
