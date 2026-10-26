@@ -260,4 +260,4 @@ Estas decisiones **requieren a Raúl**, aunque trabajes en un modo autónomo (po
 
 Prioridad de convenciones: las del proyecto (prefijos de commit, documentación en español, estructura de este archivo) ganan sobre el estilo de cualquier skill.
 
-**Revisión independiente:** en este entorno solo hay modelos de la familia Claude. Si un skill exige un revisor de otra familia, el gate queda `BLOCKED: independent review`. No lo omitas ni cuentes tu propia revisión como independiente: abre el PR como borrador, repórtalo y Raúl lo revisa.
+**Revisión independiente:** en este entorno solo hay modelos de la familia Claude. Si un skill exige un revisor de otra familia, el gate queda `BLOCKED: independent review`. No lo omitas ni cuentes tu propia revisión como independiente: deja los commits listos, repórtalo y Raúl lo revisa.

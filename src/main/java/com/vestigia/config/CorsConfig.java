@@ -5,14 +5,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** Permite que la PWA (Vite dev y preview) consuma la API desde el navegador. */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
 	private final String[] allowedOrigins;
 
-	public CorsConfig(
-			@Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:4173}") String[] allowedOrigins) {
+	public CorsConfig(@Value("${vestigia.cors.allowed-origins}") String[] allowedOrigins) {
 		this.allowedOrigins = allowedOrigins;
 	}
 
@@ -20,9 +18,8 @@ public class CorsConfig implements WebMvcConfigurer {
 	public void addCorsMappings(CorsRegistry registry) {
 		registry.addMapping("/api/**")
 				.allowedOrigins(allowedOrigins)
-				.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-				.allowedHeaders("*")
-				.exposedHeaders("Location");
+				.allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+				.allowedHeaders("*");
 	}
 
 }
