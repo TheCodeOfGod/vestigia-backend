@@ -13,14 +13,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Registra una línea por petición a /api/** con método, ruta, código, duración
- * y memoria de la JVM. Sirve como evidencia de los logs del laboratorio.
+ * Registra una línea {@code [API]} por petición a /api/** con método, ruta, código y duración. No registra la query
+ * string ni encabezados: ahí viajan los tokens.
  */
 @Component
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	private static final Logger log = LoggerFactory.getLogger(RequestLoggingFilter.class);
-	private static final long MB = 1024 * 1024;
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -35,11 +34,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			filterChain.doFilter(request, response);
 		} finally {
 			long ms = (System.nanoTime() - inicio) / 1_000_000;
-			Runtime runtime = Runtime.getRuntime();
-			long usadaMb = (runtime.totalMemory() - runtime.freeMemory()) / MB;
-			long maximaMb = runtime.maxMemory() / MB;
-			log.info("[API] {} {} -> {} | {} ms | heap {}/{} MB", request.getMethod(), request.getRequestURI(),
-					response.getStatus(), ms, usadaMb, maximaMb);
+			log.info("[API] {} {} -> {} | {} ms", request.getMethod(), request.getRequestURI(), response.getStatus(),
+					ms);
 		}
 	}
 

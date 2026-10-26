@@ -1,6 +1,6 @@
 package com.vestigia.controller;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -24,7 +24,7 @@ public class ApiExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
-	public record ErrorBody(LocalDateTime timestamp, int status, String error, String message, String path,
+	public record ErrorBody(Instant timestamp, int status, String error, String message, String path,
 			List<FieldDetail> details) {
 	}
 
@@ -69,7 +69,7 @@ public class ApiExceptionHandler {
 			List<FieldDetail> details) {
 		HttpStatus httpStatus = HttpStatus.resolve(status.value());
 		String error = httpStatus != null ? httpStatus.getReasonPhrase() : String.valueOf(status.value());
-		ErrorBody errorBody = new ErrorBody(LocalDateTime.now(), status.value(), error, message,
+		ErrorBody errorBody = new ErrorBody(Instant.now(), status.value(), error, message,
 				request.getRequestURI(), details);
 		return ResponseEntity.status(status).body(errorBody);
 	}
