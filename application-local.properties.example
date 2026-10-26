@@ -1,5 +1,5 @@
 # Copia este archivo como application-local.properties (está en .gitignore) y pon tus credenciales locales.
-# Declara las mismas variables que el entorno, no spring.datasource.*: así una variable de entorno
+# Declara las mismas variables que el entorno, no spring.datasource.*. Así una variable de entorno
 # con el mismo nombre sigue teniendo prioridad sobre este archivo.
 DB_URL=jdbc:postgresql://localhost:5432/vestigia
 DB_USER=postgres

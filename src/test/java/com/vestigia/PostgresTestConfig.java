@@ -5,7 +5,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Postgres real compartido por todas las pruebas de integración (*IT). */
+/** Un solo Postgres para todas las *IT. Las clases que importan esta configuración comparten el contexto de Spring. */
 @TestConfiguration(proxyBeanMethods = false)
 public class PostgresTestConfig {
 

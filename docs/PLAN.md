@@ -122,7 +122,9 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 ## 9. Plan por pasos
 
 - [ ] **Paso 0:** decidir repo separado, copiar el backend (con historial), configurar acceso y secretos.
-- [ ] **Paso 1 — Base:** `CLAUDE.md` nuevo, Flyway, Dockerfile, CI, despliegue vacío con `/actuator/health`.
+- [x] **Paso 1 — Base:** limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
+  - Pendiente de Raúl: el primer despliegue en Railway y el job de CI que revisa `/actuator/health` después del despliegue (ver `docs/despliegue.md`).
+  - El workflow `ci.yml` se validó con actionlint, pero todavía no ha corrido en GitHub.
 - [ ] **Paso 2 — Salas:** catálogo de pueblos, crear, unirse, estado.
 - [ ] **Paso 3 — Puzzles y descubrimientos:** REST completo con validación de transiciones y requisitos.
 - [ ] **Paso 4 — WebSocket:** eventos y presencia.
@@ -132,6 +134,9 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 ## 10. Pendientes
 
 - Confirmar los valores de la sección 7 con quien hace la app y con Aldo (ya tienen visto bueno de Raúl).
-- Fecha para retirar el CRUD de `salas` del laboratorio de la PWA.
+- El Paso 1 retiró el CRUD de `salas` del laboratorio (`/api/salas`). Confirmar que la PWA ya no lo consume antes del primer despliegue.
+- Job de CI posterior al despliegue en `main`: revisar `/actuator/health` de la URL real con reintentos. Necesita la URL de Railway.
+- Escribir `docs/modelo-datos.md`.
+- `CLAUDE.md` nombra `docs/PLAN.md`. Este archivo antes vivía en `PLAN-BACKEND.md`, en la raíz del repo. Actualizar los enlaces que apunten a la ruta anterior.
 - Convención de nombres de ramas (el equipo no la ha decidido).
 - Objetivo visual del mirador y condición exacta de apertura de la compuerta del observatorio (diseño, no backend).
