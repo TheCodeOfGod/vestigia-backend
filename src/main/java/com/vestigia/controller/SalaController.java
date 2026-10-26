@@ -69,7 +69,8 @@ public class SalaController {
 	@Operation(summary = "Estado completo de la sala (juego o app)",
 			description = "Pide el token de esa sala. Úsalo al reconectar para ponerte al día.",
 			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA))
-	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala")
+	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
+			schema = @Schema(type = "string"))
 	@ApiResponse(responseCode = "200", description = "Estado actual")
 	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó",
 			content = @Content(schema = @Schema(implementation = ErrorBody.class)))

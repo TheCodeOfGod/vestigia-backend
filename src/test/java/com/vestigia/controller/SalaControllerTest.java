@@ -58,7 +58,8 @@ class SalaControllerTest {
 	void crearSinCodigoDa400ConDetalle() throws Exception {
 		mockMvc.perform(post("/api/v1/salas").contentType(MediaType.APPLICATION_JSON).content("{\"codigo\":\" \"}"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.details[0].field").value("codigo"));
+				.andExpect(jsonPath("$.details[0].field").value("codigo"))
+				.andExpect(jsonPath("$.details[0].message").value("es obligatorio"));
 		verifyNoInteractions(salaService);
 	}
 
