@@ -1,0 +1,15 @@
+target/
+.git/
+.github/
+.audit/
+logs/
+docs/
+*.md
+application-local.properties
+.idea/
+.vscode/
+*.iml
+.settings/
+.project
+.classpath
+.DS_Store
