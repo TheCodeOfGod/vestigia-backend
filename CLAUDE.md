@@ -233,7 +233,7 @@ Notas:
 
 Trabaja **un paso a la vez**, en su propia rama y PR, y detente al terminar para reportar.
 
-- [ ] **Paso 1 — Base:** limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
+- [x] **Paso 1 — Base:** limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
 - [ ] **Paso 2 — Salas:** catálogo de pueblos (seed aprobado), crear, unirse, estado, expiración, autenticación por token.
 - [ ] **Paso 3 — Puzzles y descubrimientos:** REST completo con transiciones y requisitos.
 - [ ] **Paso 4 — WebSocket:** `auth`, eventos y presencia.
