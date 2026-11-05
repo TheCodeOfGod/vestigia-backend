@@ -1,6 +1,6 @@
 # Vestigia — Plan del backend (documento vivo)
 
-Última actualización: 26 de octubre de 2026.
+Última actualización: 26 de octubre de 2026 (Paso 2).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API.
 
 **Estados:** `Acordado` = confirmado por Raúl. `Propuesto` = pendiente de su visto bueno. `Provisional` = valor de prototipo que puede cambiar sin migrar la base.
@@ -125,7 +125,12 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 - [x] **Paso 1 — Base:** limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
   - Pendiente de Raúl: el primer despliegue en Railway y el job de CI que revisa `/actuator/health` después del despliegue (ver `docs/despliegue.md`).
   - El workflow `ci.yml` se validó con actionlint, pero todavía no ha corrido en GitHub.
-- [ ] **Paso 2 — Salas:** catálogo de pueblos, crear, unirse, estado.
+- [x] **Paso 2 — Salas:** catálogo de pueblos (seed aprobado), crear, unirse, estado, expiración, autenticación por token.
+  - `V2__seed_pueblos.sql` carga los 101 códigos aprobados por Raúl.
+  - Endpoints `GET /pueblos`, `POST /salas`, `POST /salas/{codigo}/unirse` y `GET /salas/{codigo}/estado`. Contrato con ejemplos en `docs/api.md`.
+  - Tokens de 32 bytes en base64url. La base guarda solo su SHA-256. Un `HandlerInterceptor` protege `/api/v1/salas/**` salvo crear y unirse.
+  - Job de expiración cada minuto (`vestigia.salas.expiracion=PT2H`, `vestigia.salas.expiracion-revision=PT1M`).
+  - `dispositivos` en el estado devuelve siempre `{"juego": false, "app": false}` hasta el Paso 4.
 - [ ] **Paso 3 — Puzzles y descubrimientos:** REST completo con validación de transiciones y requisitos.
 - [ ] **Paso 4 — WebSocket:** eventos y presencia.
 - [ ] **Paso 5 — Orientación:** flujo del giroscopio y niveles de proximidad.
@@ -133,10 +138,14 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 
 ## 10. Pendientes
 
+- `CLAUDE.md` sección 6 dice que `unirse` responde `404` si la sala "no está en `esperando_app`" y `409` si ya hay una app. Las dos reglas chocan: tras unirse, la sala está `activa`. Se implementó `404` si no hay sala viva con ese código y `409` si la sala viva ya tiene app. Falta que Raúl ajuste el texto de `CLAUDE.md`.
+- `CLAUDE.md` sección 6 no lista `dispositivos` con su forma. Se fijó `{"juego": bool, "app": bool}`. Falta reflejarlo en `CLAUDE.md`.
+- Crear y unirse todavía no guardan un registro en `eventos` ni emiten mensajes por WebSocket. Entra con los Pasos 3 y 4.
+- Entre que `expira_en` pasa y el job corre (hasta un minuto) la sala sigue viva: su token funciona y su código sigue ocupado.
+
 - Confirmar los valores de la sección 7 con quien hace la app y con Aldo (ya tienen visto bueno de Raúl).
 - El Paso 1 retiró el CRUD de `salas` del laboratorio (`/api/salas`). Confirmar que la PWA ya no lo consume antes del primer despliegue.
 - Job de CI posterior al despliegue en `main`: revisar `/actuator/health` de la URL real con reintentos. Necesita la URL de Railway.
-- Escribir `docs/modelo-datos.md`.
 - `CLAUDE.md` nombra `docs/PLAN.md`. Este archivo antes vivía en `PLAN-BACKEND.md`, en la raíz del repo. Actualizar los enlaces que apunten a la ruta anterior.
 - Convención de nombres de ramas (el equipo no la ha decidido).
 - Objetivo visual del mirador y condición exacta de apertura de la compuerta del observatorio (diseño, no backend).

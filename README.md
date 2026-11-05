@@ -2,7 +2,28 @@
 
 Backend de **Vestigia**, el proyecto integrador del grupo IDGS101N de la Universidad Tecnológica de Chihuahua. Vestigia es un videojuego de misterio para PC (Unity) con una app móvil (Flutter) que funciona como la libreta de la protagonista. El juego y la app no se hablan entre sí. Los dos usan este backend por REST y WebSocket, y el backend guarda el estado de cada sala en PostgreSQL.
 
-El plan por pasos y las decisiones están en [`docs/PLAN.md`](docs/PLAN.md). Las reglas para trabajar en el repo están en [`CLAUDE.md`](CLAUDE.md).
+| Documento | Qué tiene |
+|---|---|
+| [`docs/api.md`](docs/api.md) | Endpoints REST con ejemplos de `curl` y errores, para quien integra Unity o Flutter |
+| [`docs/modelo-datos.md`](docs/modelo-datos.md) | Tablas, ciclo de vida de una sala y qué se guarda de cada token |
+| [`docs/despliegue.md`](docs/despliegue.md) | Despliegue en Railway |
+
+## Cómo funciona
+
+Todo gira alrededor de la **sala**, que identifica una partida con el nombre de un Pueblo Mágico en mayúsculas, sin acentos y de una sola palabra (por ejemplo `BACALAR`). El catálogo de pueblos es fijo y vive en la base de datos.
+
+1. **El juego crea la sala.** Cuando la jugadora elige un pueblo, el juego llama a `POST /api/v1/salas`. La sala nace en `esperando_app` con sus cuatro puzzles (`radio`, `fotografia`, `mirador`, `observatorio`) bloqueados, y el juego recibe su token.
+2. **La app se une.** La app móvil llama a `POST /api/v1/salas/{codigo}/unirse` y recibe su propio token. Cada sala admite una sola app. La sala pasa a `activa`.
+3. **Los dos consultan el estado.** Con su token, el juego y la app llaman a `GET /api/v1/salas/{codigo}/estado` para ver la escena, los puzzles, los descubrimientos y qué dispositivos están conectados.
+4. **La sala termina.** Si pasa tiempo sin actividad (2 horas por defecto), un job la marca `expirada` y el código vuelve a quedar libre. Las salas terminadas se conservan como historial.
+
+**Tokens y roles.** Cada dispositivo recibe un token aleatorio y opaco que se envía como `Authorization: Bearer <token>`. El backend guarda solo su hash SHA-256. El token determina la sala y el rol (`juego` o `app`), y solo funciona con el código de su propia sala.
+
+**Un código, una sala viva.** Un índice único parcial en PostgreSQL impide que dos juegos reclamen el mismo pueblo a la vez. El que pierde recibe `409`.
+
+**Errores.** Todos tienen el mismo cuerpo JSON (`timestamp`, `status`, `error`, `message`, `path`, `details`). Los campos del JSON van en `snake_case` y las fechas en UTC con formato ISO-8601.
+
+**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado y `/actuator/health`. Los endpoints de puzzles, descubrimientos, escena y cierre de sala no existen todavía y responden `404`. El WebSocket de `/ws` rechaza las conexiones hasta que se implemente el tiempo real.
 
 ## Stack
 
@@ -36,6 +57,17 @@ Necesitas Java 21 y Docker.
 
 	La respuesta incluye `"status":"UP"`.
 
+4. Prueba el flujo de una sala (necesita `jq`):
+
+	```sh
+	TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/salas \
+		-H 'Content-Type: application/json' -d '{"codigo":"bacalar"}' | jq -r .token)
+	curl -s -X POST http://localhost:8080/api/v1/salas/BACALAR/unirse
+	curl -s http://localhost:8080/api/v1/salas/BACALAR/estado -H "Authorization: Bearer $TOKEN"
+	```
+
+	Swagger UI con todos los endpoints está en `http://localhost:8080/swagger-ui/index.html`. El detalle de cada respuesta y error está en [`docs/api.md`](docs/api.md).
+
 Si el puerto 5432 ya está ocupado, publica Postgres en otro puerto (`-p 55432:5432`) y arranca con `DB_URL=jdbc:postgresql://localhost:55432/vestigia ./mvnw spring-boot:run`.
 
 Si tu Postgres usa otras credenciales, copia `application-local.properties.example` como `application-local.properties` en la raíz del repo y edítalo. Git ignora ese archivo.
@@ -54,10 +86,22 @@ Cada valor se busca primero en las variables de entorno, luego en `application-l
 
 No subas contraseñas, tokens ni URLs con credenciales al repo.
 
+## Expiración de salas
+
+Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre. Dos propiedades lo controlan. Tienen su valor por defecto en `application.properties` y se pueden cambiar en `application-local.properties` o con las variables de entorno `VESTIGIA_SALAS_EXPIRACION` y `VESTIGIA_SALAS_EXPIRACIONREVISION`.
+
+| Propiedad | Para qué | Valor por defecto |
+|---|---|---|
+| `vestigia.salas.expiracion` | Tiempo sin actividad tras el cual una sala viva expira, en formato ISO-8601 | `PT2H` |
+| `vestigia.salas.expiracion-revision` | Cada cuánto corre el job que marca las salas vencidas | `PT1M` |
+
 ## Correr las pruebas
 
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
 - `./mvnw verify` corre además las clases `*IT` con maven-failsafe. Esas pruebas arrancan un `postgres:17-alpine` con Testcontainers, así que Docker tiene que estar corriendo.
+
+## Capturas de pruebas y de la base de datos
+
 
 ## Construir y correr la imagen Docker
 

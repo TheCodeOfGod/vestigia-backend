@@ -13,9 +13,12 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.vestigia.service.SalaService;
 
 @WebMvcTest
 @Import(ApiHttpConfigTest.PruebaController.class)
@@ -24,6 +27,9 @@ class ApiHttpConfigTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@MockitoBean
+	private SalaService salaService;
 
 	@Test
 	void registraUnaLineaPorPeticionSinTokens(CapturedOutput output) throws Exception {
