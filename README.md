@@ -96,12 +96,12 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 | `vestigia.salas.expiracion-revision` | Cada cuánto corre el job que marca las salas vencidas | `PT1M` |
 
 ## Correr las pruebas
-
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
 - `./mvnw verify` corre además las clases `*IT` con maven-failsafe. Esas pruebas arrancan un `postgres:17-alpine` con Testcontainers, así que Docker tiene que estar corriendo.
 
-## Capturas de pruebas y de la base de datos
-
+## Capturas de pruebas 
+### Test de Salas corriendo:
+![alt text](docs/capturas/pruebas/salas-tests.png)
 
 ## Construir y correr la imagen Docker
 
