@@ -241,7 +241,9 @@ espera 200
 comprueba 'all(.puzzles[]; .estado == "resuelto")' 'los cuatro puzzles resueltos'
 comprueba '.escena_actual == "desenlace"' 'escena desenlace'
 comprueba '[.descubrimientos[] | select(.origen == "servidor") | .clave] == ["coordenada_a","coordenada_b","observatorio_visible","magnetar_localizado"]' 'los cuatro resultados del servidor, en orden'
+# shellcheck disable=SC2016 # $a y $b son variables de jq, no de bash.
 comprueba '(.descubrimientos[] | select(.clave == "coordenada_a") | .datos) as $a | $a.tipo == "ascension_recta" and ($a.valor | type == "string" and length > 0)' 'coordenada_a es ascensión recta en texto'
+# shellcheck disable=SC2016
 comprueba '(.descubrimientos[] | select(.clave == "coordenada_b") | .datos) as $b | $b.tipo == "declinacion" and ($b.valor | type == "string" and length > 0)' 'coordenada_b es declinación en texto'
 ok "4 puzzles resueltos; AR $(printf '%s' "$CUERPO" | jq -r '.descubrimientos[] | select(.clave == "coordenada_a") | .datos.valor'), DEC $(printf '%s' "$CUERPO" | jq -r '.descubrimientos[] | select(.clave == "coordenada_b") | .datos.valor'); magnetar_localizado"
 

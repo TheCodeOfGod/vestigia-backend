@@ -1,0 +1,25 @@
+name: Health de producción
+
+# Corre cuando Railway informa a GitHub que terminó un despliegue con éxito, no en el push: con "Wait for CI",
+# Railway espera los checks del push antes de desplegar, y un check que espera el despliegue nunca vería la versión
+# nueva. También se puede lanzar a mano desde la pestaña Actions.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: /actuator/health en UP
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # La URL pública de Railway es una variable del repositorio, no un secreto. Sin ella, el script avisa y sale con 0.
+      - run: scripts/esperar-health.sh "$RAILWAY_PUBLIC_URL"
+        env:
+          RAILWAY_PUBLIC_URL: ${{ vars.RAILWAY_PUBLIC_URL }}
+          ESPERA_INICIAL: '15'

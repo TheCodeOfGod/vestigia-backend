@@ -206,7 +206,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 
 - [ ] **Paso 0:** decidir repo separado, copiar el backend (con historial), configurar acceso y secretos.
 - [x] **Paso 1: Base.** Limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
-  - Pendiente de Raúl: el primer despliegue en Railway y el job de CI que revisa `/actuator/health` después del despliegue (ver `docs/despliegue.md`).
+  - Pendiente de Raúl: el primer despliegue en Railway y la variable `RAILWAY_PUBLIC_URL` del workflow que revisa `/actuator/health` después del despliegue (el workflow lo agregó el Paso 7; ver `docs/despliegue.md`).
   - El workflow `ci.yml` se validó con actionlint. Corrió bien en GitHub el 26 de octubre; desde el 5 de noviembre no arranca (O11).
 - [x] **Paso 2: Salas.** Catálogo de pueblos (seed aprobado), crear, unirse, estado, expiración, autenticación por token.
   - `V2__seed_pueblos.sql` carga los 101 códigos aprobados por Raúl.
@@ -235,6 +235,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `scripts/smoke-test.sh <url> [pueblo]` juega la partida completa con `curl` y `jq`, sale con código distinto de 0 si algo falla y cierra la sala al salir. `SmokeTestIT` y `SmokeTestFalloIT` lo corren en `./mvnw verify`.
   - Revisado contra la imagen: logs sin tokens ni `Authorization`, actuator solo con `health`, errores sin stacktrace, `ddl-auto=validate`, sin secretos en el repo. `ConfiguracionDespliegueIT` fija lo que se puede probar en Maven.
   - `docs/despliegue.md` gana el mapeo de variables desde el Postgres de Railway, las decisiones pendientes (Swagger, página de prueba, O10, P9) y la lista "Primer despliegue: pasos para Raúl". Los nombres de Railway quedan marcados por verificar.
+  - `ci.yml` corre también en `push` a `main`, que es lo que espera Railway con "Wait for CI". El workflow nuevo `salud-produccion.yml` revisa `/actuator/health` de la URL real tras cada despliegue (O2), con `scripts/esperar-health.sh`.
   - Evidencia en `docs/pruebas/paso-7-railway.md`.
 
 ## 11. Pendientes
@@ -263,7 +264,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Pendiente |
 |---|---|
 | O1 | Primer despliegue en Railway y URL de producción |
-| O2 | Job de CI posterior al despliegue en `main` (necesita la URL de Railway) |
+| O2 | El workflow "Health de producción" (`salud-produccion.yml`, Paso 7) ya existe: corre tras cada despliegue exitoso (`deployment_status`) o a mano. Falta que Raúl cree la variable del repositorio `RAILWAY_PUBLIC_URL` y compruebe que Railway publica sus despliegues en GitHub |
 | O3 | La PWA todavía llama a `/api/salas` (CRUD del laboratorio que el Paso 1 retiró; responde `404`), según su código del 6 de noviembre. `docs/integracion-pwa.md` le indica cambiar a `GET /api/v1/pueblos`. Falta que el equipo de la PWA lo cambie |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |

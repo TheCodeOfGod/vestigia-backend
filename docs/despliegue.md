@@ -125,7 +125,7 @@ Cada paso es manual. Marca cada casilla al terminarlo.
 3. [ ] Agrega un servicio desde el repo de GitHub `vestigia-backend`, rama `main`. Railway detecta el `Dockerfile` de la raíz **(por verificar en Railway que use el Dockerfile y no otro builder)**.
 4. [ ] En las variables del servicio del backend, define `DB_URL`, `DB_USER` y `DB_PASSWORD` con las referencias de la tabla de mapeo, y `CORS_ALLOWED_ORIGINS` con la URL de la PWA (si todavía no la tienes, deja `http://localhost:5173` y cámbiala cuando llegue C6). No definas `PORT`: Railway lo pone **(por verificar en Railway)**.
 5. [ ] En la configuración del despliegue del backend, pon `/actuator/health` como ruta del health check **(por verificar el nombre exacto de la opción)**. El backend tarda unos segundos en arrancar; el tiempo de espera por defecto de Railway debería sobrar.
-6. [ ] Activa la opción que espera a que pasen los checks de GitHub antes de desplegar **(por verificar el nombre exacto de la opción, algo como "Wait for CI")**. Mientras el CI siga en `startup_failure`, esa opción podría bloquear todos los despliegues: actívala cuando el CI vuelva a correr.
+6. [ ] Activa la opción que espera a que pasen los checks de GitHub antes de desplegar **(por verificar el nombre exacto de la opción, algo como "Wait for CI")**. Railway espera los checks del commit de `main` que va a desplegar; por eso `ci.yml` también corre en `push` a `main`, no solo en los PR. Mientras el CI siga en `startup_failure`, esa opción podría bloquear todos los despliegues: actívala cuando el CI vuelva a correr.
 7. [ ] Deja el servicio en **una réplica**.
 8. [ ] Genera el dominio público del backend (algo como `https://<servicio>.up.railway.app`) **(por verificar en Railway)**. Anótalo: es la URL para Unity, Flutter, la PWA y la prueba de humo.
 9. [ ] Despliega y espera a que Railway marque el despliegue como activo.
@@ -137,7 +137,7 @@ Cada paso es manual. Marca cada casilla al terminarlo.
 12. [ ] Revisa los logs del despliegue (sección siguiente).
 13. [ ] Si decidiste algo de O10, D-Swagger o D-Prueba, define sus variables, vuelve a desplegar y repite los pasos 10 y 11. Para O10, abre `https://<tu-servicio>.up.railway.app/prueba-ws.html`, crea una sala y conecta el panel del juego: debe llegar `auth.ok`.
 14. [ ] Comparte la URL con Unity, Flutter y la PWA, y agrégala a la sección de pendientes de `docs/PLAN.md` (O1).
-15. [ ] Con la URL ya fija, crea el job de GitHub Actions posterior al despliegue que revisa `/actuator/health` con reintentos (O2).
+15. [ ] Con la URL ya fija, crea en GitHub la variable del repositorio `RAILWAY_PUBLIC_URL` (**Settings → Secrets and variables → Actions → Variables → New repository variable**) con la URL pública, sin `/` al final. No es un secreto. Sin ella, el workflow "Health de producción" se salta con un aviso. Pruébalo con **Actions → Health de producción → Run workflow** (sección "CI").
 
 ## Qué mirar en los logs
 
@@ -188,14 +188,23 @@ scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR  # o uno en c
 
 ## CI
 
-`.github/workflows/ci.yml` corre en cada PR a `develop` y `main`: Java 21 (Temurin) con caché de Maven, `./mvnw -B verify` (incluye las `*IT` con Postgres de Testcontainers y la prueba de humo, que usa `bash`, `curl` y `jq` del runner) y, si pasa, `docker build`. Usa `actions/checkout@v7` y `actions/setup-java@v6`, que existen (últimas: v7.0.1 y v6.2.0). `actionlint` 1.7.7 no encuentra errores.
+`.github/workflows/ci.yml` corre en cada PR a `develop` y `main` y en cada `push` a `main` (lo que espera Railway con "Wait for CI"): Java 21 (Temurin) con caché de Maven, `./mvnw -B verify` (incluye las `*IT` con Postgres de Testcontainers y la prueba de humo, que usa `bash`, `curl` y `jq` del runner) y, si pasa, `docker build`. Usa `actions/checkout@v7` y `actions/setup-java@v6`, que existen (últimas: v7.0.1 y v6.2.0). `actionlint` 1.7.7 no encuentra errores en `ci.yml` ni en `salud-produccion.yml`, y `shellcheck` 0.10.0 tampoco en `scripts/esperar-health.sh` ni en `scripts/smoke-test.sh`.
 
 **Desde el 5 de noviembre de 2026 ninguna ejecución arranca.** Todas terminan en `startup_failure` sin jobs, con el workflow sin nombre (`path: BuildFailed`), también las de PR que ya se mezclaron. La última ejecución buena fue el 26 de octubre (rama `feature/base`), y `ci.yml` no cambió desde entonces. El repositorio es privado, Actions está habilitado y permite todas las acciones. Apunta a la cuenta o al repositorio, no al YAML: lo más probable son los minutos o la facturación de Actions de un repo privado.
+
+### Health de producción
+
+`.github/workflows/salud-produccion.yml` revisa `/actuator/health` de la URL real después de cada despliegue (O2). Corre `scripts/esperar-health.sh` con la URL de la variable del repositorio `RAILWAY_PUBLIC_URL`: espera 15 s y hace hasta 10 intentos, cada 30 s, hasta ver `"status":"UP"`. Si no llega, el job falla con un `::error::`. Si la variable no existe, avisa con un `::warning::` y termina bien.
+
+- **Cuándo corre:** con el evento `deployment_status` en estado `success`, que manda Railway a GitHub al terminar un despliegue **(por verificar en Railway que publique sus despliegues en GitHub; si aparecen en la sección "Deployments" del repo, lo hace)**. También a mano, con **Run workflow** (`workflow_dispatch`).
+- **Por qué no en el `push` a `main`:** con "Wait for CI", Railway espera los checks del push antes de desplegar. Un check que espera el despliegue revisaría la versión anterior o, en el primer despliegue, fallaría y dejaría a Railway esperando un CI en rojo.
+- Si Railway no publica sus despliegues en GitHub, el workflow no se dispara solo: lánzalo a mano después de cada despliegue, o queda para otro paso cambiarlo a `workflow_run` del `CI`.
+- Solo comprueba que el servicio responde `UP`, no qué commit corre: actuator no expone la versión.
 
 Paso manual de Raúl: en GitHub, revisa **Settings → Billing and plans** de la cuenta dueña del repo (límite de gasto y minutos de Actions) y **Settings → Actions** del repo, y abre una ejecución fallida en la pestaña **Actions** para leer el motivo. Mientras tanto, el CI no protege `main`: corre `./mvnw verify` en local antes de cada merge.
 
 ## Pendiente
 
 - El primer despliegue (O1).
-- El job de GitHub Actions posterior al despliegue en `main` que revise `/actuator/health` de la URL real con reintentos (O2). Necesita la URL pública que asigne Railway.
+- Crear la variable `RAILWAY_PUBLIC_URL` para que corra el workflow "Health de producción" (O2), y comprobar que Railway publica sus despliegues en GitHub.
 - Que el CI vuelva a arrancar en GitHub.
