@@ -435,6 +435,30 @@ class PuzzlesIT {
 	}
 
 	@Test
+	@DisplayName("Resolver es una sola transacción: si crear el resultado falla, el puzzle no queda resuelto, no se guarda ningún evento y la sala no se renueva")
+	void resolverEsUnaSolaTransaccion() throws Exception {
+		String juego = api.tokenJuego("HUAUCHINANGO");
+		String app = api.tokenApp("HUAUCHINANGO");
+		piezas("HUAUCHINANGO", juego);
+		descubrir("HUAUCHINANGO", "lookout_enabled", juego);
+		UUID sala = salaViva("HUAUCHINANGO");
+		jdbc.update("INSERT INTO descubrimientos (sala_id, clave, datos, origen) VALUES (?, 'coordenada_b', '{}', 'servidor')",
+				sala);
+		List<String> eventosAntes = eventos("HUAUCHINANGO");
+		Instant expiraAntes = expiraEn("HUAUCHINANGO");
+		reloj.avanzar(Duration.ofMinutes(10));
+
+		HttpResponse<String> respuesta = reportar("HUAUCHINANGO", "photo", COMPLETADA, app);
+
+		assertThat(respuesta.statusCode()).isEqualTo(500);
+		assertThat(api.cuerpo(respuesta).get("codigo").isNull()).isTrue();
+		assertThat(fila("HUAUCHINANGO", "photo")).isEqualTo("disponible:{}");
+		assertThat(estados("HUAUCHINANGO")).contains("lookout:bloqueado");
+		assertThat(eventos("HUAUCHINANGO")).isEqualTo(eventosAntes);
+		assertThat(expiraEn("HUAUCHINANGO")).isEqualTo(expiraAntes);
+	}
+
+	@Test
 	@DisplayName("Con expira_en vencido y sin que corra el job, PUT puzzles responde 401 y no resuelve nada")
 	void salaVencidaDa401() throws Exception {
 		String juego = api.tokenJuego("HUAMANTLA");
