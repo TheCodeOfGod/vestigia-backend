@@ -78,6 +78,13 @@ public class SalaService {
 	public record Credencial(UUID salaId, String codigo, Rol rol) {
 	}
 
+	/** Qué dispositivos de una sala están conectados por WebSocket. Lo implementa el registro de sesiones de ws. */
+	public interface Presencia {
+
+		Sala.Dispositivos dispositivos(UUID salaId);
+
+	}
+
 	private final CodigoPuebloRepository pueblos;
 
 	private final SalaRepository salas;
@@ -88,18 +95,21 @@ public class SalaService {
 
 	private final ActividadService actividad;
 
+	private final Presencia presencia;
+
 	private final Clock clock;
 
 	private final Duration expiracion;
 
 	public SalaService(CodigoPuebloRepository pueblos, SalaRepository salas, PuzzleEstadoRepository puzzles,
-			DescubrimientoRepository descubrimientos, ActividadService actividad, Clock clock,
+			DescubrimientoRepository descubrimientos, ActividadService actividad, Presencia presencia, Clock clock,
 			@Value("${vestigia.salas.expiracion}") Duration expiracion) {
 		this.pueblos = pueblos;
 		this.salas = salas;
 		this.puzzles = puzzles;
 		this.descubrimientos = descubrimientos;
 		this.actividad = actividad;
+		this.presencia = presencia;
 		this.clock = clock;
 		this.expiracion = expiracion;
 	}
@@ -201,7 +211,7 @@ public class SalaService {
 				.map(d -> new Sala.Descubrimiento(d.getClave(), d.getDatos(), d.getOrigen(), d.getCreadoEn()))
 				.toList();
 		return new Sala(sala.getCodigo(), sala.getEstado(), sala.getEscenaActual(), puzzlesSala, descubrimientosSala,
-				new Sala.Dispositivos(false, false), sala.getCreadaEn(), sala.getExpiraEn());
+				presencia.dispositivos(salaId), sala.getCreadaEn(), sala.getExpiraEn());
 	}
 
 	/**

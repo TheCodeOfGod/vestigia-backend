@@ -71,11 +71,14 @@ class SalaServiceTest {
 	@Mock
 	private ActividadService actividad;
 
+	@Mock
+	private SalaService.Presencia presencia;
+
 	private SalaService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new SalaService(pueblos, salas, puzzles, descubrimientos, actividad,
+		service = new SalaService(pueblos, salas, puzzles, descubrimientos, actividad, presencia,
 				Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
 	}
 
@@ -278,7 +281,8 @@ class SalaServiceTest {
 	}
 
 	@Test
-	void estadoOrdenaLosPuzzlesYReportaDispositivosDesconectados() {
+	@DisplayName("El estado ordena los puzzles y reporta los dispositivos que da la presencia del WebSocket")
+	void estadoOrdenaLosPuzzlesYReportaLaPresencia() {
 		UUID id = UUID.randomUUID();
 		SalaModel sala = new SalaModel();
 		sala.setCodigo("ALAMOS");
@@ -291,12 +295,13 @@ class SalaServiceTest {
 				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatory, PuzzleEstadoModel.Estado.bloqueado, AHORA),
 				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado, AHORA)));
 		when(descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(id)).thenReturn(List.of());
+		when(presencia.dispositivos(id)).thenReturn(new Sala.Dispositivos(true, false));
 
 		Sala estado = service.estado(id);
 
 		assertThat(estado.puzzles()).extracting(Sala.Puzzle::puzzle)
 				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatory);
-		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(false, false));
+		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(true, false));
 		assertThat(estado.expiraEn()).isEqualTo(AHORA.plusSeconds(60));
 	}
 

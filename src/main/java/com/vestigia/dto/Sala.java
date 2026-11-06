@@ -18,7 +18,7 @@ public record Sala(String codigo, SalaModel.Estado estado, SalaModel.Escena esce
 			Instant creadoEn) {
 	}
 
-	/** Presencia por WebSocket. Hasta el Paso 4 los dos valores son siempre false. */
+	/** Qué dispositivos tienen una conexión autenticada en /ws en este momento. */
 	public record Dispositivos(boolean juego, boolean app) {
 	}
 

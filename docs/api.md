@@ -155,7 +155,7 @@ curl http://localhost:8080/api/v1/salas/BACALAR/estado \
 | `estado` | `esperando_app` o `activa`. Una sala terminada ya no se puede consultar con su token |
 | `puzzles` | Siempre los cuatro, en el orden del juego: `radio`, `photo`, `lookout`, `observatory`. `estado` es `bloqueado`, `disponible`, `en_curso` o `resuelto` |
 | `descubrimientos` | `[{clave, datos, origen, creado_en}]` en orden de llegada. `origen` es `juego`, `app` o `servidor` |
-| `dispositivos` | Quién está conectado por WebSocket. **Hasta el Paso 4 los dos valores son siempre `false`** |
+| `dispositivos` | Quién tiene en este momento una conexión autenticada en `/ws` (`docs/tiempo-real.md`): `{"juego": bool, "app": bool}` |
 | `expira_en` | Momento en que la sala expira si nadie escribe antes |
 
 | Error | `message` |

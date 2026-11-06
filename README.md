@@ -5,6 +5,7 @@ Backend de **Vestigia**, el proyecto integrador del grupo IDGS101N de la Univers
 | Documento | Qué tiene |
 |---|---|
 | [`docs/api.md`](docs/api.md) | Endpoints REST con ejemplos de `curl` y errores, para quien integra Unity o Flutter |
+| [`docs/tiempo-real.md`](docs/tiempo-real.md) | WebSocket de `/ws`: autenticación, mensajes con ejemplos, errores, cierres y limitaciones |
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | Tablas, ciclo de vida de una sala y qué se guarda de cada token |
 | [`docs/despliegue.md`](docs/despliegue.md) | Despliegue en Railway |
 
@@ -24,7 +25,9 @@ Todo gira alrededor de la **sala**, que identifica una partida con el nombre de 
 
 **Errores.** Todos tienen el mismo cuerpo JSON (`timestamp`, `status`, `error`, `codigo`, `message`, `path`, `details`). `codigo` siempre viene y vale `null` salvo en los errores que definen uno, como `puzzle_bloqueado`. Los campos del JSON van en `snake_case` y las fechas en UTC con formato ISO-8601.
 
-**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, puzzles, escena, cierre de sala y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`. El WebSocket de `/ws` rechaza las conexiones hasta que se implemente el tiempo real.
+**Tiempo real.** El juego y la app abren un WebSocket en `/ws` y se autentican con su token en el primer mensaje (`{"type":"auth","payload":{"token":"..."}}`), nunca en la URL. El backend les avisa quién está conectado. Los detalles están en [`docs/tiempo-real.md`](docs/tiempo-real.md). Las conexiones viven en memoria, así que el backend corre en una sola instancia.
+
+**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, puzzles, escena, cierre de sala, el WebSocket de `/ws` y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`.
 
 ## Stack
 
@@ -96,6 +99,9 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 | `vestigia.salas.expiracion` | Tiempo sin actividad tras el cual una sala viva expira, en formato ISO-8601 | `PT2H` |
 | `vestigia.salas.expiracion-revision` | Cada cuánto corre el job que marca las salas vencidas | `PT1M` |
 | `vestigia.descubrimientos.datos-max-bytes` | Tamaño máximo de los `datos` de un descubrimiento, en bytes de JSON | `4096` |
+| `vestigia.ws.auth-plazo` | Tiempo que tiene un cliente de `/ws` para mandar `auth` | `PT5S` |
+| `vestigia.ws.ping` | Cada cuánto manda el servidor un ping a cada conexión de `/ws` | `PT25S` |
+| `vestigia.ws.mensaje-max-caracteres` | Tamaño máximo de un mensaje que manda un cliente por `/ws` | `4096` |
 
 ## Coordenadas del misterio
 
