@@ -13,6 +13,7 @@ import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
 import com.vestigia.service.SalaService;
@@ -32,6 +33,8 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(SalaWebSocketHandler.class);
 
+	static final String LIMITE_ENVIO_TOMCAT = "org.apache.tomcat.websocket.BLOCKING_SEND_TIMEOUT";
+
 	private final SesionesWebSocket sesiones;
 
 	private final SalaService salaService;
@@ -42,18 +45,27 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 
 	private final Duration plazoAuth;
 
+	private final Duration limiteEnvio;
+
 	public SalaWebSocketHandler(SesionesWebSocket sesiones, SalaService salaService, JsonMapper json,
-			TaskScheduler scheduler, @Value("${vestigia.ws.auth-plazo}") Duration plazoAuth) {
+			TaskScheduler scheduler, @Value("${vestigia.ws.auth-plazo}") Duration plazoAuth,
+			@Value("${vestigia.ws.envio-limite}") Duration limiteEnvio) {
 		this.sesiones = sesiones;
 		this.salaService = salaService;
 		this.json = json;
 		this.scheduler = scheduler;
 		this.plazoAuth = plazoAuth;
+		this.limiteEnvio = limiteEnvio;
 	}
 
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) {
 		log.info("[WS] conexión abierta {}", session.getId());
+		// Tomcat corta un envío bloqueado (cliente que no lee) tras este tiempo, en lugar de sus 20 s por defecto.
+		if (session instanceof NativeWebSocketSession nativa
+				&& nativa.getNativeSession() instanceof jakarta.websocket.Session tomcat) {
+			tomcat.getUserProperties().put(LIMITE_ENVIO_TOMCAT, limiteEnvio.toMillis());
+		}
 		scheduler.schedule(() -> {
 			if (sesiones.cerrarSiNoSeAutentico(session, Cierre.SIN_AUTH_A_TIEMPO.status())) {
 				log.info("[WS] sin auth a tiempo {}", session.getId());
@@ -93,10 +105,10 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 			return;
 		}
 		JsonNode token = mensaje.get().path("payload").path("token");
-		Optional<SalaService.Credencial> credencial = sesiones.conectar(session,
-				() -> token.isString() && !token.asString().isBlank() ? salaService.autenticar(token.asString())
-						: Optional.empty());
-		if (credencial.isEmpty() && sesiones.cerrarSiNoSeAutentico(session, Cierre.TOKEN_INVALIDO.status())) {
+		Optional<SalaService.Credencial> credencial = token.isString() && !token.asString().isBlank()
+				? salaService.autenticar(token.asString()) : Optional.empty();
+		boolean conectada = credencial.isPresent() && sesiones.conectar(session, credencial.get());
+		if (!conectada && sesiones.cerrarSiNoSeAutentico(session, Cierre.TOKEN_INVALIDO.status())) {
 			log.info("[WS] auth rechazada {}", session.getId());
 		}
 	}

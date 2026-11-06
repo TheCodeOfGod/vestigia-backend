@@ -60,7 +60,8 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Id de puzzle desconocido en la ruta | `400` con la lista de ids, igual que una escena desconocida. También para los ids viejos `fotografia`, `mirador` y `observatorio` (entrega 3b) | 🟡 |
 | Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
 | Segunda conexión de WebSocket del mismo rol | Reemplaza a la anterior, que cierra con `4009`; el otro rol no recibe `desconectado` (Paso 4) | 🟡 |
-| Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada` (Paso 4) | 🟡 |
+| Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada`; `4500` a un cliente que no lee (Paso 4) | 🟡 |
+| Cliente de WebSocket que no lee | Su envío se corta a los 5 s o al juntar 64 KB sin enviar y se cierra solo su conexión (`4500`); no frena a nadie más (Paso 4, ronda 1) | 🟡 |
 | Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4) | 🟡 |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 

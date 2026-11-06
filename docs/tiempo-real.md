@@ -117,6 +117,7 @@ Quien hizo la escritura también recibe sus mensajes. Un cliente puede usarlos p
 | `1000` | `La sala se cerró` | Después de `sala.cerrada` | No reconectes: la sala terminó |
 | `4009` | `Otra conexión del mismo rol tomó su lugar` | El mismo rol se autenticó en otra conexión | No reconectes en automático: otra copia del cliente está usando la sala |
 | `1009` | La pone Tomcat | El mensaje pasa de 4096 caracteres (`vestigia.ws.mensaje-max-caracteres`) | Ningún mensaje válido se acerca a ese tamaño |
+| `4500` | `El cliente no lee sus mensajes o falló un envío` | El servidor no pudo entregar un mensaje en 5 s (`vestigia.ws.envio-limite`), se juntaron más de 64 KB sin enviar (`vestigia.ws.envio-max-bytes`) o falló un envío | Reconecta y pide `GET estado`. Casi nunca llega: el cliente que provoca este cierre no está leyendo |
 
 ## Decisiones tomadas por los agentes
 
@@ -136,11 +137,12 @@ La especificación (`/ws`, `{type, payload}`, `auth` en menos de 5 s, `auth.ok` 
 | Límite de tamaño | 4096 caracteres por mensaje de texto (4096 bytes si es binario), configurable. Más grande cierra con `1009` | Un `auth` mide menos de 100 caracteres |
 | Mensajes binarios | Antes de `auth` cierran con `4000`; después responden `error` con `json_invalido` | Mismo trato que cualquier mensaje inválido |
 | Ping | Ping del protocolo cada 25 s a las conexiones autenticadas. El servidor no cierra a quien no responde el pong | Algunas bibliotecas de Unity podrían no responder pongs; cerrar por eso provocaría reconexiones en bucle |
+| Cliente que no lee | Cada conexión tiene su cola de salida y un hilo virtual la escribe en orden. Un envío bloqueado se corta a los 5 s y una cola de más de 64 KB se descarta; en los dos casos se cierra solo esa conexión con `4500` | Un cliente atascado no debe frenar a las demás salas, a `GET estado` ni a las escrituras REST (ronda 1 de revisión, H1) |
 
 ## Limitaciones conocidas
 
 - **Una sola instancia.** Las conexiones viven en la memoria del backend. Con dos instancias, cada una vería solo sus conexiones: los avisos y `dispositivos` saldrían incompletos. Railway debe correr una sola réplica (`docs/despliegue.md`). Al reiniciar el backend, todas las conexiones se cierran y los clientes reconectan.
 - **Caída sin aviso.** Si un teléfono pierde la red sin cerrar la conexión, el servidor tarda en notarlo, hasta que falle un envío. Mientras tanto `dispositivos` lo sigue mostrando conectado.
-- **Envíos en serie.** Todos los envíos pasan por un solo candado, para que el orden sea siempre el mismo. Con dos dispositivos por sala y pocas salas a la vez no se nota; un cliente que deja de leer por mucho tiempo podría retrasar los avisos de las demás salas.
+- **Cómo se ordenan los envíos.** Un candado en memoria decide el orden: registrar una conexión, encolar sus mensajes y cerrar una sala nunca se intercalan. Dentro del candado no hay red ni base de datos: el token se valida antes de tomarlo y los envíos los hace después un hilo virtual por conexión, en el orden de su cola. `dispositivos` se lee sin el candado. Un cliente que no lee solo retrasa sus propios mensajes, hasta que su conexión se cierra con `4500`.
 - **Navegadores.** El servidor solo acepta conexiones de navegador desde su mismo origen. Unity y Flutter no mandan el encabezado `Origin`, así que no les afecta.
 - **Sin `orientacion`.** El reenvío del giroscopio al juego (Paso 5) está diferido.

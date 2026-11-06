@@ -102,6 +102,8 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 | `vestigia.ws.auth-plazo` | Tiempo que tiene un cliente de `/ws` para mandar `auth` | `PT5S` |
 | `vestigia.ws.ping` | Cada cuánto manda el servidor un ping a cada conexión de `/ws` | `PT25S` |
 | `vestigia.ws.mensaje-max-caracteres` | Tamaño máximo de un mensaje que manda un cliente por `/ws` | `4096` |
+| `vestigia.ws.envio-limite` | Tiempo máximo de un envío a un cliente de `/ws` que no lee; luego se cierra esa conexión | `PT5S` |
+| `vestigia.ws.envio-max-bytes` | Bytes que pueden esperar en la cola de salida de una conexión de `/ws`; más la cierran | `65536` |
 
 ## Coordenadas del misterio
 
