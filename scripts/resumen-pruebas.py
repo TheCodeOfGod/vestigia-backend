@@ -51,9 +51,11 @@ def contar(pruebas):
     return {r: sum(1 for p in pruebas if p["resultado"] == r) for r in RESULTADOS}
 
 
-def git(*args):
+def git(repo, *args):
+    """Corre git en el repo dueño de la carpeta target, no en el directorio actual."""
     try:
-        return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout.strip()
+        return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
+                              check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "?"
 
@@ -67,13 +69,13 @@ def linea_conteo(pruebas, conteo):
             f"{conteo['omitida']} omitidas")
 
 
-def markdown(pruebas, archivos, conteo):
+def markdown(pruebas, archivos, conteo, repo):
     verde = conteo["fallo"] == 0 and conteo["error"] == 0
     fecha = datetime.datetime.fromtimestamp(max(a.stat().st_mtime for a in archivos)).strftime("%Y-%m-%d %H:%M")
-    commit = git("rev-parse", "--short", "HEAD")
-    if git("status", "--porcelain") not in ("", "?"):
+    commit = git(repo, "rev-parse", "--short", "HEAD")
+    if git(repo, "status", "--porcelain") not in ("", "?"):
         commit += " (con cambios sin commitear)"
-    rama = git("rev-parse", "--abbrev-ref", "HEAD")
+    rama = git(repo, "rev-parse", "--abbrev-ref", "HEAD")
     unitarias = sum(1 for p in pruebas if p["tipo"] == "unitaria")
 
     lineas = [
@@ -101,13 +103,14 @@ def main():
     parser.add_argument("--target", default="target", help="carpeta target de Maven (por defecto: target)")
     args = parser.parse_args()
 
-    pruebas, archivos = leer_pruebas(Path(args.target))
+    target = Path(args.target).resolve()
+    pruebas, archivos = leer_pruebas(target)
     if not archivos:
         print(f"No hay reportes en {args.target}/surefire-reports ni {args.target}/failsafe-reports. "
               "Corre ./mvnw verify primero.", file=sys.stderr)
         return 1
     conteo = contar(pruebas)
-    print(linea_conteo(pruebas, conteo) if args.solo_conteo else markdown(pruebas, archivos, conteo))
+    print(linea_conteo(pruebas, conteo) if args.solo_conteo else markdown(pruebas, archivos, conteo, target.parent))
     return 0 if conteo["fallo"] == 0 and conteo["error"] == 0 else 2
 
 
