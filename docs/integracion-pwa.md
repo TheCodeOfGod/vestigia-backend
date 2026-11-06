@@ -2,6 +2,8 @@
 
 Esta guía es para quien programa **la PWA de Vestigia en React con Vite (TypeScript)**. Explica, paso a paso, cómo conectarla al backend de Vestigia, qué puede pedir hoy y qué todavía no existe. No necesitas abrir otras guías ni el código del backend: todo lo que la PWA usa está aquí.
 
+> **Antes de copiar cualquier comando:** todos usan la variable `BASE` con la dirección del backend. Escribe primero `export BASE=http://localhost:8080` en tu terminal. Si el backend corre en otro puerto (por ejemplo `18081`), usa ese número: `export BASE=http://localhost:18081`. Ver la sección 2.1.
+
 Cada respuesta de ejemplo salió de correr el backend real. El cliente de la sección 10, el componente del paso 4 y la declaración de `VITE_API_URL` del paso 1 se comprobaron con `tsc --noEmit` (TypeScript 6.0.3, modo estricto) usando los tipos de React 19 y Vite de la PWA. La regla de caché de la sección 9 es un fragmento de configuración y no se comprobó aparte.
 
 **Índice**
@@ -45,11 +47,13 @@ Hoy lo único que puede pedirle al backend es el **catálogo de pueblos** (los n
 
 Todas las rutas REST empiezan con `/api/v1`. La PWA guarda la URL base en la variable de Vite `VITE_API_URL` (paso 1 de la sección 4); nunca la escribas en el código.
 
-En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo esta línea:
+En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo el número de esta línea:
 
 ```sh
-BASE=http://localhost:8080
+export BASE=http://localhost:8080
 ```
+
+Sin `/` al final. Si abres otra terminal, vuelve a escribir la línea: la variable vive solo en la terminal donde la definiste. `BASE` es solo para tus comandos; la PWA usa `VITE_API_URL`.
 
 ### 2.2 Levantar el backend en tu computadora
 
@@ -141,9 +145,9 @@ Si el origen está permitido, la respuesta trae `Access-Control-Allow-Origin: ht
 |---|---|
 | `GET /api/v1/salas/{codigo}/estado` | `401` `Falta el token: envía el encabezado Authorization: Bearer <token>` |
 | `POST /api/v1/salas/{codigo}/descubrimientos`, `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}`, `PUT /api/v1/salas/{codigo}/escena`, `DELETE /api/v1/salas/{codigo}` | `401`: la PWA no tiene token |
-| `POST /api/v1/salas` | **No da error**: crearía una sala de verdad y ocuparía un pueblo. Es solo del juego |
-| `POST /api/v1/salas/{codigo}/unirse` | **No da error**: ocuparía el lugar del teléfono de una partida real. Es solo de la app |
-| WebSocket `/ws` | Sin un token válido el servidor cierra la conexión (`4001` con un token inválido, `4008` si no llega `auth` en 5 s). La PWA no necesita tiempo real |
+| `POST /api/v1/salas` | **No da error**: no pide token, a propósito, porque es como el juego obtiene el suyo. Crearía una sala de verdad y ocuparía un pueblo. Es solo del juego: la PWA no debe llamarlo |
+| `POST /api/v1/salas/{codigo}/unirse` | **No da error**: no pide token, a propósito, porque es como la app obtiene el suyo. Ocuparía el lugar del teléfono de una partida real. Es solo de la app: la PWA no debe llamarlo |
+| WebSocket `/ws` | Sin un token válido el servidor cierra la conexión. Lo indica con un **código de cierre del WebSocket**, no con un código HTTP: `4001` si el token es inválido y `4008` si no llega `auth` en 5 s. La PWA no necesita tiempo real |
 | `/api/salas` (sin `/v1`) | `404`: era del laboratorio y ya no existe |
 
 ## 4. Recorrido paso a paso
@@ -228,6 +232,8 @@ Sin token, sin cuerpo y sin encabezados especiales. Respuesta `200 OK` (recortad
 | `disponibles` | `true` | Solo los pueblos libres |
 | `disponibles` | `false` o sin el parámetro | Los 101 pueblos; los ocupados traen `"libre": false` |
 
+Manda siempre `true` o `false`, en minúsculas. El backend (Spring) también acepta otras formas, sin importar mayúsculas: `1`, `yes` y `on` filtran como `true`; `0`, `no`, `off` y el parámetro vacío (`?disponibles=`) devuelven todos, como `false`. Cualquier otro valor (`si`, `x`) responde `400`.
+
 | Campo | Tipo | Qué es |
 |---|---|---|
 | `codigo` | `string` | Nombre del pueblo en mayúsculas, sin acentos ni ñ: `"BACALAR"` |
@@ -241,7 +247,7 @@ La lista viene en orden alfabético. Un pueblo vuelve a estar libre cuando su pa
 
 | Respuesta | Cuándo | Qué hacer |
 |---|---|---|
-| `400` `Valor inválido para 'disponibles'` | `disponibles` no es `true` ni `false` (`?disponibles=si`) | Error de programación: manda `true` o nada |
+| `400` `Valor inválido para 'disponibles'` | `disponibles` no es un booleano que Spring reconozca (`?disponibles=si`, `?disponibles=x`) | Error de programación: manda `true` o nada |
 | `403` con el texto `Invalid CORS request` (no es JSON) | El navegador mandó un `Origin` que el backend no permite | Agrega tu origen a `CORS_ALLOWED_ORIGINS` en local, o pide que lo agreguen en producción (paso 6) |
 | Sin respuesta | Sin red, backend apagado o `VITE_API_URL` mal | Muestra "No hay conexión con el servidor" y un botón de reintentar |
 
@@ -331,7 +337,7 @@ Pon un límite de tiempo a cada petición (`AbortSignal.timeout(10000)`) para no
 
 El backend solo acepta peticiones del navegador desde los orígenes de su variable `CORS_ALLOWED_ORIGINS`. Los de desarrollo ya están; el de producción no.
 
-1. Averigua el origen exacto donde quedará la PWA: esquema, dominio y puerto, **sin `/` al final**. Por ejemplo `https://vestigia-pwa.example`. `https://vestigia-pwa.example/` (con `/`) y `http://…` (sin la `s`) son orígenes distintos.
+1. Averigua el origen exacto donde quedará la PWA: esquema, dominio y puerto. Por ejemplo `https://vestigia-pwa.example`. Así se escribe en `CORS_ALLOWED_ORIGINS`: **sin `/` al final**, porque `https://vestigia-pwa.example/` no coincidiría con lo que manda el navegador. Esa regla es para quien configura la variable; el navegador manda el encabezado `Origin` solo, siempre sin `/`, y tú no lo controlas. `http://…` (sin la `s`) es otro origen.
 2. Mándaselo a Raúl, que lo agrega a `CORS_ALLOWED_ORIGINS` en el servidor de producción.
 3. Cuando lo confirme, compruébalo:
 
@@ -463,7 +469,7 @@ Recomendación para `vite.config.ts` (la regla de caché que hoy apunta a `/api/
 
 Un solo archivo, `src/vestigiaApi.ts`: los tipos de las respuestas, una función `get` que separa los errores del servidor de la falta de red, la llamada a pueblos y el hook de React.
 
-> Comprobado con `tsc --noEmit` (TypeScript 6.0.3, modo estricto, la misma configuración de la PWA) junto con el componente del paso 4, que va en su propio `.tsx`.
+> Comprobado por quien escribió esta guía, el 6 de noviembre de 2026, con el `tsc` 6.0.3 de `node_modules` del repositorio de la PWA (`vestigia-pwa`) y sus tipos de React 19 y Vite: `tsc --noEmit` en modo estricto, con las opciones de `tsconfig.app.json` de la PWA, sobre este archivo como `src/vestigiaApi.ts`, el componente del paso 4 como `src/ListaPueblos.tsx` y la declaración del paso 1 en `src/vite-env.d.ts`. Sin errores.
 
 ```ts
 import { useCallback, useEffect, useState } from 'react';
@@ -591,6 +597,6 @@ export function usePueblos(soloLibres: boolean) {
 | `fetch` a `/actuator/health` falla desde el navegador | `/actuator/health` no tiene CORS | Usa `curl`, o `GET /api/v1/pueblos` como prueba de vida |
 | `401` `Falta el token…` | Llamaste una ruta de salas | La PWA solo usa `/api/v1/pueblos` |
 | La lista de libres no cambia aunque alguien creó una sala | El service worker sirve una copia vieja | Usa `NetworkFirst` (sección 9) |
-| `400` `Valor inválido para 'disponibles'` | `?disponibles=si` o `?disponibles=1` | Usa `?disponibles=true` o no mandes el parámetro |
+| `400` `Valor inválido para 'disponibles'` | `?disponibles=si` o `?disponibles=x` | Usa `?disponibles=true` o no mandes el parámetro |
 | `404` con una `/` al final (`/api/v1/pueblos/`) | Las rutas no aceptan `/` final | Quita la `/` |
 | El cambio de `VITE_API_URL` no se nota en producción | Vite fija la variable al compilar | Vuelve a correr `vite build` |
