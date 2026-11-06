@@ -82,7 +82,7 @@ ALTER TABLE puzzles_estado
 | `test/.../ModeloIT.java` | Usa `Puzzle.mirador` |
 | `test/.../SalaServiceTest.java` | Usa `Puzzle.observatorio` |
 | `docs/api.md`, `docs/modelo-datos.md`, `README.md` | Nombres en ejemplos y tablas |
-| Guías de Unity y Flutter (PDF) | Se regeneran |
+| `docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md` | Una guía independiente por cliente, paso a paso (Paso 6) |
 
 Las claves de descubrimiento (`pieza_1`, `coordenada_a`...), los campos y los estados **no se renombran**.
 
@@ -198,7 +198,7 @@ Se mantiene la regla de siempre: `./mvnw verify` antes de cada commit.
 | `docs/api.md` | Los endpoints nuevos, con ejemplos de `curl` y errores |
 | `docs/modelo-datos.md` | Ids de puzzle y claves de descubrimiento |
 | `docs/PLAN.md` | Marcar entregas hechas |
-| Guías de Unity y Flutter | Regenerar los PDF con los puzzles adaptados |
+| `docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md` | Una guía por cliente, con cada petición completa y fragmentos copiables. Se crean en el Paso 6 |
 
 ---
 
@@ -236,4 +236,4 @@ Se mantiene la regla de siempre: `./mvnw verify` antes de cada commit.
 | Sin avisos intermedios del mirador, el juego no recibe `lente_limpio` ni `obs_encontrado` | La PC no reacciona a cada paso del mirador | La app puede registrar esas banderas con `POST /descubrimientos` si Unity las necesita (C2) |
 | Unity no confirma `137` y `+042` | El juego mostraría pistas distintas | Confirmar con Unity antes de la entrega 3b (C1) |
 | El arte final del mirador cambia el objetivo | La app necesita nuevos valores | Están en la app, no en el servidor |
-| Las guías PDF actuales están desactualizadas | El equipo de Unity y la app integra con datos viejos | Regenerar al terminar la entrega 3b |
+| Las guías PDF que se compartieron antes están desactualizadas | El equipo de Unity y la app integra con datos viejos | Las reemplazan las tres guías de `docs/` del Paso 6. Avisar al equipo de que ignoren los PDF anteriores |

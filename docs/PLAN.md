@@ -207,7 +207,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - 3b. `PUT` de los cuatro puzzles (`{sintonizada: true}`, `{completada: true}` o `{iniciado: true}`), habilitación de dependientes, creación de los descubrimientos resultado y el campo `codigo` en los errores.
 - [ ] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
-- [ ] **Paso 6: Cierre.** Swagger, `docs/tiempo-real.md`, guías para Unity y Flutter, página HTML de prueba.
+- [ ] **Paso 6: Cierre.** Swagger, `docs/tiempo-real.md`, una guía de integración por cliente (`docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`) y página HTML de prueba.
 
 ## 11. Pendientes
 
@@ -236,7 +236,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | O3 | Confirmar que la PWA ya no consume `/api/salas`, que el Paso 1 retiró |
 | O4 | Crear y unirse todavía no guardan un `evento` ni emiten mensajes. Entra con los Pasos 3 y 4 |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), la sala sigue viva |
-| O6 | Regenerar las guías de Unity y Flutter con los puzzles adaptados |
+| O6 | Escribir una guía por cliente (Unity, Flutter y PWA), en español sencillo y con cada paso explicado. Entra con el Paso 6 |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
 | O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |
 | O9 | Valores definitivos del canon (AR, DEC, umbrales y rangos del mirador), que dependen de pruebas |
