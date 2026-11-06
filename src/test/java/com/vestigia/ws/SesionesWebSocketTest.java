@@ -105,13 +105,16 @@ class SesionesWebSocketTest {
 	@DisplayName("Si la cola de una conexión pasa del límite de bytes, se descarta y la conexión se cierra con 4500")
 	void colaLlenaCierraCon4500() throws Exception {
 		SesionesWebSocket sesiones = new SesionesWebSocket(JSON, 200, Executors.newVirtualThreadPerTaskExecutor());
+		CountDownLatch bloqueado = new CountDownLatch(1);
 		CountDownLatch soltar = new CountDownLatch(1);
 		WebSocketSession lenta = sesion("lenta");
 		doAnswer(inv -> {
+			bloqueado.countDown();
 			soltar.await();
 			return null;
 		}).when(lenta).sendMessage(any());
 		sesiones.conectar(lenta, new Credencial(salaA, "BACALAR", Rol.app));
+		assertThat(bloqueado.await(2, TimeUnit.SECONDS)).as("el escritor tomó auth.ok y está bloqueado").isTrue();
 
 		for (int i = 0; i < 10; i++) {
 			sesiones.enviar(salaA, SesionesWebSocket.TODOS, new Mensaje("relleno", Map.of("i", "x".repeat(40))));
