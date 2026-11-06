@@ -216,6 +216,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Pendiente | Quién decide | Bloquea | Mi recomendación |
 |---|---|---|---|---|
 | P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
+| P8 | Qué rol puede mandar cada clave de descubrimiento. Hoy la app también puede registrar `pieza_*`, `pescador_dialogo_completo`, `lookout_enabled` y `observatory_enabled`, que en el diseño manda el juego, y así habilitar puzzles sin pasar por él. El contrato vigente dice "juego o app" (hallazgo B3 de la revisión del 3a) | Raúl | No bloquea; conviene decidirlo antes del 3b | Restringir esas claves al rol `juego` (`403` para la app) si Unity confirma que las manda todas (C2) |
 
 ### Por confirmar con otros equipos
 
