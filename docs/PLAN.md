@@ -238,6 +238,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 |---|---|---|---|---|
 | P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
 | P8 | Qué rol puede mandar cada clave de descubrimiento. Hoy la app también puede registrar `pieza_*`, `pescador_dialogo_completo`, `lookout_enabled` y `observatory_enabled`, que en el diseño manda el juego, y así habilitar puzzles sin pasar por él. El contrato vigente dice "juego o app" (hallazgo B3 de la revisión del 3a). Lo mismo pasa con `PUT puzzles`: cualquier rol puede reportar cualquier puzzle, aunque en el diseño la radio la manda el juego y los demás la app | Raúl | No bloquea. Sigue abierto tras el 3b | Restringir esas claves al rol `juego` (`403` para la app) si Unity confirma que las manda todas (C2) |
+| P9 | Observación de seguridad (revisión del Paso 6, W3). `POST /salas` no pide token, por diseño: es como el juego obtiene el suyo. Por eso cualquier cliente (un navegador, un script) puede ocupar pueblos sin jugar y, repitiéndolo, dejar el catálogo sin pueblos libres hasta que expiren (2 horas). Lo mismo con `POST /salas/{codigo}/unirse`, que ocupa el lugar de la app de una sala recién creada. Es el contrato vigente y no se cambió | Raúl | No bloquea | Decidir si hace falta un límite por IP o una clave del juego antes de publicar la URL |
 
 ### Por confirmar con otros equipos
 
@@ -261,6 +262,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
 | O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |
 | O9 | Valores definitivos del canon (AR, DEC, umbrales y rangos del mirador), que dependen de pruebas |
+| O10 | Verificar al desplegar en Railway (revisión del Paso 6, B6; lo retoma el Paso 7). Detrás del proxy TLS de Railway, Tomcat ve la petición como `http` aunque el navegador use `https`. Una página servida por el backend (`/prueba-ws.html`, Swagger UI) manda `Origin: https://…`, que no coincide con el origen `http://…` que ve el servidor: el handshake de `/ws` y `POST /salas` podrían responder `403`. Dos salidas: `server.forward-headers-strategy=framework` (Spring toma el esquema de `X-Forwarded-Proto`) o agregar la URL pública del backend a `CORS_ALLOWED_ORIGINS`. Unity y Flutter nativos no mandan `Origin` y no se ven afectados |
 
 ## 12. Descartado
 
