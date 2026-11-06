@@ -77,6 +77,22 @@ class ActividadServiceTest {
 	}
 
 	@Test
+	@DisplayName("Bloquear una sala viva cuyo expira_en ya pasó responde 401 aunque el job no la haya marcado")
+	void bloquearSalaVencidaDa401() {
+		UUID id = UUID.randomUUID();
+		SalaModel sala = sala(SalaModel.Estado.activa);
+		sala.setExpiraEn(AHORA.minusNanos(1000));
+		when(salas.bloquear(id)).thenReturn(Optional.of(sala));
+
+		assertThatThrownBy(() -> service.bloquear(id)).isInstanceOfSatisfying(ResponseStatusException.class,
+				ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED));
+		assertThat(sala.getExpiraEn()).isEqualTo(AHORA.minusNanos(1000));
+
+		sala.setExpiraEn(AHORA);
+		assertThat(service.bloquear(id)).isSameAs(sala);
+	}
+
+	@Test
 	@DisplayName("Renovar pone ultima_actividad en ahora y expira_en en ahora más la expiración configurada")
 	void renovarUsaLaExpiracionConfigurada() {
 		SalaModel sala = sala(SalaModel.Estado.activa);
@@ -123,6 +139,7 @@ class ActividadServiceTest {
 		SalaModel sala = new SalaModel();
 		sala.setCodigo("ALAMOS");
 		sala.setEstado(estado);
+		sala.setExpiraEn(AHORA.plus(Duration.ofHours(1)));
 		return sala;
 	}
 

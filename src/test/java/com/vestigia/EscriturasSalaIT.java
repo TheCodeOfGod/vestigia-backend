@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.service.ActividadService;
 import com.vestigia.service.HabilitacionPuzzlesService;
+import com.vestigia.service.SalaService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -55,6 +56,9 @@ class EscriturasSalaIT {
 
 	@Autowired
 	private HabilitacionPuzzlesService habilitacion;
+
+	@Autowired
+	private SalaService salaService;
 
 	private ClienteApi api;
 
@@ -361,6 +365,27 @@ class EscriturasSalaIT {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ?", Integer.class,
 				salaViva("PATZCUARO"))).isZero();
 		assertThat(descubrir("PATZCUARO", "12345", null, juego).statusCode()).isEqualTo(201);
+	}
+
+	@Test
+	@DisplayName("Una sala con expira_en vencido que el job aún no marcó responde 401 a toda escritura y no revive")
+	void salaVencidaNoRevive() throws Exception {
+		String juego = api.tokenJuego("PINOS");
+		UUID sala = salaViva("PINOS");
+		Instant expiraEn = expiraEn("PINOS");
+
+		reloj.avanzar(Duration.ofHours(2).plusSeconds(1));
+
+		assertThat(descubrir("PINOS", "pieza_1", null, juego).statusCode()).isEqualTo(401);
+		assertThat(escena("PINOS", "\"faro\"", juego).statusCode()).isEqualTo(401);
+		assertThat(api.enviar("DELETE", "/api/v1/salas/PINOS", null, juego).statusCode()).isEqualTo(401);
+		assertThat(jdbc.queryForObject("SELECT expira_en FROM salas WHERE id = ?", Instant.class, sala))
+				.isEqualTo(expiraEn);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ?", Integer.class, sala))
+				.isZero();
+		salaService.expirarVencidas();
+		assertThat(jdbc.queryForObject("SELECT estado FROM salas WHERE id = ?", String.class, sala))
+				.isEqualTo("expirada");
 	}
 
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {

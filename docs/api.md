@@ -163,7 +163,7 @@ Ante un `401`, el token ya no sirve: vuelve a la pantalla de elegir pueblo (jueg
 
 ## Escrituras
 
-Toda escritura exitosa renueva la sala: `expira_en` vuelve a quedar a 2 horas de ese momento, igual que al unirse. También deja un evento en la bitácora de la sala. Las escrituras de una misma sala se atienden una por una, así que dos peticiones simultáneas no se pisan.
+Toda escritura exitosa renueva la sala: `expira_en` vuelve a quedar a 2 horas de ese momento, igual que al unirse. Una sala cuyo `expira_en` ya pasó cuenta como terminada: cualquier escritura responde `401`, aunque el job que la marca `expirada` todavía no haya corrido. También deja un evento en la bitácora de la sala. Las escrituras de una misma sala se atienden una por una, así que dos peticiones simultáneas no se pisan.
 
 ## `POST /salas/{codigo}/descubrimientos`
 

@@ -129,9 +129,9 @@ Cada evento también se publica dentro de la transacción como evento de aplicac
 
 Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Una escritura repetida (un descubrimiento que ya existía o la escena en la que ya está la sala) responde con éxito y renueva, pero no guarda otro evento. Las lecturas (`GET estado`) no renuevan nada.
 
-**Escrituras simultáneas.** Descubrimientos, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, y tres piezas que llegan a la vez habilitan `photo`. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. Salas distintas no se bloquean entre sí.
+**Escrituras simultáneas.** Descubrimientos, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, y tres piezas que llegan a la vez habilitan `photo`. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. También responde `401` si su `expira_en` ya pasó aunque el job todavía no la haya marcado: una escritura no puede revivir una sala vencida. Salas distintas no se bloquean entre sí.
 
-Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue viva: su token todavía funciona y su código todavía está ocupado.
+Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue viva: su token todavía sirve para leer el estado y su código todavía está ocupado. Las escrituras (descubrimientos, escena y cierre) ya responden `401` en ese minuto.
 
 ## Tokens
 

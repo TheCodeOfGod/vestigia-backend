@@ -54,12 +54,14 @@ public class ActividadService {
 	}
 
 	/**
-	 * Bloquea la sala hasta el commit. Si dejó de estar viva entre la autenticación y este punto (otra petición la
-	 * cerró o el job la expiró), responde 401 como lo haría el token en la siguiente petición.
+	 * Bloquea la sala hasta el commit. Responde 401, como lo haría el token en la siguiente petición, si la sala dejó de
+	 * estar viva entre la autenticación y este punto (otra petición la cerró o el job la expiró) o si su expira_en ya
+	 * pasó aunque el job todavía no la haya marcado: una escritura no puede revivir una sala vencida.
 	 */
 	public SalaModel bloquear(UUID salaId) {
+		Instant ahora = clock.instant();
 		return salas.bloquear(salaId)
-				.filter(s -> SalaModel.Estado.VIVOS.contains(s.getEstado()))
+				.filter(s -> SalaModel.Estado.VIVOS.contains(s.getEstado()) && !s.getExpiraEn().isBefore(ahora))
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
 						"Token inválido o de una sala que ya terminó"));
 	}
