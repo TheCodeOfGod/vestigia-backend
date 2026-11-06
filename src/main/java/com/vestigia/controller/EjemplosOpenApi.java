@@ -14,10 +14,10 @@ final class EjemplosOpenApi {
 			{"codigo": "bacalar"}""";
 
 	static final String SALA_CREADA = """
-			{"codigo": "BACALAR", "estado": "esperando_app", "token": "K8srOIYIL0jr89daDSmv9Ikyz…"}""";
+			{"codigo": "BACALAR", "estado": "esperando_app", "token": "K8srOIYIL0jr…"}""";
 
 	static final String APP_UNIDA = """
-			{"token": "T6F973q3JsTu4-jKMXevAOeLi…"}""";
+			{"token": "T6F973q3JsTu…"}""";
 
 	static final String ESTADO = """
 			{
@@ -34,7 +34,10 @@ final class EjemplosOpenApi {
 			    {"clave": "pescador_dialogo_completo", "datos": {}, "origen": "juego", \
 			"creado_en": "2026-11-06T15:45:32.305120Z"},
 			    {"clave": "coordenada_a", "datos": {"tipo": "ascension_recta", "valor": "137"}, "origen": "servidor", \
-			"creado_en": "2026-11-06T15:45:32.329811Z"}
+			"creado_en": "2026-11-06T15:45:32.334242Z"},
+			    {"clave": "pieza_1", "datos": {}, "origen": "juego", "creado_en": "2026-11-06T15:45:32.354251Z"},
+			    {"clave": "pieza_2", "datos": {}, "origen": "juego", "creado_en": "2026-11-06T15:45:32.364256Z"},
+			    {"clave": "pieza_3", "datos": {}, "origen": "juego", "creado_en": "2026-11-06T15:45:32.372746Z"}
 			  ],
 			  "dispositivos": {"juego": true, "app": true},
 			  "creada_en": "2026-11-06T15:45:31.735796Z",
