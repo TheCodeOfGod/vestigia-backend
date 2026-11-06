@@ -13,7 +13,7 @@ Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `do
 |---|---|:-:|
 | 1 | Base: Flyway, Dockerfile, configuración, CI, README | ✅ Hecho |
 | 2 | Salas: catálogo de pueblos, crear, unirse, estado, expiración, token | ✅ Hecho |
-| 3 | Puzzles y descubrimientos (REST) | ⬜ Siguiente |
+| 3 | Puzzles y descubrimientos (REST) | 🟡 3.0 y 3a hechos; falta 3b |
 | 4 | WebSocket: autenticación, eventos y presencia | ⬜ |
 | 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
 | 6 | Cierre: Swagger, guías, página de prueba | ⬜ |
@@ -92,9 +92,9 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 | `POST /salas/{codigo}/unirse` | App | Enlaza el teléfono | ✅ 2 |
 | `GET /salas/{codigo}/estado` | Todos | Estado completo (sirve para reconectar) | ✅ 2 |
 | `PUT /salas/{codigo}/puzzles/{puzzle}` | App o juego | Reporta que un puzzle se completó | ⬜ 3 |
-| `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. | ⬜ 3 |
-| `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ⬜ 3 |
-| `DELETE /salas/{codigo}` | Juego | Cierra la sala | ⬜ 3 |
+| `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. | ✅ 3a |
+| `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ✅ 3a |
+| `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
 
 ## 6. Tiempo real (`/ws`)
 
@@ -203,7 +203,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `dispositivos` en el estado devuelve `{"juego": false, "app": false}` hasta el Paso 4.
 - [ ] **Paso 3: Puzzles y descubrimientos.** Se parte en entregas pequeñas, cada una con su rama, PR y pruebas:
   - [x] 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`. Evidencia en `docs/pruebas/paso-3.0-ids.md`.
-  - 3a. `POST /descubrimientos`, `PUT /escena` y `DELETE /salas/{codigo}`, con evento guardado y `ultima_actividad`.
+  - [x] 3a. `POST /descubrimientos` (idempotente, también bajo concurrencia), `PUT /escena` (solo juego) y `DELETE /salas/{codigo}` (solo juego). Cada escritura renueva `ultima_actividad` y `expira_en` y guarda un evento; crear y unirse también. `HabilitacionPuzzlesService` recalcula `radio` y `photo` tras cada descubrimiento y ya tiene las reglas de `lookout` y `observatory` para el 3b. Evidencia en `docs/pruebas/paso-3a-descubrimientos.md`.
   - 3b. `PUT` de los cuatro puzzles (`{sintonizada: true}`, `{completada: true}` o `{iniciado: true}`), habilitación de dependientes, creación de los descubrimientos resultado y el campo `codigo` en los errores.
 - [ ] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
@@ -234,7 +234,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | O1 | Primer despliegue en Railway y URL de producción |
 | O2 | Job de CI posterior al despliegue en `main` (necesita la URL de Railway) |
 | O3 | Confirmar que la PWA ya no consume `/api/salas`, que el Paso 1 retiró |
-| O4 | Crear y unirse todavía no guardan un `evento` ni emiten mensajes. Entra con los Pasos 3 y 4 |
+| O4 | Crear y unirse ya guardan su `evento` (3a). Falta que todas las escrituras emitan mensajes por WebSocket (Paso 4), enganchando `ActividadService.SalaEvento` después del commit |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), la sala sigue viva |
 | O6 | Escribir una guía por cliente (Unity, Flutter y PWA), en español sencillo y con cada paso explicado. Entra con el Paso 6 |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
