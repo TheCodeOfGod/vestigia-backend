@@ -272,7 +272,19 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 | `409` | El puzzle está `bloqueado` | `El puzzle 'radio' está bloqueado: todavía no se cumplen sus requisitos`, con `"codigo": "puzzle_bloqueado"` |
 
-Un id de puzzle desconocido responde `400` y no `404`, igual que una escena desconocida: la ruta existe y lo que está mal es un valor que manda el cliente. Los `400` de `datos` y del id se revisan antes de mirar la sala, así que un aviso mal formado da `400` aunque el puzzle esté bloqueado.
+Un id de puzzle desconocido responde `400` y no `404`, igual que una escena desconocida: la ruta existe y lo que está mal es un valor que manda el cliente.
+
+**Qué error gana.** Si una petición tiene varios problemas, responde el primero de esta lista:
+
+1. Falta el token, es inválido o es de otra sala (`401` o `403`).
+2. El cuerpo no es un objeto JSON válido o repite una clave (`400 JSON malformado o ilegible`).
+3. `datos` falta o es `null` (`400`, `details` con `es obligatorio`).
+4. El id del puzzle no existe (`400` con la lista de ids).
+5. `datos` no es un aviso válido para ese puzzle, incluido un valor que no es objeto (`400`, `details` con la forma esperada).
+6. La sala terminó entre el token y la escritura (`401`).
+7. El puzzle está `bloqueado` (`409`).
+
+Por eso `PUT /puzzles/fotografia` con `{}` responde el `400` de `datos`, y con `{"datos": {"completada": true}}` el del id. Un aviso mal formado da `400` aunque el puzzle esté bloqueado.
 
 Respuesta real de un `409`:
 
@@ -338,3 +350,8 @@ curl -X DELETE http://localhost:8080/api/v1/salas/BACALAR \
 | `403` | Token de la app | `Solo el juego puede cerrar la sala` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 
+## Limitaciones conocidas
+
+- **URLs que rechaza el servidor HTTP.** Tomcat, el servidor que lleva el backend, rechaza algunas URLs antes de que lleguen a la aplicación: una barra codificada (`%2F`), un byte nulo (`%00`), un escape inválido (`%zz`) o una URL demasiado larga. Responde `400` con una página HTML de Tomcat, no con el cuerpo de error en JSON. Ningún cliente de Vestigia necesita esos caracteres: los códigos de sala son solo letras y los ids de puzzle son fijos.
+- **Barra final.** Las rutas no aceptan una barra al final. `PUT /salas/BACALAR/puzzles/` o `.../puzzles/photo/` responden `404` con el cuerpo uniforme y un `message` del tipo `No static resource …`. Escribe las rutas sin la barra final.
+- **Punto y coma en la ruta.** Spring descarta lo que va después de `;` en un tramo de la ruta, así que `.../puzzles/photo;x` se atiende como `.../puzzles/photo`.
