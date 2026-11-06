@@ -98,7 +98,7 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 ## Correr las pruebas
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
 - `./mvnw verify` corre además las clases `*IT` con maven-failsafe. Esas pruebas arrancan un `postgres:17-alpine` con Testcontainers, así que Docker tiene que estar corriendo.
-- `python3 scripts/resumen-pruebas.py` lee los reportes de `target/surefire-reports` y `target/failsafe-reports` y escribe en Markdown el conteo y la lista de pruebas, con el `@DisplayName` de cada una. Con `--solo-conteo` imprime una sola línea. Sale con código distinto de 0 si no hay reportes o si alguna prueba falló.
+- `python3 scripts/resumen-pruebas.py` lee los reportes de `target/surefire-reports` y `target/failsafe-reports` y escribe en Markdown el conteo y la lista de pruebas, con el `@DisplayName` de cada una. Córrelo después de `./mvnw clean verify`: sin `clean` pueden quedar reportes de una corrida anterior. Con `--solo-conteo` imprime una sola línea. Sale con código distinto de 0 si no hay reportes, si alguna prueba falló o si falta una de las dos carpetas (por ejemplo, tras `./mvnw test`); en ese último caso avisa y marca el conteo como incompleto.
 - La evidencia de pruebas de cada paso vive en [`docs/pruebas/`](docs/pruebas/README.md).
 
 ## Capturas de pruebas 
