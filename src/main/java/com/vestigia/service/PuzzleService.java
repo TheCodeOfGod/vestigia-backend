@@ -104,7 +104,9 @@ public class PuzzleService {
 		Puzzle puzzle = puzzle(id);
 		Aviso aviso = aviso(puzzle, datos);
 		SalaModel sala = actividad.bloquear(credencial.salaId());
-		PuzzleEstadoModel fila = puzzles.findById(new PuzzleEstadoModel.Clave(sala.getId(), puzzle)).orElseThrow();
+		PuzzleEstadoModel fila = puzzles.findById(new PuzzleEstadoModel.Clave(sala.getId(), puzzle))
+				.orElseThrow(() -> new IllegalStateException("La sala " + sala.getId()
+						+ " no tiene la fila del puzzle " + puzzle + "; crear la sala inserta las cuatro"));
 		if (fila.getEstado() == Estado.bloqueado) {
 			throw new ApiException(HttpStatus.CONFLICT, PUZZLE_BLOQUEADO,
 					"El puzzle '" + puzzle + "' está bloqueado: todavía no se cumplen sus requisitos", List.of());

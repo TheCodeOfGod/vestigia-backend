@@ -284,6 +284,20 @@ class PuzzleServiceTest {
 		verifyNoInteractions(puzzles, descubrimientos);
 	}
 
+	@Test
+	@DisplayName("Si falta la fila del puzzle, un estado imposible, falla con un mensaje que nombra la sala y el puzzle, sin escribir nada")
+	void filaFaltanteFallaConMensaje() {
+		when(actividad.bloquear(salaId)).thenReturn(sala);
+		when(puzzles.findById(new PuzzleEstadoModel.Clave(sala.getId(), Puzzle.lookout))).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.app), "lookout", COMPLETADA))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessage("La sala " + sala.getId() + " no tiene la fila del puzzle lookout; crear la sala inserta las cuatro");
+		verify(actividad, never()).renovar(any());
+		verify(actividad, never()).registrar(any(), any(), any(), any());
+		verifyNoInteractions(descubrimientos);
+	}
+
 	/** Una fila del puzzle en ese estado, que devuelve el repositorio para la sala bloqueada. */
 	private PuzzleEstadoModel fila(Puzzle puzzle, Estado estado) {
 		PuzzleEstadoModel fila = new PuzzleEstadoModel(sala.getId(), puzzle, estado, Instant.EPOCH);
