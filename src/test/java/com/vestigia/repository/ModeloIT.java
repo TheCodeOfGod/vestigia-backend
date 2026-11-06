@@ -47,7 +47,7 @@ class ModeloIT {
 		sala.setUltimaActividad(ahora);
 		sala.setExpiraEn(ahora.plusSeconds(60));
 		sala = salas.save(sala);
-		puzzles.save(new PuzzleEstadoModel(sala.getId(), PuzzleEstadoModel.Puzzle.mirador,
+		puzzles.save(new PuzzleEstadoModel(sala.getId(), PuzzleEstadoModel.Puzzle.lookout,
 				PuzzleEstadoModel.Estado.bloqueado, ahora));
 		DescubrimientoModel descubrimiento = new DescubrimientoModel();
 		descubrimiento.setSalaId(sala.getId());
@@ -63,7 +63,7 @@ class ModeloIT {
 		assertThat(leida.getTokenAppHash()).isNull();
 		assertThat(leida.getExpiraEn()).isEqualTo(ahora.plusSeconds(60));
 		assertThat(puzzles.findByClaveSalaId(sala.getId())).singleElement().satisfies(p -> {
-			assertThat(p.getPuzzle()).isEqualTo(PuzzleEstadoModel.Puzzle.mirador);
+			assertThat(p.getPuzzle()).isEqualTo(PuzzleEstadoModel.Puzzle.lookout);
 			assertThat(p.getEstado()).isEqualTo(PuzzleEstadoModel.Estado.bloqueado);
 			assertThat(p.getDatos()).isEmpty();
 		});

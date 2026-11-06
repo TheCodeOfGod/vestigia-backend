@@ -12,7 +12,7 @@ Backend de **Vestigia**, el proyecto integrador del grupo IDGS101N de la Univers
 
 Todo gira alrededor de la **sala**, que identifica una partida con el nombre de un Pueblo Mágico en mayúsculas, sin acentos y de una sola palabra (por ejemplo `BACALAR`). El catálogo de pueblos es fijo y vive en la base de datos.
 
-1. **El juego crea la sala.** Cuando la jugadora elige un pueblo, el juego llama a `POST /api/v1/salas`. La sala nace en `esperando_app` con sus cuatro puzzles (`radio`, `fotografia`, `mirador`, `observatorio`) bloqueados, y el juego recibe su token.
+1. **El juego crea la sala.** Cuando la jugadora elige un pueblo, el juego llama a `POST /api/v1/salas`. La sala nace en `esperando_app` con sus cuatro puzzles (`radio`, `photo`, `lookout`, `observatory`) bloqueados, y el juego recibe su token.
 2. **La app se une.** La app móvil llama a `POST /api/v1/salas/{codigo}/unirse` y recibe su propio token. Cada sala admite una sola app. La sala pasa a `activa`.
 3. **Los dos consultan el estado.** Con su token, el juego y la app llaman a `GET /api/v1/salas/{codigo}/estado` para ver la escena, los puzzles, los descubrimientos y qué dispositivos están conectados.
 4. **La sala termina.** Si pasa tiempo sin actividad (2 horas por defecto), un job la marca `expirada` y el código vuelve a quedar libre. Las salas terminadas se conservan como historial.

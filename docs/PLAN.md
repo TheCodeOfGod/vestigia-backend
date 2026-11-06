@@ -81,7 +81,7 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 
 Estados de puzzle: `bloqueado` → `disponible` → `en_curso` → `resuelto`. El servidor valida las transiciones y los requisitos.
 
-Cambio de esquema planeado: la migración `V3` renombra los ids de puzzle a `photo`, `lookout` y `observatory`. No hay tablas ni columnas nuevas.
+La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observatory` (entrega 3.0). No hay tablas ni columnas nuevas.
 
 ## 5. API REST (`/api/v1`)
 
@@ -202,7 +202,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - Job de expiración cada minuto (`vestigia.salas.expiracion=PT2H`, `vestigia.salas.expiracion-revision=PT1M`).
   - `dispositivos` en el estado devuelve `{"juego": false, "app": false}` hasta el Paso 4.
 - [ ] **Paso 3: Puzzles y descubrimientos.** Se parte en entregas pequeñas, cada una con su rama, PR y pruebas:
-  - 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`.
+  - [x] 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`. Evidencia en `docs/pruebas/paso-3.0-ids.md`.
   - 3a. `POST /descubrimientos`, `PUT /escena` y `DELETE /salas/{codigo}`, con evento guardado y `ultima_actividad`.
   - 3b. `PUT` de los cuatro puzzles (`{sintonizada: true}`, `{completada: true}` o `{iniciado: true}`), habilitación de dependientes, creación de los descubrimientos resultado y el campo `codigo` en los errores.
 - [ ] **Paso 4: WebSocket.** Autenticación, eventos y presencia.

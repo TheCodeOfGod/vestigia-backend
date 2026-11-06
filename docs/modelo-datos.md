@@ -8,6 +8,7 @@ Una migración que ya se aplicó no se edita. Cualquier cambio va en una migraci
 |---|---|
 | `V1__esquema.sql` | Crea las cinco tablas y sus índices |
 | `V2__seed_pueblos.sql` | Carga los 101 códigos del catálogo de pueblos, aprobados por Raúl |
+| `V3__ids_puzzles_en_ingles.sql` | Renombra los ids de puzzle al inglés (`fotografia` → `photo`, `mirador` → `lookout`, `observatorio` → `observatory`): quita el `CHECK` de `puzzles_estado.puzzle`, actualiza las filas existentes y vuelve a crear el `CHECK` con los ids nuevos |
 
 ## Tablas
 
@@ -50,7 +51,7 @@ Son nombres de Pueblos Mágicos de México de una sola palabra. La lista no camb
 | Columna | Tipo | Notas |
 |---|---|---|
 | `sala_id` | `UUID` | PK compuesta con `puzzle`. FK a `salas` |
-| `puzzle` | `VARCHAR(20)` | `radio`, `fotografia`, `mirador` u `observatorio` |
+| `puzzle` | `VARCHAR(20)` | `radio`, `photo`, `lookout` u `observatory` (`CHECK puzzles_estado_puzzle_check`). En inglés, como en la app. `V1` los creó en español y `V3` los renombró |
 | `estado` | `VARCHAR(20)` | `bloqueado`, `disponible`, `en_curso` o `resuelto` |
 | `datos` | `JSONB` | Lo último que reportó el cliente. `{}` al crear la sala |
 | `actualizado_en` | `TIMESTAMPTZ` | |

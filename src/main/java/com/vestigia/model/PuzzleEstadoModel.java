@@ -22,7 +22,7 @@ public class PuzzleEstadoModel {
 	/** El orden de las constantes es el orden del juego. */
 	public enum Puzzle {
 
-		radio, fotografia, mirador, observatorio
+		radio, photo, lookout, observatory
 
 	}
 

@@ -80,7 +80,7 @@ curl -X POST http://localhost:8080/api/v1/salas \
 {"codigo": "BACALAR", "estado": "esperando_app", "token": "dIg7OY_EqA3T…"}
 ```
 
-Al crearse, la sala tiene sus cuatro puzzles (`radio`, `fotografia`, `mirador`, `observatorio`) en `bloqueado` y la escena `introduccion`.
+Al crearse, la sala tiene sus cuatro puzzles (`radio`, `photo`, `lookout`, `observatory`) en `bloqueado` y la escena `introduccion`. Los ids de puzzle van en inglés, igual que en la app; las claves de descubrimiento, los campos y los estados siguen en español.
 
 | Error | `message` |
 |---|---|
@@ -131,9 +131,9 @@ curl http://localhost:8080/api/v1/salas/BACALAR/estado \
   "escena_actual": "introduccion",
   "puzzles": [
     {"puzzle": "radio", "estado": "bloqueado", "datos": {}},
-    {"puzzle": "fotografia", "estado": "bloqueado", "datos": {}},
-    {"puzzle": "mirador", "estado": "bloqueado", "datos": {}},
-    {"puzzle": "observatorio", "estado": "bloqueado", "datos": {}}
+    {"puzzle": "photo", "estado": "bloqueado", "datos": {}},
+    {"puzzle": "lookout", "estado": "bloqueado", "datos": {}},
+    {"puzzle": "observatory", "estado": "bloqueado", "datos": {}}
   ],
   "descubrimientos": [],
   "dispositivos": {"juego": false, "app": false},
@@ -145,7 +145,7 @@ curl http://localhost:8080/api/v1/salas/BACALAR/estado \
 | Campo | Notas |
 |---|---|
 | `estado` | `esperando_app` o `activa`. Una sala terminada ya no se puede consultar con su token |
-| `puzzles` | Siempre los cuatro, en el orden del juego. `estado` es `bloqueado`, `disponible`, `en_curso` o `resuelto` |
+| `puzzles` | Siempre los cuatro, en el orden del juego: `radio`, `photo`, `lookout`, `observatory`. `estado` es `bloqueado`, `disponible`, `en_curso` o `resuelto` |
 | `descubrimientos` | `[{clave, datos, origen, creado_en}]` en orden de llegada. Vacío hasta el Paso 3 |
 | `dispositivos` | Quién está conectado por WebSocket. **Hasta el Paso 4 los dos valores son siempre `false`** |
 | `expira_en` | Momento en que la sala expira si nadie escribe antes |

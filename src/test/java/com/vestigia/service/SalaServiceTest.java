@@ -215,14 +215,14 @@ class SalaServiceTest {
 		sala.setExpiraEn(AHORA.plusSeconds(60));
 		when(salas.findById(id)).thenReturn(Optional.of(sala));
 		when(puzzles.findByClaveSalaId(id)).thenReturn(List.of(
-				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatorio, PuzzleEstadoModel.Estado.bloqueado, AHORA),
+				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatory, PuzzleEstadoModel.Estado.bloqueado, AHORA),
 				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado, AHORA)));
 		when(descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(id)).thenReturn(List.of());
 
 		Sala estado = service.estado(id);
 
 		assertThat(estado.puzzles()).extracting(Sala.Puzzle::puzzle)
-				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatorio);
+				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatory);
 		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(false, false));
 		assertThat(estado.expiraEn()).isEqualTo(AHORA.plusSeconds(60));
 	}
