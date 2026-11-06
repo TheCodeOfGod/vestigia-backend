@@ -8,7 +8,23 @@ Es un WebSocket simple, sin STOMP ni SockJS. Cada mensaje es un texto JSON con l
 {"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "disponible", "datos": {}}}
 ```
 
-Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWebSocketIT`, que usan un cliente WebSocket real contra el backend.
+Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWebSocketIT`, que usan un cliente WebSocket real contra el backend. Las guías de cada cliente (`docs/integracion-unity.md` y `docs/integracion-flutter.md`) explican qué hacer con cada mensaje.
+
+## Todos los mensajes de un vistazo
+
+| `type` | Lo envía | Lo recibe | Ejemplo de `payload` |
+|---|---|---|---|
+| `auth` | Juego o app, como primer mensaje | Servidor | `{"token": "<token>"}` |
+| `auth.ok` | Servidor | Quien se autenticó | `{"rol": "juego", "sala": "BACALAR"}` |
+| `dispositivo.conectado` | Servidor | El otro rol | `{"rol": "app"}` |
+| `dispositivo.desconectado` | Servidor | El otro rol | `{"rol": "app"}` |
+| `puzzle.actualizado` | Servidor | Juego y app | `{"puzzle": "photo", "estado": "disponible", "datos": {}}` |
+| `descubrimiento.nuevo` | Servidor | Juego y app | `{"clave": "pieza_1", "datos": {}, "origen": "juego"}` |
+| `escena.cambiada` | Servidor | Solo la app | `{"escena": "faro", "anterior": "pueblo"}` |
+| `sala.cerrada` | Servidor | Juego y app | `{"estado": "finalizada"}` |
+| `error` | Servidor | Quien mandó un mensaje inválido | `{"codigo": "tipo_desconocido", "message": "..."}` |
+
+El cliente solo manda `auth`. Todo lo demás (descubrimientos, puzzles, escena, cierre) va por REST.
 
 ## Conectarse
 
@@ -31,6 +47,12 @@ Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWeb
 
 	```json
 	{"type": "dispositivo.conectado", "payload": {"rol": "juego"}}
+	```
+
+	Cuando una conexión se cierra o se pierde, el otro dispositivo recibe:
+
+	```json
+	{"type": "dispositivo.desconectado", "payload": {"rol": "app"}}
 	```
 
 4. Pide `GET /api/v1/salas/{codigo}/estado` para ponerte al día. Desde ahí, los mensajes del servidor te dicen qué cambió.
@@ -106,6 +128,7 @@ Quien hizo la escritura también recibe sus mensajes. Un cliente puede usarlos p
 
 ```json
 {"type": "error", "payload": {"codigo": "json_invalido", "message": "El mensaje debe ser un objeto JSON de texto con la forma {\"type\": \"...\", \"payload\": {...}}"}}
+{"type": "error", "payload": {"codigo": "tipo_desconocido", "message": "El mensaje orientacion está diferido: el servidor no lo recibe por ahora"}}
 ```
 
 | `codigo` | Cuándo |
