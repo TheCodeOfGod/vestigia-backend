@@ -1,6 +1,6 @@
 # API REST
 
-Guía para quien integra el juego (Unity) o la app (Flutter). Todas las rutas cuelgan de `/api/v1`. Los ejemplos usan `http://localhost:8080`. Swagger UI con los mismos endpoints está en `/swagger-ui/index.html`.
+Guía para quien integra el juego (Unity) o la app (Flutter). Todas las rutas cuelgan de `/api/v1`. Los ejemplos usan `http://localhost:8080`. Swagger UI con los mismos endpoints, sus ejemplos de petición y respuesta y sus errores está en `/swagger-ui/index.html`; el documento OpenAPI en JSON, en `/v3/api-docs`. Para probar en Swagger UI una ruta con candado, pulsa **Authorize** y pega el token (sin la palabra `Bearer`).
 
 Las respuestas de esta página salieron de correr el backend real. Los tokens están recortados.
 

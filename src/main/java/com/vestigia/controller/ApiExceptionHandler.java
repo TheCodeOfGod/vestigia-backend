@@ -1,5 +1,7 @@
 package com.vestigia.controller;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -30,11 +32,19 @@ public class ApiExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
-	public record ErrorBody(Instant timestamp, int status, String error, String codigo, String message, String path,
+	@Schema(description = "Cuerpo de todos los errores")
+	public record ErrorBody(Instant timestamp, @Schema(example = "409") int status,
+			@Schema(example = "Conflict") String error,
+			@Schema(description = "Identificador estable. Siempre viaja: null salvo en los errores que definen uno",
+					nullable = true, example = "puzzle_bloqueado") String codigo,
+			@Schema(description = "Mensaje en español, se puede mostrar") String message,
+			@Schema(example = "/api/v1/salas/BACALAR/puzzles/radio") String path,
+			@Schema(description = "Un elemento por campo en los errores de validación; vacío en los demás")
 			List<FieldDetail> details) {
 	}
 
-	public record FieldDetail(String field, String message) {
+	@Schema(description = "Error de un campo")
+	public record FieldDetail(@Schema(example = "datos") String field, @Schema(example = "es obligatorio") String message) {
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
