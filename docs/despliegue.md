@@ -40,6 +40,21 @@ Si Railway entrega una URL con la forma `postgresql://usuario:contraseña@host:p
 3. Flyway aplica las migraciones pendientes antes de que el servidor acepte peticiones. Si una migración falla, la app no arranca y el health check falla.
 4. Railway marca el despliegue como sano cuando `/actuator/health` responde.
 
+## Prueba de humo
+
+`scripts/smoke-test.sh` juega una partida completa contra una URL base con `curl` y `jq`: health, crear sala, unirse, escenas, las banderas `lookout_enabled` y `observatory_enabled`, los cuatro puzzles hasta `magnetar_localizado`, el estado final y el cierre.
+
+```sh
+scripts/smoke-test.sh https://<tu-servicio>.up.railway.app          # elige un pueblo libre
+scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR  # o uno en concreto
+```
+
+- Sale con `0` si toda la cadena pasó y con `1` si falló un paso, que nombra junto con la respuesta del backend. `2` es uso incorrecto y `3` que falta `curl` o `jq`.
+- Al salir, también tras un fallo o `Ctrl+C`, cierra la sala que creó con `DELETE`. El pueblo vuelve a quedar libre.
+- La sala queda en la base como historial (`finalizada`), con sus eventos. Sus descubrimientos llevan `{"origen_prueba": "smoke-test"}` en `datos`, para distinguirla en las métricas.
+- No imprime los tokens.
+- No prueba el WebSocket: `curl` no lo habla. Para verlo, abre `/prueba-ws.html` (ver la sección de O10).
+
 ## Pendiente
 
 - El primer despliegue.
