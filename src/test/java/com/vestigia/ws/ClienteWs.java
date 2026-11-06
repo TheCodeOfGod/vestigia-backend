@@ -18,9 +18,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /** Un cliente WebSocket real (java.net.http) contra /ws que guarda lo que recibe. */
-class ClienteWs implements WebSocket.Listener {
+public class ClienteWs implements WebSocket.Listener {
 
-	record Cierre(int codigo, String razon) {
+	public record Cierre(int codigo, String razon) {
 	}
 
 	private static final HttpClient HTTP = HttpClient.newHttpClient();
@@ -41,7 +41,7 @@ class ClienteWs implements WebSocket.Listener {
 		this.json = json;
 	}
 
-	static ClienteWs abrir(int port, JsonMapper json) throws Exception {
+	public static ClienteWs abrir(int port, JsonMapper json) throws Exception {
 		return abrir(port, json, null);
 	}
 
@@ -57,19 +57,19 @@ class ClienteWs implements WebSocket.Listener {
 	}
 
 	/** Abre una conexión, manda auth con el token y devuelve el auth.ok. */
-	static ClienteWs autenticado(int port, JsonMapper json, String token) throws Exception {
+	public static ClienteWs autenticado(int port, JsonMapper json, String token) throws Exception {
 		ClienteWs cliente = abrir(port, json);
 		JsonNode authOk = cliente.autenticar(token);
 		assertThat(authOk.get("type").asString()).isEqualTo("auth.ok");
 		return cliente;
 	}
 
-	JsonNode autenticar(String token) throws Exception {
+	public JsonNode autenticar(String token) throws Exception {
 		enviar("{\"type\":\"auth\",\"payload\":{\"token\":\"" + token + "\"}}");
 		return siguiente();
 	}
 
-	void enviar(String texto) throws Exception {
+	public void enviar(String texto) throws Exception {
 		ws.sendText(texto, true).get(5, TimeUnit.SECONDS);
 	}
 
@@ -84,6 +84,16 @@ class ClienteWs implements WebSocket.Listener {
 		return mensaje;
 	}
 
+	/** El siguiente mensaje de ese tipo, saltando los de otros tipos, esperando hasta 5 s por cada uno. */
+	public JsonNode siguienteDeTipo(String tipo) throws InterruptedException {
+		while (true) {
+			JsonNode mensaje = siguiente();
+			if (tipo.equals(mensaje.path("type").asString())) {
+				return mensaje;
+			}
+		}
+	}
+
 	/** Comprueba que no llega ningún mensaje durante ese tiempo. */
 	void sinMensajes(Duration espera) throws InterruptedException {
 		assertThat(mensajes.poll(espera.toMillis(), TimeUnit.MILLISECONDS)).as("ningún mensaje").isNull();
@@ -93,7 +103,7 @@ class ClienteWs implements WebSocket.Listener {
 		return cierre.get(espera.toMillis(), TimeUnit.MILLISECONDS);
 	}
 
-	Cierre cierre() throws Exception {
+	public Cierre cierre() throws Exception {
 		return cierre(Duration.ofSeconds(5));
 	}
 
@@ -106,7 +116,7 @@ class ClienteWs implements WebSocket.Listener {
 	}
 
 	/** Cierra desde el cliente y espera la respuesta del servidor. */
-	void cerrar() throws Exception {
+	public void cerrar() throws Exception {
 		ws.sendClose(WebSocket.NORMAL_CLOSURE, "").get(5, TimeUnit.SECONDS);
 		cierre();
 	}

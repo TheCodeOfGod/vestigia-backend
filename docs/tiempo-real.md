@@ -4,6 +4,7 @@ Guía para quien integra el juego (Unity) o la app (Flutter). El backend avisa p
 
 Es un WebSocket simple, sin STOMP ni SockJS. Cada mensaje es un texto JSON con la forma:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "disponible", "datos": {}}}
 ```
@@ -35,6 +36,7 @@ Con el backend corriendo, abre `http://localhost:8080/prueba-ws.html` en el nave
 1. Abre `ws://<host>/ws` (`wss://` en producción). **El token no va en la URL.**
 2. En menos de 5 segundos manda:
 
+	<!-- peticion -->
 	```json
 	{"type": "auth", "payload": {"token": "<token>"}}
 	```
@@ -43,18 +45,21 @@ Con el backend corriendo, abre `http://localhost:8080/prueba-ws.html` en el nave
 
 3. El servidor responde:
 
+	<!-- respuesta: ws -->
 	```json
 	{"type": "auth.ok", "payload": {"rol": "juego", "sala": "BACALAR"}}
 	```
 
 	y le avisa al otro dispositivo, si está conectado:
 
+	<!-- respuesta: ws -->
 	```json
 	{"type": "dispositivo.conectado", "payload": {"rol": "juego"}}
 	```
 
 	Cuando una conexión se cierra o se pierde, el otro dispositivo recibe:
 
+	<!-- respuesta: ws -->
 	```json
 	{"type": "dispositivo.desconectado", "payload": {"rol": "app"}}
 	```
@@ -95,6 +100,7 @@ Cada escritura REST que cambia algo emite sus mensajes **después de confirmarse
 
 Ejemplos reales:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "puzzle.actualizado", "payload": {"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}}
 {"type": "descubrimiento.nuevo", "payload": {"clave": "coordenada_b", "datos": {"tipo": "declinacion", "valor": "+042"}, "origen": "servidor"}}
@@ -104,6 +110,7 @@ Ejemplos reales:
 
 **Resolver un puzzle** emite, en este orden, `puzzle.actualizado` con `resuelto`, `descubrimiento.nuevo` del resultado y un `puzzle.actualizado` con `disponible` por cada puzzle que se habilita. Por ejemplo, `PUT /puzzles/photo` con `{"completada": true}`, con `lookout_enabled` ya registrado:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "puzzle.actualizado", "payload": {"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}}
 {"type": "descubrimiento.nuevo", "payload": {"clave": "coordenada_b", "datos": {"tipo": "declinacion", "valor": "+042"}, "origen": "servidor"}}
@@ -130,6 +137,7 @@ Quien hizo la escritura también recibe sus mensajes. Un cliente puede usarlos p
 
 **Ya autenticado**, un mensaje que el servidor no acepta recibe un `error` y la conexión sigue abierta:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "error", "payload": {"codigo": "json_invalido", "message": "El mensaje debe ser un objeto JSON de texto con la forma {\"type\": \"...\", \"payload\": {...}}"}}
 {"type": "error", "payload": {"codigo": "tipo_desconocido", "message": "El mensaje orientacion está diferido: el servidor no lo recibe por ahora"}}
