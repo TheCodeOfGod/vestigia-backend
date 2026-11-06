@@ -65,7 +65,8 @@ public class HabilitacionPuzzlesService {
 
 	/**
 	 * Pasa a disponible cada puzzle bloqueado cuyos requisitos ya se cumplen y guarda un evento puzzle.habilitado por
-	 * cada uno, con {@link #payload}. La sala debe venir bloqueada por {@link ActividadService#bloquear}. Devuelve los puzzles que cambiaron.
+	 * cada uno, con {@link #payload}. La sala debe venir bloqueada por {@link ActividadService#bloquear}. Devuelve los
+	 * puzzles que cambiaron.
 	 */
 	public List<Puzzle> recalcular(SalaModel sala) {
 		List<PuzzleEstadoModel> filas = puzzles.findByClaveSalaId(sala.getId());

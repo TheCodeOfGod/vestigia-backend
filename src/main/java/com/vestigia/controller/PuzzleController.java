@@ -57,7 +57,8 @@ public class PuzzleController {
 			@Parameter(description = "Id del puzzle",
 					schema = @Schema(allowableValues = { "radio", "photo", "lookout", "observatory" }))
 			@PathVariable String puzzle, @Valid @RequestBody ReportarPuzzleRequest request,
-			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL) SalaService.Credencial credencial) {
+			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL)
+			SalaService.Credencial credencial) {
 		return puzzleService.reportar(credencial, puzzle, request.datos());
 	}
 
