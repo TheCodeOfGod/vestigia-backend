@@ -174,7 +174,7 @@ class WebSocketIT {
 	}
 
 	@Test
-	@DisplayName("Reconexión: la app vuelve con el mismo token, recibe auth.ok y GET estado trae lo que pasó mientras no estaba")
+	@DisplayName("Reconexión: la app vuelve con el mismo token, recibe auth.ok y no el mensaje que se perdió, y GET estado trae lo que pasó mientras no estaba")
 	void reconexionYEstadoConsistente() throws Exception {
 		String juego = api.tokenJuego("IZAMAL");
 		String app = api.tokenApp("IZAMAL");
@@ -186,9 +186,11 @@ class WebSocketIT {
 		clienteJuego.siguiente();
 		assertThat(api.enviar("POST", "/api/v1/salas/IZAMAL/descubrimientos", "{\"clave\":\"pieza_1\"}", juego)
 				.statusCode()).isEqualTo(201);
+		assertThat(clienteJuego.siguiente().get("type").asString()).isEqualTo("descubrimiento.nuevo");
 		clienteApp = ClienteWs.autenticado(port, json, app);
 
 		assertThat(clienteJuego.siguiente()).isEqualTo(mensaje("dispositivo.conectado", Map.of("rol", "app")));
+		clienteApp.sinMensajes(Duration.ofMillis(200));
 		JsonNode estado = api.cuerpo(api.enviar("GET", "/api/v1/salas/IZAMAL/estado", null, app));
 		assertThat(estado.get("dispositivos")).isEqualTo(json.valueToTree(Map.of("juego", true, "app", true)));
 		assertThat(estado.get("descubrimientos").valueStream().map(d -> d.get("clave").asString()))

@@ -116,7 +116,7 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 
 Los tres eventos de puzzle guardan la misma forma, `{puzzle, estado, datos}`, que usará el mensaje `puzzle.actualizado` del Paso 4. Al resolver un puzzle se guardan en orden `puzzle.resuelto`, el `descubrimiento.registrado` del resultado y un `puzzle.habilitado` por cada puzzle que se habilita. Un aviso que no cambia el puzzle no guarda evento.
 
-Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
+Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). `EmisorEventos` lo traduce a su mensaje de WebSocket y lo emite después del commit (`@TransactionalEventListener(phase = AFTER_COMMIT)`), así que una escritura que hace rollback no emite nada (`docs/tiempo-real.md`). `eventos` no guarda lecturas (`GET estado`).
 
 `sala.expirada` es el único evento que no viene de una petición de un cliente. Lo guarda el job (Paso 4) para que el WebSocket avise `sala.cerrada` y para que las métricas distingan una sala expirada de una cerrada por el juego. No toca `ultima_actividad`: expirar no es actividad.
 

@@ -25,7 +25,7 @@ Todo gira alrededor de la **sala**, que identifica una partida con el nombre de 
 
 **Errores.** Todos tienen el mismo cuerpo JSON (`timestamp`, `status`, `error`, `codigo`, `message`, `path`, `details`). `codigo` siempre viene y vale `null` salvo en los errores que definen uno, como `puzzle_bloqueado`. Los campos del JSON van en `snake_case` y las fechas en UTC con formato ISO-8601.
 
-**Tiempo real.** El juego y la app abren un WebSocket en `/ws` y se autentican con su token en el primer mensaje (`{"type":"auth","payload":{"token":"..."}}`), nunca en la URL. El backend les avisa quién está conectado. Los detalles están en [`docs/tiempo-real.md`](docs/tiempo-real.md). Las conexiones viven en memoria, así que el backend corre en una sola instancia.
+**Tiempo real.** El juego y la app abren un WebSocket en `/ws` y se autentican con su token en el primer mensaje (`{"type":"auth","payload":{"token":"..."}}`), nunca en la URL. El backend les avisa quién está conectado y, después de confirmar cada escritura en la base, qué cambió: puzzles, descubrimientos, escena (solo a la app) y cierre de la sala. Los detalles están en [`docs/tiempo-real.md`](docs/tiempo-real.md). Las conexiones viven en memoria, así que el backend corre en una sola instancia.
 
 **Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, puzzles, escena, cierre de sala, el WebSocket de `/ws` y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`.
 
