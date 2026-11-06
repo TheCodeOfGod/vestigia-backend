@@ -498,6 +498,43 @@ class EscriturasSalaIT {
 		}
 	}
 
+	@Test
+	@DisplayName("Un JSON con una clave repetida da 400 JSON malformado en crear sala, descubrimientos, escena y puzzles, sin escribir nada; los mismos cuerpos sin repetir siguen funcionando")
+	void claveRepetidaDa400EnTodasLasEscrituras() throws Exception {
+		HttpResponse<String> crear = api.enviar("POST", "/api/v1/salas", "{\"codigo\":\"HUICHAPAN\",\"codigo\":\"HUICHAPAN\"}",
+				null);
+		assertThat(crear.statusCode()).isEqualTo(400);
+		assertThat(api.cuerpo(crear).get("message").asString()).isEqualTo("JSON malformado o ilegible");
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM salas WHERE codigo = 'HUICHAPAN'", Integer.class)).isZero();
+		String juego = api.tokenJuego("HUICHAPAN");
+		descubrir("HUICHAPAN", "pescador_dialogo_completo", null, juego);
+		List<String> eventosAntes = eventos("HUICHAPAN");
+
+		for (String[] peticion : List.of(
+				new String[] { "POST", "descubrimientos", "{\"clave\":\"pieza_1\",\"clave\":\"pieza_1\"}" },
+				new String[] { "POST", "descubrimientos", "{\"clave\":\"pieza_1\",\"datos\":{\"lugar\":\"muelle\",\"lugar\":\"faro\"}}" },
+				new String[] { "PUT", "escena", "{\"escena\":\"faro\",\"escena\":\"faro\"}" },
+				new String[] { "PUT", "puzzles/radio", "{\"datos\":{\"sintonizada\":true,\"sintonizada\":true}}" },
+				new String[] { "PUT", "puzzles/radio", "{\"datos\":{\"sintonizada\":true},\"datos\":{\"sintonizada\":true}}" })) {
+			HttpResponse<String> respuesta = api.enviar(peticion[0], "/api/v1/salas/HUICHAPAN/" + peticion[1], peticion[2],
+					juego);
+			assertThat(respuesta.statusCode()).as(peticion[2]).isEqualTo(400);
+			assertThat(api.cuerpo(respuesta).get("message").asString()).isEqualTo("JSON malformado o ilegible");
+			assertThat(api.cuerpo(respuesta).get("codigo").isNull()).isTrue();
+		}
+		assertThat(eventos("HUICHAPAN")).isEqualTo(eventosAntes);
+		assertThat(jdbc.queryForObject("""
+				SELECT s.escena_actual || ':' || p.estado || ':' || (SELECT count(*) FROM descubrimientos d
+				WHERE d.sala_id = s.id AND d.clave = 'pieza_1') FROM salas s JOIN puzzles_estado p ON p.sala_id = s.id
+				WHERE s.id = ? AND p.puzzle = 'radio'
+				""", String.class, salaViva("HUICHAPAN"))).isEqualTo("introduccion:disponible:0");
+
+		assertThat(descubrir("HUICHAPAN", "pieza_1", "{\"lugar\":\"muelle\"}", juego).statusCode()).isEqualTo(201);
+		assertThat(escena("HUICHAPAN", "\"faro\"", juego).statusCode()).isEqualTo(200);
+		assertThat(api.enviar("PUT", "/api/v1/salas/HUICHAPAN/puzzles/radio", "{\"datos\":{\"sintonizada\":true}}",
+				juego).statusCode()).isEqualTo(200);
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);

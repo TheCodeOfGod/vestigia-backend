@@ -7,6 +7,8 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 ## Convenciones
 
 - JSON en `snake_case`. Fechas en UTC con formato ISO-8601 (`2026-10-26T23:33:18.706842Z`).
+- **Claves sin repetir.** Un JSON con la misma clave dos veces en el mismo objeto, en cualquier nivel (`{"codigo": "BACALAR", "codigo": "BACALAR"}` o `{"datos": {"completada": true, "completada": true}}`), responde `400 JSON malformado o ilegible`, aunque los dos valores coincidan. El backend no elige uno de los dos.
+- **Campos desconocidos.** Un campo que el endpoint no usa, en la raíz del cuerpo, se ignora en todos los endpoints (`{"clave": "pieza_1", "origen": "servidor"}` guarda `pieza_1` con el origen del token). Dentro de `datos` de `PUT puzzles` no: ahí una clave de más da `400`.
 - **Tipos estrictos.** Cada campo se manda con su tipo JSON. Un número o un booleano donde va texto (`{"clave": 123}`, `{"codigo": true}`) responde `400 JSON malformado o ilegible`, y lo mismo un texto donde va un número o un booleano (`"true"` no es `true`). El backend no convierte tipos.
 - **Código de sala.** Es el nombre del pueblo. El backend lo recorta y lo pasa a mayúsculas antes de usarlo, tanto en el cuerpo como en la ruta. `" bacalar "`, `"Bacalar"` y `"BACALAR"` son la misma sala. Las respuestas siempre lo devuelven en mayúsculas.
 - **Token.** `POST /salas` le entrega un token al juego y `POST /salas/{codigo}/unirse` le entrega otro a la app. Cada token se entrega **una sola vez**: guárdalo en el dispositivo para reconectar. Se manda en el encabezado `Authorization: Bearer <token>`. El token decide la sala y el rol (`juego` o `app`), y solo sirve mientras la sala esté viva (`esperando_app` o `activa`).
