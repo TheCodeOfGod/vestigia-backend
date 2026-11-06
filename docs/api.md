@@ -7,6 +7,7 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 ## Convenciones
 
 - JSON en `snake_case`. Fechas en UTC con formato ISO-8601 (`2026-10-26T23:33:18.706842Z`).
+- **Tipos estrictos.** Cada campo se manda con su tipo JSON. Un número o un booleano donde va texto (`{"clave": 123}`, `{"codigo": true}`) responde `400 JSON malformado o ilegible`, y lo mismo un texto donde va un número o un booleano (`"true"` no es `true`). El backend no convierte tipos.
 - **Código de sala.** Es el nombre del pueblo. El backend lo recorta y lo pasa a mayúsculas antes de usarlo, tanto en el cuerpo como en la ruta. `" bacalar "`, `"Bacalar"` y `"BACALAR"` son la misma sala. Las respuestas siempre lo devuelven en mayúsculas.
 - **Token.** `POST /salas` le entrega un token al juego y `POST /salas/{codigo}/unirse` le entrega otro a la app. Cada token se entrega **una sola vez**: guárdalo en el dispositivo para reconectar. Se manda en el encabezado `Authorization: Bearer <token>`. El token decide la sala y el rol (`juego` o `app`), y solo sirve mientras la sala esté viva (`esperando_app` o `activa`).
 - **Errores.** Todos tienen el mismo cuerpo:
@@ -205,6 +206,7 @@ El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `o
 | `400` | Falta la clave | `Datos inválidos`, con `details: [{"field": "clave", "message": "es obligatoria"}]` |
 | `400` | Clave con mayúsculas, guiones, acentos, espacios o más de 40 caracteres | `Datos inválidos`, con `details: [{"field": "clave", ...}]` |
 | `400` | `datos` no es un objeto (`[1,2]`, `"texto"`, `5`) | `JSON malformado o ilegible` |
+| `400` | `clave` no es texto (`12345`, `true`) | `JSON malformado o ilegible` |
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 | `403` | La clave es `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `La clave 'coordenada_a' la genera el servidor al resolver un puzzle; los clientes no pueden enviarla` |
@@ -233,6 +235,7 @@ Escenas válidas, en orden: `introduccion`, `pueblo`, `faro`, `observatorio` y `
 | Error | Cuándo | `message` |
 |---|---|---|
 | `400` | Falta `escena` o viene vacía | `Datos inválidos`, con `details: [{"field": "escena", "message": "es obligatoria"}]` |
+| `400` | `escena` no es texto (`123`, `true`) | `JSON malformado o ilegible` |
 | `400` | Escena desconocida (`"bosque"`, `"FARO"`) | `'bosque' no es una escena válida. Usa una de: introduccion, pueblo, faro, observatorio, desenlace` |
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
 | `403` | Token de la app | `Solo el juego puede cambiar la escena` |

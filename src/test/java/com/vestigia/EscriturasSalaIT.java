@@ -344,6 +344,25 @@ class EscriturasSalaIT {
 		return api.enviar("PUT", "/api/v1/salas/" + codigo + "/escena", "{\"escena\":" + valorJson + "}", token);
 	}
 
+	@Test
+	@DisplayName("Un número o booleano JSON donde va texto da 400 sin convertirse: clave, escena y código de pueblo")
+	void tiposEstrictosEnLaEntrada() throws Exception {
+		String juego = api.tokenJuego("PATZCUARO");
+
+		for (String valor : List.of("12345", "true", "1.5")) {
+			HttpResponse<String> respuesta = api.enviar("POST", "/api/v1/salas/PATZCUARO/descubrimientos",
+					"{\"clave\":" + valor + "}", juego);
+			assertThat(respuesta.statusCode()).as("clave " + valor).isEqualTo(400);
+			assertThat(api.cuerpo(respuesta).get("message").asString()).isEqualTo("JSON malformado o ilegible");
+			assertThat(escena("PATZCUARO", valor, juego).statusCode()).as("escena " + valor).isEqualTo(400);
+			assertThat(api.enviar("POST", "/api/v1/salas", "{\"codigo\":" + valor + "}", null).statusCode())
+					.as("codigo " + valor).isEqualTo(400);
+		}
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ?", Integer.class,
+				salaViva("PATZCUARO"))).isZero();
+		assertThat(descubrir("PATZCUARO", "12345", null, juego).statusCode()).isEqualTo(201);
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);

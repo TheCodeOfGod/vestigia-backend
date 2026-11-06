@@ -21,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -28,12 +29,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.config.JacksonConfig;
 import com.vestigia.dto.Sala;
 import com.vestigia.model.DescubrimientoModel;
 import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.SalaService;
 
 @WebMvcTest(DescubrimientoController.class)
+@Import(JacksonConfig.class)
 class DescubrimientoControllerTest {
 
 	private static final String RUTA = "/api/v1/salas/ALAMOS/descubrimientos";
@@ -88,12 +91,14 @@ class DescubrimientoControllerTest {
 	}
 
 	@Test
-	@DisplayName("Sin clave o con datos que no son un objeto JSON da 400 sin llamar al servicio")
+	@DisplayName("Sin clave, con una clave que no es texto o con datos que no son un objeto JSON da 400 sin llamar al servicio")
 	void sinClaveODatosQueNoSonObjetoDa400() throws Exception {
 		enviar("{}").andExpect(status().isBadRequest()).andExpect(jsonPath("$.details[0].message").value("es obligatoria"));
 		enviar("{\"clave\":\"pieza_1\",\"datos\":[1,2]}").andExpect(status().isBadRequest());
 		enviar("{\"clave\":\"pieza_1\",\"datos\":\"texto\"}").andExpect(status().isBadRequest());
 		enviar("{\"clave\":\"pieza_1\",\"datos\":5}").andExpect(status().isBadRequest());
+		enviar("{\"clave\":12345}").andExpect(status().isBadRequest());
+		enviar("{\"clave\":true}").andExpect(status().isBadRequest());
 		verifyNoInteractions(descubrimientoService);
 	}
 
