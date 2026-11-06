@@ -55,7 +55,7 @@ class MigracionIdsPuzzlesIT {
 		insertarPuzzle(migrada, sala, "mirador", "disponible", "{}");
 		insertarPuzzle(migrada, sala, "observatorio", "bloqueado", "{}");
 
-		assertThat(flyway(dataSource, "latest").migrate().targetSchemaVersion).isEqualTo("3");
+		assertThat(flyway(dataSource, "3").migrate().targetSchemaVersion).isEqualTo("3");
 
 		assertThat(migrada.queryForList("""
 				SELECT puzzle || ':' || estado || ':' || datos::text FROM puzzles_estado
@@ -79,9 +79,8 @@ class MigracionIdsPuzzlesIT {
 		for (String nuevo : List.of("radio", "photo", "lookout", "observatory")) {
 			insertarPuzzle(jdbc, sala, nuevo, "bloqueado", "{}");
 		}
-		assertThat(jdbc.queryForObject(
-				"SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1",
-				String.class)).isEqualTo("3");
+		assertThat(jdbc.queryForObject("SELECT success FROM flyway_schema_history WHERE version = '3'", Boolean.class))
+				.isTrue();
 	}
 
 	private DataSource dataSourceDelEsquema() {
