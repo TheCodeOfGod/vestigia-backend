@@ -97,12 +97,13 @@ public class SesionesWebSocket implements SalaService.Presencia {
 	/**
 	 * Registra la sesión con la credencial que ya validó la base, le encola auth.ok y avisa dispositivo.conectado al
 	 * otro rol. Devuelve false, sin registrar, si la sesión ya se cerró o si su sala se cerró después de validar el
-	 * token. Una conexión previa del mismo rol se cierra con {@link Cierre#REEMPLAZADA}; como el rol sigue conectado, no
-	 * se avisa desconectado.
+	 * token, o si la sesión ya estaba registrada. Una conexión previa del mismo rol se cierra con
+	 * {@link Cierre#REEMPLAZADA}; como el rol sigue conectado, no se avisa desconectado.
 	 */
 	public boolean conectar(WebSocketSession sesion, Credencial credencial) {
 		synchronized (this) {
-			if (!sesion.isOpen() || rechazadas.contains(sesion.getId()) || cerradas.containsKey(credencial.salaId())) {
+			if (!sesion.isOpen() || porSesion.containsKey(sesion.getId()) || rechazadas.contains(sesion.getId())
+					|| cerradas.containsKey(credencial.salaId())) {
 				return false;
 			}
 			Conexion conexion = new Conexion(credencial, sesion);
@@ -116,13 +117,17 @@ public class SesionesWebSocket implements SalaService.Presencia {
 			encolar(credencial.salaId(), Set.of(otro(credencial.rol())),
 					texto(new Mensaje("dispositivo.conectado", Map.of("rol", credencial.rol().name()))));
 			if (anterior != null) {
-				porSesion.remove(anterior.sesion.getId());
 				anterior.cerrar(Cierre.REEMPLAZADA.status());
 			}
 			return true;
 		}
 	}
 
+	/**
+	 * Si la sesión se autenticó. Sigue siendo true para una conexión que el servidor ya mandó cerrar (sala cerrada o
+	 * reemplazada) hasta que Tomcat la cierra: así un mensaje que llegue en ese hueco recibe la respuesta de una sesión
+	 * autenticada, que se descarta, y no la ruta de auth, que la cerraría desde otro hilo con otro código.
+	 */
 	public boolean autenticada(WebSocketSession sesion) {
 		return porSesion.containsKey(sesion.getId());
 	}
@@ -184,7 +189,8 @@ public class SesionesWebSocket implements SalaService.Presencia {
 
 	/**
 	 * Recuerda que la sala se cerró, para que ninguna conexión se registre en ella después, encola el aviso a toda la
-	 * sala y luego el cierre de sus conexiones con {@link Cierre#SALA_CERRADA}.
+	 * sala y luego el cierre de sus conexiones con {@link Cierre#SALA_CERRADA}. Las conexiones siguen en el registro,
+	 * terminadas, hasta que Tomcat las cierra y llega {@link #desconectar}.
 	 */
 	public void cerrarSala(UUID salaId, Mensaje aviso) {
 		TextMessage texto = texto(aviso);
@@ -195,7 +201,6 @@ public class SesionesWebSocket implements SalaService.Presencia {
 				return;
 			}
 			for (Conexion conexion : List.copyOf(sala.values())) {
-				porSesion.remove(conexion.sesion.getId());
 				conexion.encolar(texto);
 				conexion.cerrar(Cierre.SALA_CERRADA.status());
 			}

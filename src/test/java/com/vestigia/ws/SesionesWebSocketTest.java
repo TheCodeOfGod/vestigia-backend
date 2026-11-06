@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -146,6 +147,50 @@ class SesionesWebSocketTest {
 		assertThat(sesiones.conectar(tardia, new Credencial(salaA, "BACALAR", Rol.juego))).isFalse();
 		verify(tardia).close(new CloseStatus(4008));
 		verify(tardia, never()).sendMessage(any());
+	}
+
+	@Test
+	@DisplayName("Tras cerrarSala, la sesión sigue autenticada hasta que Tomcat la cierra: responder, conectar o cerrarSiNoSeAutentico no producen otro close ni otro envío")
+	void trasCerrarSalaNoHayOtroCierre() throws Exception {
+		SesionesWebSocket sesiones = new SesionesWebSocket(JSON, 65536, Runnable::run);
+		WebSocketSession app = sesion("app");
+		Credencial credencial = new Credencial(salaA, "BACALAR", Rol.app);
+		sesiones.conectar(app, credencial);
+
+		sesiones.cerrarSala(salaA, new Mensaje("sala.cerrada", Map.of("estado", "finalizada")));
+		sesiones.responder(app, Mensaje.error("tipo_desconocido", "x"));
+		sesiones.ping();
+
+		assertThat(sesiones.autenticada(app)).isTrue();
+		assertThat(sesiones.conectar(app, new Credencial(salaB, "TULA", Rol.app))).isFalse();
+		assertThat(sesiones.cerrarSiNoSeAutentico(app, new CloseStatus(4001))).isFalse();
+		assertThat(enviados(app)).containsExactly("auth.ok", "sala.cerrada");
+		verify(app, times(1)).close(any());
+		verify(app).close(new CloseStatus(1000, "La sala se cerró"));
+		assertThat(sesiones.dispositivos(salaA)).isEqualTo(new Sala.Dispositivos(false, false));
+	}
+
+	@Test
+	@DisplayName("La conexión reemplazada sigue autenticada hasta que Tomcat la cierra: un auth o un mensaje suyo no crean otra conexión ni otro close, y al desconectarse no avisa")
+	void conexionReemplazadaNoCreaOtraConexion() throws Exception {
+		SesionesWebSocket sesiones = new SesionesWebSocket(JSON, 65536, Runnable::run);
+		WebSocketSession juego = sesion("juego");
+		WebSocketSession vieja = sesion("vieja");
+		WebSocketSession nueva = sesion("nueva");
+		Credencial app = new Credencial(salaA, "BACALAR", Rol.app);
+		sesiones.conectar(juego, new Credencial(salaA, "BACALAR", Rol.juego));
+		sesiones.conectar(vieja, app);
+		sesiones.conectar(nueva, app);
+
+		assertThat(sesiones.conectar(vieja, app)).isFalse();
+		sesiones.responder(vieja, Mensaje.error("ya_autenticado", "x"));
+		sesiones.desconectar(vieja);
+
+		assertThat(enviados(vieja)).containsExactly("auth.ok");
+		verify(vieja, times(1)).close(any());
+		verify(vieja).close(new CloseStatus(4009, "Otra conexión del mismo rol tomó su lugar"));
+		assertThat(enviados(juego)).containsExactly("auth.ok", "dispositivo.conectado", "dispositivo.conectado");
+		assertThat(sesiones.dispositivos(salaA)).isEqualTo(new Sala.Dispositivos(true, true));
 	}
 
 	private static WebSocketSession sesion(String id) {
