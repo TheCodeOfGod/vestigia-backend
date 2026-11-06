@@ -22,7 +22,7 @@ Todo gira alrededor de la **sala**, que identifica una partida con el nombre de 
 
 **Un código, una sala viva.** Un índice único parcial en PostgreSQL impide que dos juegos reclamen el mismo pueblo a la vez. El que pierde recibe `409`.
 
-**Errores.** Todos tienen el mismo cuerpo JSON (`timestamp`, `status`, `error`, `message`, `path`, `details`). Los campos del JSON van en `snake_case` y las fechas en UTC con formato ISO-8601.
+**Errores.** Todos tienen el mismo cuerpo JSON (`timestamp`, `status`, `error`, `codigo`, `message`, `path`, `details`). `codigo` siempre viene y vale `null` salvo en los errores que definen uno, como `puzzle_bloqueado`. Los campos del JSON van en `snake_case` y las fechas en UTC con formato ISO-8601.
 
 **Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, escena, cierre de sala y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`. El endpoint para reportar puzzles (`PUT /api/v1/salas/{codigo}/puzzles/{puzzle}`) todavía no existe y responde `404`. El WebSocket de `/ws` rechaza las conexiones hasta que se implemente el tiempo real.
 

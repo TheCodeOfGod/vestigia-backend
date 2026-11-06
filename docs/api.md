@@ -17,13 +17,14 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 	  "timestamp": "2026-10-26T23:33:18.786573Z",
 	  "status": 409,
 	  "error": "Conflict",
+	  "codigo": null,
 	  "message": "'BACALAR' ya tiene una sala en curso",
 	  "path": "/api/v1/salas",
 	  "details": []
 	}
 	```
 
-	`message` está en español y se puede mostrar al jugador o al log. `details` solo trae elementos en errores de validación, uno por campo.
+	`message` está en español y se puede mostrar al jugador o al log. `details` solo trae elementos en errores de validación, uno por campo. `codigo` es un identificador estable para que el cliente decida qué hacer sin leer `message`. **Siempre viene**: vale `null` salvo en los errores que definen uno. Hoy el único es `puzzle_bloqueado` (`409` en `PUT /salas/{codigo}/puzzles/{puzzle}`).
 
 | Código | Cuándo |
 |---|---|
