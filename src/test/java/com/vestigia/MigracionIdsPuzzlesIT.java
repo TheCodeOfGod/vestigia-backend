@@ -44,7 +44,7 @@ class MigracionIdsPuzzlesIT {
 	}
 
 	@Test
-	@DisplayName("V3 renombra a inglés los puzzles de una sala creada con V2 y conserva su estado y sus datos")
+	@DisplayName("V3 renombra a inglés los puzzles de una sala creada con V2, conserva su estado y sus datos, y ese esquema rechaza fotografia")
 	void v3RenombraLosPuzzlesDeUnaSalaExistente() {
 		DataSource dataSource = dataSourceDelEsquema();
 		JdbcTemplate migrada = new JdbcTemplate(dataSource);
@@ -63,6 +63,9 @@ class MigracionIdsPuzzlesIT {
 				""", String.class, sala)).containsExactly("lookout:disponible:{}", "observatory:bloqueado:{}",
 				"photo:en_curso:{}", "radio:resuelto:{\"sintonizada\": true}");
 		assertThat(migrada.queryForObject("SELECT count(*) FROM puzzles_estado", Integer.class)).isEqualTo(4);
+		assertThatThrownBy(() -> insertarPuzzle(migrada, sala, "fotografia", "bloqueado", "{}"))
+				.isInstanceOf(DataIntegrityViolationException.class)
+				.hasMessageContaining("puzzles_estado_puzzle_check");
 	}
 
 	@Test
