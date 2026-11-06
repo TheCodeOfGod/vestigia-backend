@@ -131,20 +131,26 @@
 		registro.prepend(li);
 	}
 
-	async function rest(panel, metodo, ruta, token) {
-		const encabezados = {};
-		if (token) encabezados.Authorization = 'Bearer ' + token;
+	/** fetch que lee el cuerpo como texto e intenta JSON; el 403 de CORS, por ejemplo, es texto plano. */
+	async function pedir(ruta, opciones) {
 		try {
-			const r = await fetch(base() + ruta, { method: metodo, headers: encabezados });
+			const r = await fetch(base() + ruta, opciones);
 			const texto = await r.text();
 			let cuerpo = texto;
 			try { cuerpo = JSON.parse(texto); } catch (e) { /* texto plano */ }
-			anotar(panel, 'rest', metodo + ' ' + ruta + ' → ' + r.status, cuerpo);
 			return { status: r.status, cuerpo };
 		} catch (e) {
-			anotar(panel, 'error', metodo + ' ' + ruta + ' → sin respuesta', String(e));
-			return { status: 0, cuerpo: null };
+			return { status: 0, cuerpo: String(e) };
 		}
+	}
+
+	async function rest(panel, metodo, ruta, token) {
+		const encabezados = {};
+		if (token) encabezados.Authorization = 'Bearer ' + token;
+		const r = await pedir(ruta, { method: metodo, headers: encabezados });
+		if (r.status === 0) anotar(panel, 'error', metodo + ' ' + ruta + ' → sin respuesta', r.cuerpo);
+		else anotar(panel, 'rest', metodo + ' ' + ruta + ' → ' + r.status, r.cuerpo);
+		return r;
 	}
 
 	const paneles = {};
@@ -204,9 +210,9 @@
 		const c = codigoNormalizado();
 		const { panel, token } = paneles.juego;
 		if (!c) { anotar(panel, 'error', 'Escribe el pueblo'); return; }
-		const r = await fetch(base() + '/api/v1/salas', {
+		const r = await pedir('/api/v1/salas', {
 			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c })
-		}).then(async (x) => ({ status: x.status, cuerpo: await x.json() })).catch((e) => ({ status: 0, cuerpo: String(e) }));
+		});
 		if (r.status === 201) {
 			token.value = r.cuerpo.token;
 			anotar(panel, 'rest', 'POST /api/v1/salas → 201', { ...r.cuerpo, token: '<token guardado en el campo>' });
@@ -219,8 +225,7 @@
 		const c = codigoNormalizado();
 		const { panel, token } = paneles.app;
 		if (!c) { anotar(panel, 'error', 'Escribe el pueblo'); return; }
-		const r = await fetch(base() + '/api/v1/salas/' + encodeURIComponent(c) + '/unirse', { method: 'POST' })
-			.then(async (x) => ({ status: x.status, cuerpo: await x.json() })).catch((e) => ({ status: 0, cuerpo: String(e) }));
+		const r = await pedir('/api/v1/salas/' + encodeURIComponent(c) + '/unirse', { method: 'POST' });
 		if (r.status === 200) {
 			token.value = r.cuerpo.token;
 			anotar(panel, 'rest', 'POST /unirse → 200', { token: '<token guardado en el campo>' });
