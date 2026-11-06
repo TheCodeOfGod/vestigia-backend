@@ -56,7 +56,16 @@ Son nombres de Pueblos Mágicos de México de una sola palabra. La lista no camb
 | `datos` | `JSONB` | Lo último que reportó el cliente. `{}` al crear la sala |
 | `actualizado_en` | `TIMESTAMPTZ` | |
 
-Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` también empieza bloqueado porque su requisito, el descubrimiento `pescador_dialogo_completo`, todavía no puede existir. Las transiciones y los requisitos llegan en el Paso 3.
+Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` también empieza bloqueado porque su requisito, el descubrimiento `pescador_dialogo_completo`, todavía no puede existir.
+
+`HabilitacionPuzzlesService` pasa un puzzle de `bloqueado` a `disponible` cuando se cumplen sus requisitos. Se recalcula tras cada descubrimiento nuevo y, desde la entrega 3b, tras cada puzzle resuelto. Lee el estado completo de la sala, así que el orden en que llegan los requisitos no importa. Nunca baja un puzzle de estado.
+
+| Puzzle | Pasa a `disponible` cuando |
+|---|---|
+| `radio` | Existe `pescador_dialogo_completo` |
+| `photo` | Existen `pieza_1`, `pieza_2` y `pieza_3` |
+| `lookout` | `photo` está `resuelto` y existe `lookout_enabled` |
+| `observatory` | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` y existe `observatory_enabled` |
 
 ### `descubrimientos`
 
@@ -86,6 +95,7 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 |---|---|---|---|
 | `sala.creada` | `POST /salas` | `juego` | `{"codigo": "BACALAR"}` |
 | `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
+| `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo"}` |
 
 Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
 
