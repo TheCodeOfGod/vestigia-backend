@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.SalaService;
 
 @WebMvcTest
@@ -30,6 +31,9 @@ class ApiHttpConfigTest {
 
 	@MockitoBean
 	private SalaService salaService;
+
+	@MockitoBean
+	private DescubrimientoService descubrimientoService;
 
 	@Test
 	void registraUnaLineaPorPeticionSinTokens(CapturedOutput output) throws Exception {

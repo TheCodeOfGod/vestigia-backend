@@ -95,6 +95,7 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 |---|---|---|---|
 | `sala.creada` | `POST /salas` | `juego` | `{"codigo": "BACALAR"}` |
 | `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
+| `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva | `juego` o `app` | `{"clave": "pieza_1", "datos": {...}}` |
 | `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo"}` |
 
 Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
