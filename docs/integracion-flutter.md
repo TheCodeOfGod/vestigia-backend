@@ -107,34 +107,47 @@ TOKEN_JUEGO=pega-aqui-el-token-del-juego
 
 Si responde `409`, el pueblo ya tiene una sala de una prueba anterior. Ciérrala con `curl -X DELETE $BASE/api/v1/salas/TAPALPA -H "Authorization: Bearer $TOKEN_JUEGO"` si tienes su token, o usa otro pueblo de `curl "$BASE/api/v1/pueblos?disponibles=true"` y cámbialo en todos los comandos.
 
-**Avanzar la partida como si fueras el juego.** Cada bloque habilita un puzzle de la app:
+**Avanzar la partida como si fueras el juego.** Corre cada bloque en su momento, no todos juntos:
 
-```sh
-# Habilita photo: las tres piezas de la fotografía
-for p in pieza_1 pieza_2 pieza_3; do
+1. Para habilitar la fotografía (`photo`), las tres piezas:
+
+	```sh
+	for p in pieza_1 pieza_2 pieza_3; do
+		curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
+			-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d "{\"clave\": \"$p\"}"
+	done
+	```
+
+2. Para habilitar el mirador (`lookout`), **después** de que la app resuelva `photo`: la jugadora llegó a la cima del faro.
+
+	```sh
 	curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
-		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d "{\"clave\": \"$p\"}"
-done
+		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "lookout_enabled"}'
+	```
 
-# Habilita lookout (además photo tiene que estar resuelto): la jugadora llegó a la cima del faro
-curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
-	-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "lookout_enabled"}'
+3. Para habilitar el observatorio (`observatory`), **después** de que la app resuelva `lookout`: el pescador, la radio (que crea `coordenada_a`) y la llegada al observatorio.
 
-# Habilita observatory (además lookout resuelto y las dos coordenadas): el pescador, la radio y la llegada al observatorio
-curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
-	-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "pescador_dialogo_completo"}'
-curl -X PUT $BASE/api/v1/salas/TAPALPA/puzzles/radio \
-	-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"datos": {"sintonizada": true}}'
-curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
-	-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "observatory_enabled"}'
+	```sh
+	curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
+		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "pescador_dialogo_completo"}'
+	curl -X PUT $BASE/api/v1/salas/TAPALPA/puzzles/radio \
+		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"datos": {"sintonizada": true}}'
+	curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
+		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "observatory_enabled"}'
+	```
 
-# Cambia la escena (la app recibe escena.cambiada)
-curl -X PUT $BASE/api/v1/salas/TAPALPA/escena \
-	-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"escena": "faro"}'
+4. Para cambiar la escena en cualquier momento (la app recibe `escena.cambiada`). Valores: `pueblo`, `faro`, `observatorio` o `desenlace`.
 
-# Cierra la sala al final (la app recibe sala.cerrada)
-curl -X DELETE $BASE/api/v1/salas/TAPALPA -H "Authorization: Bearer $TOKEN_JUEGO"
-```
+	```sh
+	curl -X PUT $BASE/api/v1/salas/TAPALPA/escena \
+		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"escena": "faro"}'
+	```
+
+5. Para terminar la partida, al final de todo (la app recibe `sala.cerrada` y el pueblo queda libre otra vez):
+
+	```sh
+	curl -X DELETE $BASE/api/v1/salas/TAPALPA -H "Authorization: Bearer $TOKEN_JUEGO"
+	```
 
 **Hacer de app con `curl`.** Los comandos de la sección 4 son los que manda la app. Guarda su token igual: `TOKEN_APP=pega-aqui-el-token-de-la-app`.
 

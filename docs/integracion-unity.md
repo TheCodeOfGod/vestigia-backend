@@ -556,7 +556,21 @@ Respuesta `201 Created`:
 {"clave": "pieza_1", "datos": {}, "origen": "juego", "creado_en": "2026-11-06T15:45:32.354251Z"}
 ```
 
-Repite con `pieza_2` y `pieza_3`. Con la tercera, la fotografía pasa a `disponible` y los dos dispositivos reciben:
+Cuando recoge la segunda y la tercera pieza, lo mismo con `pieza_2` y `pieza_3`:
+
+```sh
+curl -X POST $BASE/api/v1/salas/BACALAR/descubrimientos \
+	-H "Authorization: Bearer $TOKEN_JUEGO" \
+	-H 'Content-Type: application/json' \
+	-d '{"clave": "pieza_2"}'
+
+curl -X POST $BASE/api/v1/salas/BACALAR/descubrimientos \
+	-H "Authorization: Bearer $TOKEN_JUEGO" \
+	-H 'Content-Type: application/json' \
+	-d '{"clave": "pieza_3"}'
+```
+
+Con la tercera, la fotografía pasa a `disponible` y los dos dispositivos reciben:
 
 <!-- respuesta: ws -->
 ```json
