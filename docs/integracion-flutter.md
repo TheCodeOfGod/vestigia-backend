@@ -2,6 +2,8 @@
 
 Esta guía es para quien programa **la app móvil en Flutter (Dart)**, la libreta de Janeth. Explica, paso a paso y en orden, cada cosa que la app le pide o le avisa al backend de Vestigia. No necesitas abrir otras guías ni el código del backend: todo lo que la app usa está aquí.
 
+> **Antes de copiar cualquier comando:** todos usan la variable `BASE` con la dirección del backend. Escribe primero `export BASE=http://localhost:8080` en tu terminal. Si el backend corre en otro puerto (por ejemplo `18081`), usa ese número: `export BASE=http://localhost:18081`. Ver la sección 2.1.
+
 Cada respuesta de ejemplo salió de correr el backend real. Los tokens están recortados (`MdKqZU8pVUJn…`). Los fragmentos de Dart están marcados como **no compilados**: se escribieron para Flutter 3 con Dart 3, pero no se compilaron en un proyecto de Flutter.
 
 **Índice**
@@ -54,11 +56,13 @@ Desde el teléfono, `localhost` **no** es tu computadora:
 
 En local el backend usa `http`, sin cifrar. Android lo bloquea salvo que agregues `android:usesCleartextTraffic="true"` en `<application>` de `AndroidManifest.xml` (solo para desarrollo), e iOS salvo que permitas cargas locales en `Info.plist` (`NSAppTransportSecurity` → `NSAllowsLocalNetworking`). En producción será `https` y no hará falta.
 
-En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo esta línea:
+En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo el número de esta línea:
 
 ```sh
-BASE=http://localhost:8080
+export BASE=http://localhost:8080
 ```
+
+Sin `/` al final. Si abres otra terminal, vuelve a escribir la línea: la variable vive solo en la terminal donde la definiste. `BASE` es para los comandos de tu computadora; la app usa la URL de la tabla de arriba según dónde corra.
 
 ### 2.2 Levantar el backend en tu computadora
 
@@ -97,6 +101,13 @@ La app no puede hacer nada hasta que el juego crea la sala. Sin el juego, haz de
 
 ```sh
 curl -X POST $BASE/api/v1/salas -H 'Content-Type: application/json' -d '{"codigo": "TAPALPA"}'
+```
+
+Respuesta `201 Created`:
+
+<!-- respuesta: sala-creada -->
+```json
+{"codigo": "TAPALPA", "estado": "esperando_app", "token": "E6waKVGy5-g5…"}
 ```
 
 Copia el valor de `token` de la respuesta y guárdalo así (no lo confundas con el de la app):
@@ -143,11 +154,20 @@ Si responde `409`, el pueblo ya tiene una sala de una prueba anterior. Ciérrala
 		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"escena": "faro"}'
 	```
 
+	Respuesta `200 OK`:
+
+	<!-- respuesta: escena -->
+	```json
+	{"escena_actual": "faro"}
+	```
+
 5. Para terminar la partida, al final de todo (la app recibe `sala.cerrada` y el pueblo queda libre otra vez):
 
 	```sh
 	curl -X DELETE $BASE/api/v1/salas/TAPALPA -H "Authorization: Bearer $TOKEN_JUEGO"
 	```
+
+	Respuesta `204 No Content`, **sin cuerpo**: `curl` no imprime nada. Para ver el código, agrega `-w '%{http_code}\n'` al comando. Después de esto, los dos tokens responden `401`.
 
 **Hacer de app con `curl`.** Los comandos de la sección 4 son los que manda la app. Guarda su token igual: `TOKEN_APP=pega-aqui-el-token-de-la-app`.
 
@@ -304,7 +324,7 @@ Future<void> alPulsarUnirme(BuildContext context, String texto) async {
 **Cuándo:** justo después de unirte, al recuperar una partida guardada y cada vez que la conexión se caiga (sección 7).
 
 1. Abre `ws://<host>/ws` (en producción `wss://…/ws`). **El token no va en la URL.**
-2. En menos de 5 segundos manda este texto:
+2. En menos de 5 segundos manda este texto, cambiando `<token>` por el token de la app que guardaste en el paso 2:
 
 	<!-- peticion -->
 	```json
@@ -354,7 +374,7 @@ Respuesta `200 OK` recién unida la app, con los dos dispositivos conectados:
 }
 ```
 
-Y al final de una partida completa (los `descubrimientos`, recortados a los que lee la libreta):
+Y al final de una partida completa. Los `descubrimientos` están recortados a los que lee la libreta: se omitieron `lookout_enabled` y `observatory_enabled`, las banderas del juego, que en la respuesta real aparecen después de `coordenada_b` y de `observatorio_visible`, respectivamente. La app no las muestra:
 
 <!-- respuesta: estado -->
 ```json
@@ -976,7 +996,8 @@ class VestigiaCliente extends ChangeNotifier {
     if (!_reconectar) return;
     if (const {1000, 4000, 4001, 4009, 1009}.contains(codigo)) {
       _reconectar = false;
-      if (codigo == 4001) _terminar();
+      // 1000: la sala se cerró (llega después de sala.cerrada, por si ese mensaje se perdió). 4001: token muerto.
+      if (codigo == 1000 || codigo == 4001) _terminar();
       return;
     }
     _programarReconexion();
@@ -1080,7 +1101,7 @@ ListenableBuilder(
 
 | Síntoma | Causa | Solución |
 |---|---|---|
-| `404` al unirse con un código que sí existe | Espacios o minúsculas que no se normalizaron, o el juego todavía no creó la sala | Normaliza y confirma en la PC el nombre exacto |
+| `404` al unirse con un código que sí existe | Espacios dentro del código (`TA PALPA`), que el servidor no quita, o el juego todavía no creó la sala. Las minúsculas no son el problema: el servidor las pasa a mayúsculas | Quita todos los espacios y confirma en la PC el nombre exacto |
 | `409` al unirse | Otro teléfono (o una prueba anterior con `curl`) ya se unió | Pide al juego que cree otra sala |
 | Las peticiones fallan en el emulador de Android | `localhost` en el emulador es el propio emulador | Usa `http://10.0.2.2:8080` |
 | Android o iOS bloquean `http://` | El tráfico sin cifrar está prohibido por defecto | Permítelo solo en desarrollo (sección 2.1) |
