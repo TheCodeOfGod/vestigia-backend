@@ -155,16 +155,18 @@ public class SesionesWebSocket implements SalaService.Presencia {
 	}
 
 	/**
-	 * Olvida la sesión que se cerró. Si era la conexión vigente de su rol, avisa dispositivo.desconectado al otro rol;
-	 * si otra conexión ya la había reemplazado, no avisa nada.
+	 * Olvida la sesión que se cerró y descarta lo que quedaba en su cola, que ya no tiene a dónde ir. Si era la conexión
+	 * vigente de su rol, avisa dispositivo.desconectado al otro rol; si otra conexión ya la había reemplazado o su sala
+	 * se cerró, no avisa nada.
 	 */
 	public void desconectar(WebSocketSession sesion) {
-		rechazadas.remove(sesion.getId());
 		synchronized (this) {
+			rechazadas.remove(sesion.getId());
 			Conexion conexion = porSesion.remove(sesion.getId());
 			if (conexion == null) {
 				return;
 			}
+			conexion.descartar();
 			Credencial c = conexion.credencial;
 			Map<Rol, Conexion> sala = porSala.get(c.salaId());
 			if (sala == null || !sala.remove(c.rol(), conexion)) {
@@ -308,6 +310,12 @@ public class SesionesWebSocket implements SalaService.Presencia {
 			terminada = true;
 			pendientes.add(new Salida(null, status));
 			envios.execute(this::vaciar);
+		}
+
+		/** La sesión ya se cerró: nada más sale por ella, ni otro cierre. */
+		void descartar() {
+			terminada = true;
+			pendientes.clear();
 		}
 
 		private void vaciar() {

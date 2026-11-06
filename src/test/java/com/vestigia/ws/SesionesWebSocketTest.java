@@ -193,6 +193,43 @@ class SesionesWebSocketTest {
 		assertThat(sesiones.dispositivos(salaA)).isEqualTo(new Sala.Dispositivos(true, true));
 	}
 
+	@Test
+	@DisplayName("Al desconectarse, lo que quedaba en la cola se descarta: no hay otro envío ni otro close sobre la sesión cerrada")
+	void desconectarDescartaLaCola() throws Exception {
+		SesionesWebSocket sesiones = new SesionesWebSocket(JSON, 65536, Executors.newVirtualThreadPerTaskExecutor());
+		CountDownLatch bloqueado = new CountDownLatch(1);
+		CountDownLatch soltar = new CountDownLatch(1);
+		WebSocketSession app = sesion("app");
+		doAnswer(inv -> {
+			bloqueado.countDown();
+			soltar.await();
+			return null;
+		}).when(app).sendMessage(any());
+		sesiones.conectar(app, new Credencial(salaA, "BACALAR", Rol.app));
+		assertThat(bloqueado.await(2, TimeUnit.SECONDS)).isTrue();
+		sesiones.enviar(salaA, SesionesWebSocket.TODOS, new Mensaje("uno", Map.of()));
+
+		sesiones.desconectar(app);
+		soltar.countDown();
+
+		Thread.sleep(200);
+		verify(app, times(1)).sendMessage(any());
+		verify(app, never()).close(any());
+	}
+
+	@Test
+	@DisplayName("desconectar olvida una sesión rechazada, así que no queda guardada para siempre")
+	void desconectarOlvidaLaSesionRechazada() throws Exception {
+		SesionesWebSocket sesiones = new SesionesWebSocket(JSON, 65536, Runnable::run);
+		WebSocketSession sinAuth = sesion("sin-auth");
+		assertThat(sesiones.cerrarSiNoSeAutentico(sinAuth, new CloseStatus(4008))).isTrue();
+		assertThat(sesiones.cerrarSiNoSeAutentico(sinAuth, new CloseStatus(4008))).isFalse();
+
+		sesiones.desconectar(sinAuth);
+
+		assertThat(sesiones.cerrarSiNoSeAutentico(sinAuth, new CloseStatus(4008))).isTrue();
+	}
+
 	private static WebSocketSession sesion(String id) {
 		WebSocketSession sesion = mock(WebSocketSession.class);
 		when(sesion.getId()).thenReturn(id);
