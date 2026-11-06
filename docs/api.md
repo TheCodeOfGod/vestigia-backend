@@ -185,7 +185,7 @@ curl -X POST http://localhost:8080/api/v1/salas/BACALAR/descubrimientos \
 | Campo | Notas |
 |---|---|
 | `clave` | Obligatoria. Solo minúsculas sin acentos, dígitos y guion bajo, de 1 a 40 caracteres (`^[a-z0-9_]{1,40}$`) |
-| `datos` | Opcional. Un objeto JSON cualquiera. Si no se manda, se guarda `{}` |
+| `datos` | Opcional. Un objeto JSON cualquiera, de **4096 bytes como máximo** escrito como JSON compacto en UTF-8 (una letra con acento cuenta dos). Si no se manda, se guarda `{}` |
 | `origen` | Lo pone el servidor según el token: `juego` o `app` |
 
 **Es idempotente.** Repetir la misma clave responde `200 OK` con el descubrimiento que ya existía, **con sus datos originales**: los `datos` nuevos se ignoran. No se duplica ni se guarda otro evento, pero sí se renueva la expiración. Si el juego y la app mandan la misma clave a la vez, uno recibe `201` y el otro `200`.
@@ -207,11 +207,14 @@ El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `o
 | `400` | Clave con mayúsculas, guiones, acentos, espacios o más de 40 caracteres | `Datos inválidos`, con `details: [{"field": "clave", ...}]` |
 | `400` | `datos` no es un objeto (`[1,2]`, `"texto"`, `5`) | `JSON malformado o ilegible` |
 | `400` | `clave` no es texto (`12345`, `true`) | `JSON malformado o ilegible` |
+| `400` | `datos` pasa de 4096 bytes | `Datos inválidos`, con `details: [{"field": "datos", "message": "no puede pasar de 4096 bytes escrito como JSON"}]` |
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 | `403` | La clave es `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `La clave 'coordenada_a' la genera el servidor al resolver un puzzle; los clientes no pueden enviarla` |
 
 Esas cuatro claves son los resultados de los puzzles y solo las crea el servidor (Paso 3b).
+
+El límite de `datos` lo fijaron los agentes que construyeron el paso, a raíz de una revisión: la especificación no ponía ninguno y un cliente podía guardar un JSON de cualquier tamaño. Se cambia con la propiedad `vestigia.descubrimientos.datos-max-bytes` (por defecto `4096`).
 
 ## `PUT /salas/{codigo}/escena`
 

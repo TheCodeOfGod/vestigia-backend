@@ -103,6 +103,16 @@ class DescubrimientoControllerTest {
 	}
 
 	@Test
+	@DisplayName("Unos datos de más de 4096 bytes en JSON dan 400 con detalle en datos, sin llamar al servicio")
+	void datosDemasiadoGrandesDan400() throws Exception {
+		enviar("{\"clave\":\"pieza_1\",\"datos\":{\"nota\":\"" + "x".repeat(4100) + "\"}}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.details[0].field").value("datos"))
+				.andExpect(jsonPath("$.details[0].message").value("no puede pasar de 4096 bytes escrito como JSON"));
+		verifyNoInteractions(descubrimientoService);
+	}
+
+	@Test
 	@DisplayName("Una clave del servidor responde 403 con el cuerpo de error uniforme")
 	void claveDelServidorDa403() throws Exception {
 		when(descubrimientoService.registrar(any(), eq("coordenada_a"), any())).thenThrow(

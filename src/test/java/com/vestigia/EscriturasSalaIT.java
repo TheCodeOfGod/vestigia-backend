@@ -390,6 +390,22 @@ class EscriturasSalaIT {
 				.isEqualTo("expirada");
 	}
 
+	@Test
+	@DisplayName("Unos datos que pasan de 4096 bytes en JSON dan 400 y no se guardan; justo en el límite responden 201")
+	void datosConTamanoAcotado() throws Exception {
+		String juego = api.tokenJuego("SALVATIERRA");
+		String relleno = "x".repeat(4096 - "{\"nota\":\"\"}".length());
+
+		HttpResponse<String> grande = descubrir("SALVATIERRA", "pieza_1", "{\"nota\":\"" + relleno + "x\"}", juego);
+		assertThat(grande.statusCode()).isEqualTo(400);
+		assertThat(api.cuerpo(grande).get("details").get(0).get("field").asString()).isEqualTo("datos");
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ?", Integer.class,
+				salaViva("SALVATIERRA"))).isZero();
+
+		assertThat(descubrir("SALVATIERRA", "pieza_1", "{\"nota\":\"" + relleno + "\"}", juego).statusCode())
+				.isEqualTo(201);
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);

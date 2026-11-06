@@ -95,6 +95,7 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 |---|---|---|
 | `vestigia.salas.expiracion` | Tiempo sin actividad tras el cual una sala viva expira, en formato ISO-8601 | `PT2H` |
 | `vestigia.salas.expiracion-revision` | Cada cuánto corre el job que marca las salas vencidas | `PT1M` |
+| `vestigia.descubrimientos.datos-max-bytes` | Tamaño máximo de los `datos` de un descubrimiento, en bytes de JSON | `4096` |
 
 ## Correr las pruebas
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
