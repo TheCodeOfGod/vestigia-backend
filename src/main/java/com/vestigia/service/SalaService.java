@@ -153,8 +153,8 @@ public class SalaService {
 	}
 
 	/**
-	 * Enlaza la única app de la sala. 404 si no hay sala viva con ese código; 409 si la sala viva ya tiene app (incluye
-	 * perder una carrera contra otra app).
+	 * Enlaza la única app de la sala. 404 si no hay sala viva con ese código o si está vencida aunque el job no la haya
+	 * marcado; 409 si la sala viva ya tiene app (incluye perder una carrera contra otra app).
 	 */
 	@Transactional
 	public AppUnida unirse(String codigoRecibido) {
@@ -168,16 +168,22 @@ public class SalaService {
 			actividad.registrar(sala, EventoModel.Tipo.app_unida, Rol.app.origen(), Map.of());
 			return new AppUnida(token);
 		}
-		if (salas.findByCodigoAndEstadoIn(codigo, SalaModel.Estado.VIVOS).isPresent()) {
+		if (salas.findByCodigoAndEstadoIn(codigo, SalaModel.Estado.VIVOS).filter(s -> !vencida(s, ahora)).isPresent()) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "La sala '" + codigo + "' ya tiene una app enlazada");
 		}
 		throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una sala en curso con el código '" + codigo + "'");
 	}
 
+	/**
+	 * La credencial del token si su sala está viva y no vencida. Una sala con expira_en vencido cuenta como terminada
+	 * aunque el job todavía no la haya marcado.
+	 */
 	@Transactional(readOnly = true)
 	public Optional<Credencial> autenticar(String token) {
 		String hash = hashToken(token);
+		Instant ahora = clock.instant();
 		return salas.findByTokenHashAndEstadoIn(hash, SalaModel.Estado.VIVOS)
+				.filter(s -> !vencida(s, ahora))
 				.map(s -> new Credencial(s.getId(), s.getCodigo(),
 						hash.equals(s.getTokenJuegoHash()) ? Rol.juego : Rol.app));
 	}
@@ -240,6 +246,11 @@ public class SalaService {
 		if (credencial.rol() != Rol.juego) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, mensaje);
 		}
+	}
+
+	/** El mismo corte que el job: una sala está vencida si su expira_en ya pasó. */
+	static boolean vencida(SalaModel sala, Instant ahora) {
+		return sala.getExpiraEn().isBefore(ahora);
 	}
 
 	/** Marca expirada cada sala viva cuyo expira_en ya pasó. Su código queda libre y la fila se conserva. */

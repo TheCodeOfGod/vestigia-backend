@@ -43,7 +43,7 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 5. Durante la partida, el juego y la app registran descubrimientos y el juego cambia la escena.
 6. Al terminar, el juego cierra la sala. Los dos tokens dejan de servir.
 
-Una sala sin actividad durante 2 horas pasa a `expirada`. Su token deja de servir (`401`) y el pueblo vuelve a estar libre.
+Una sala sin actividad durante 2 horas está vencida. Desde ese momento sus tokens dejan de servir (`401`) y ninguna app se puede unir (`404`). Un job la marca `expirada` en el minuto siguiente y entonces el pueblo vuelve a estar libre.
 
 ## `GET /pueblos`
 
@@ -114,7 +114,7 @@ La sala pasa a `activa` y su expiración se renueva.
 | `404` | `No hay una sala en curso con el código 'TULUM'` |
 | `409` | `La sala 'BACALAR' ya tiene una app enlazada` |
 
-`404` cubre tanto un código que nunca tuvo sala como una sala que ya expiró o terminó. Si dos apps se unen a la vez, una recibe `200` y la otra `409`.
+`404` cubre un código que nunca tuvo sala, una sala que ya expiró o terminó y una sala cuyo `expira_en` ya pasó aunque el job todavía no la haya marcado `expirada`. Si dos apps se unen a la vez, una recibe `200` y la otra `409`.
 
 ## `GET /salas/{codigo}/estado`
 
@@ -156,14 +156,14 @@ curl http://localhost:8080/api/v1/salas/BACALAR/estado \
 | Error | `message` |
 |---|---|
 | `401` sin token | `Falta el token: envía el encabezado Authorization: Bearer <token>` |
-| `401` token desconocido o sala terminada | `Token inválido o de una sala que ya terminó` |
+| `401` token desconocido, sala terminada o sala con `expira_en` vencido | `Token inválido o de una sala que ya terminó` |
 | `403` token de otra sala | `El token no pertenece a esta sala` |
 
 Ante un `401`, el token ya no sirve: vuelve a la pantalla de elegir pueblo (juego) o de escribir el código (app).
 
 ## Escrituras
 
-Toda escritura exitosa renueva la sala: `expira_en` vuelve a quedar a 2 horas de ese momento, igual que al unirse. Una sala cuyo `expira_en` ya pasó cuenta como terminada: cualquier escritura responde `401`, aunque el job que la marca `expirada` todavía no haya corrido. También deja un evento en la bitácora de la sala. Las escrituras de una misma sala se atienden una por una, así que dos peticiones simultáneas no se pisan.
+Toda escritura exitosa renueva la sala: `expira_en` vuelve a quedar a 2 horas de ese momento, igual que al unirse. Una sala cuyo `expira_en` ya pasó cuenta como terminada: cualquier petición con su token, lectura o escritura, responde `401`, aunque el job que la marca `expirada` todavía no haya corrido. También deja un evento en la bitácora de la sala. Las escrituras de una misma sala se atienden una por una, así que dos peticiones simultáneas no se pisan.
 
 ## `POST /salas/{codigo}/descubrimientos`
 

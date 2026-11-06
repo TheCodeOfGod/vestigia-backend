@@ -203,7 +203,7 @@ class SalaServiceTest {
 	@DisplayName("Si unirse pierde la carrera no guarda ningún evento")
 	void unirseFallidoNoRegistraEvento() {
 		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
-		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(salaQueExpiraEn(AHORA)));
 
 		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOf(ResponseStatusException.class);
 		verifyNoInteractions(actividad);
@@ -212,7 +212,7 @@ class SalaServiceTest {
 	@Test
 	void unirseASalaVivaQueYaTieneAppDa409() {
 		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
-		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(salaQueExpiraEn(AHORA)));
 
 		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOfSatisfying(ResponseStatusException.class,
 				ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
@@ -233,6 +233,7 @@ class SalaServiceTest {
 		sala.setCodigo("ALAMOS");
 		sala.setTokenJuegoHash(sha256("tok-juego"));
 		sala.setTokenAppHash(sha256("tok-app"));
+		sala.setExpiraEn(AHORA.plusSeconds(60));
 		when(salas.findByTokenHashAndEstadoIn(anyString(), eq(SalaModel.Estado.VIVOS))).thenReturn(Optional.of(sala));
 
 		assertThat(service.autenticar("tok-juego")).get().extracting(SalaService.Credencial::rol)
@@ -240,6 +241,33 @@ class SalaServiceTest {
 		assertThat(service.autenticar("tok-app")).get().extracting(SalaService.Credencial::rol)
 				.isEqualTo(SalaService.Rol.app);
 		verify(salas).findByTokenHashAndEstadoIn(sha256("tok-juego"), SalaModel.Estado.VIVOS);
+	}
+
+	@Test
+	@DisplayName("Autenticar con el token de una sala viva con expira_en vencido no da credencial; justo en expira_en sí")
+	void autenticarSalaVencidaNoDaCredencial() throws Exception {
+		SalaModel sala = salaQueExpiraEn(AHORA.minusNanos(1000));
+		sala.setTokenJuegoHash(sha256("tok"));
+		when(salas.findByTokenHashAndEstadoIn(anyString(), eq(SalaModel.Estado.VIVOS))).thenReturn(Optional.of(sala));
+
+		assertThat(service.autenticar("tok")).isEmpty();
+
+		sala.setExpiraEn(AHORA);
+		assertThat(service.autenticar("tok")).isPresent();
+	}
+
+	@Test
+	@DisplayName("Unirse a una sala con expira_en vencido que el job aún no marcó responde 404 con el mensaje de sala inexistente")
+	void unirseASalaVencidaDa404() {
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS))
+				.thenReturn(Optional.of(salaQueExpiraEn(AHORA.minusNanos(1000))));
+
+		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+			assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+			assertThat(ex.getReason()).isEqualTo("No hay una sala en curso con el código 'ALAMOS'");
+		});
+		verifyNoInteractions(actividad);
 	}
 
 	@Test
@@ -352,6 +380,13 @@ class SalaServiceTest {
 		service.expirarVencidas();
 
 		verify(salas).expirarVencidas(AHORA, SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+	}
+
+	private static SalaModel salaQueExpiraEn(Instant expiraEn) {
+		SalaModel sala = new SalaModel();
+		sala.setEstado(SalaModel.Estado.esperando_app);
+		sala.setExpiraEn(expiraEn);
+		return sala;
 	}
 
 	private static SalaService.Credencial credencial(SalaService.Rol rol) {

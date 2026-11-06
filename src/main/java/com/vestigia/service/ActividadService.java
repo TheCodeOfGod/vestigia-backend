@@ -61,7 +61,7 @@ public class ActividadService {
 	public SalaModel bloquear(UUID salaId) {
 		Instant ahora = clock.instant();
 		return salas.bloquear(salaId)
-				.filter(s -> SalaModel.Estado.VIVOS.contains(s.getEstado()) && !s.getExpiraEn().isBefore(ahora))
+				.filter(s -> SalaModel.Estado.VIVOS.contains(s.getEstado()) && !SalaService.vencida(s, ahora))
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
 						"Token inválido o de una sala que ya terminó"));
 	}

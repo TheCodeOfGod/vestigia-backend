@@ -131,7 +131,7 @@ Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma dur
 
 **Escrituras simultáneas.** Descubrimientos, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, y tres piezas que llegan a la vez habilitan `photo`. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. También responde `401` si su `expira_en` ya pasó aunque el job todavía no la haya marcado: una escritura no puede revivir una sala vencida. Salas distintas no se bloquean entre sí.
 
-Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue viva: su token todavía sirve para leer el estado y su código todavía está ocupado. Las escrituras (descubrimientos, escena y cierre) ya responden `401` en ese minuto.
+**Sala vencida.** Una sala está vencida si `expira_en < ahora`, el mismo corte que usa el job. Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue en `esperando_app` o `activa`. En ese minuto ya cuenta como terminada: `autenticar` no acepta sus tokens (`401` en lecturas y escrituras), `unirApp` no la enlaza (`404`) y `bloquear` no la renueva. Lo único que sigue igual es que su código está ocupado (`GET /pueblos` lo marca ocupado y `POST /salas` da `409`) hasta que el job la marca `expirada`.
 
 ## Tokens
 
@@ -143,5 +143,5 @@ Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que 
 - Cada token son 32 bytes de `SecureRandom` codificados en base64url sin relleno (43 caracteres).
 - La base guarda **solo** el SHA-256 del token en hexadecimal minúscula (64 caracteres). El token en claro viaja una sola vez, en la respuesta que lo crea. Si el cliente lo pierde, no hay forma de recuperarlo.
 - El token determina la sala y el rol: si su hash coincide con `token_juego_hash`, el rol es `juego`; si coincide con `token_app_hash`, es `app`.
-- Un token deja de servir cuando su sala deja de estar viva.
+- Un token deja de servir cuando su sala deja de estar viva o cuando su `expira_en` ya pasó, aunque el job todavía no la haya marcado.
 - Ni el token ni el encabezado `Authorization` se escriben en los logs.

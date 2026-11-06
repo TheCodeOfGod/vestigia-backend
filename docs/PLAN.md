@@ -236,7 +236,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | O2 | Job de CI posterior al despliegue en `main` (necesita la URL de Railway) |
 | O3 | Confirmar que la PWA ya no consume `/api/salas`, que el Paso 1 retiró |
 | O4 | Crear y unirse ya guardan su `evento` (3a). Falta que todas las escrituras emitan mensajes por WebSocket (Paso 4), enganchando `ActividadService.SalaEvento` después del commit |
-| O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), la sala sigue viva |
+| O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
 | O6 | Escribir una guía por cliente (Unity, Flutter y PWA), en español sencillo y con cada paso explicado. Entra con el Paso 6 |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
 | O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |

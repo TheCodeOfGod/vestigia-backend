@@ -471,6 +471,33 @@ class EscriturasSalaIT {
 		}
 	}
 
+	@Test
+	@DisplayName("Con expira_en vencido y sin que corra el job, unirse da 404 y GET estado da 401 a los dos tokens; la sala no revive")
+	void salaVencidaNoSeUneNiSeLee() throws Exception {
+		api.tokenJuego("SISAL");
+		String juego = api.tokenJuego("SOMBRERETE");
+		String app = api.tokenApp("SOMBRERETE");
+		Instant expiraSisal = jdbc.queryForObject("SELECT expira_en FROM salas WHERE codigo = 'SISAL'", Instant.class);
+
+		reloj.avanzar(Duration.ofHours(2).plusSeconds(1));
+
+		HttpResponse<String> union = api.enviar("POST", "/api/v1/salas/SISAL/unirse", "", null);
+		assertThat(union.statusCode()).isEqualTo(404);
+		assertThat(api.cuerpo(union).get("message").asString())
+				.isEqualTo("No hay una sala en curso con el código 'SISAL'");
+		assertThat(jdbc.queryForObject(
+				"SELECT estado || ':' || (token_app_hash IS NULL) FROM salas WHERE codigo = 'SISAL'", String.class))
+				.isEqualTo("esperando_app:true");
+		assertThat(jdbc.queryForObject("SELECT expira_en FROM salas WHERE codigo = 'SISAL'", Instant.class))
+				.isEqualTo(expiraSisal);
+		for (String token : List.of(juego, app)) {
+			HttpResponse<String> estado = api.enviar("GET", "/api/v1/salas/SOMBRERETE/estado", null, token);
+			assertThat(estado.statusCode()).isEqualTo(401);
+			assertThat(api.cuerpo(estado).get("message").asString())
+					.isEqualTo("Token inválido o de una sala que ya terminó");
+		}
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);

@@ -31,13 +31,14 @@ public interface SalaRepository extends JpaRepository<SalaModel, UUID> {
 
 	/**
 	 * Enlaza la app en un solo UPDATE condicionado: si dos apps llegan a la vez, Postgres serializa las filas y la
-	 * segunda ya no cumple {@code tokenAppHash is null}. Devuelve las filas actualizadas (0 o 1).
+	 * segunda ya no cumple {@code tokenAppHash is null}. Una sala con expira_en vencido no se enlaza aunque el job no la
+	 * haya marcado (mismo corte que el job: vencida si expira_en < ahora). Devuelve las filas actualizadas (0 o 1).
 	 */
 	@Modifying
 	@Query("""
 			update SalaModel s
 			set s.estado = :activa, s.tokenAppHash = :hash, s.ultimaActividad = :ahora, s.expiraEn = :expiraEn
-			where s.codigo = :codigo and s.estado = :esperandoApp and s.tokenAppHash is null
+			where s.codigo = :codigo and s.estado = :esperandoApp and s.tokenAppHash is null and s.expiraEn >= :ahora
 			""")
 	int unirApp(String codigo, String hash, Instant ahora, Instant expiraEn, Estado esperandoApp, Estado activa);
 
