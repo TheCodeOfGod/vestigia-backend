@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
@@ -84,7 +85,8 @@ public class ApiExceptionHandler {
 		String error = httpStatus != null ? httpStatus.getReasonPhrase() : String.valueOf(status.value());
 		ErrorBody errorBody = new ErrorBody(Instant.now(), status.value(), error, codigo, message,
 				request.getRequestURI(), details);
-		return ResponseEntity.status(status).body(errorBody);
+		// Con el tipo fijo, Spring no negocia contra Accept: un cliente que pide XML recibe el error en JSON, no vacío.
+		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(errorBody);
 	}
 
 }

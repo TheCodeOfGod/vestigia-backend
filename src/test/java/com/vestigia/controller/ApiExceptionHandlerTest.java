@@ -135,6 +135,20 @@ class ApiExceptionHandlerTest {
 		}
 	}
 
+	@Test
+	@DisplayName("Los errores salen en JSON aunque el cliente pida otro formato: 406 con Accept XML y 409 con Accept HTML")
+	void erroresSiempreEnJson() throws Exception {
+		mockMvc.perform(get("/api/prueba/objeto").accept(MediaType.APPLICATION_XML))
+				.andExpect(status().isNotAcceptable())
+				.andExpect(content().contentType(MediaType.APPLICATION_JSON))
+				.andExpect(jsonPath("$.status").value(406))
+				.andExpect(content().string(containsString("\"codigo\":null,\"message\":")));
+		mockMvc.perform(get("/api/prueba/conflicto").accept(MediaType.TEXT_HTML))
+				.andExpect(status().isConflict())
+				.andExpect(content().contentType(MediaType.APPLICATION_JSON))
+				.andExpect(jsonPath("$.message").value("Pueblo ocupado"));
+	}
+
 	record PruebaRequest(@NotBlank String codigo) {
 	}
 
@@ -149,6 +163,11 @@ class ApiExceptionHandlerTest {
 		@GetMapping("/api/prueba/conflicto")
 		String conflicto() {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Pueblo ocupado");
+		}
+
+		@GetMapping("/api/prueba/objeto")
+		PruebaRequest objeto() {
+			return new PruebaRequest("ALAMOS");
 		}
 
 		@GetMapping("/api/prueba/falla")
