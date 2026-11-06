@@ -677,10 +677,11 @@ Respuesta del segundo, `201 Created`:
 {"clave": "observatory_enabled", "datos": {}, "origen": "juego", "creado_en": "2026-11-06T15:45:32.429702Z"}
 ```
 
-Si ya existen `coordenada_a` y `coordenada_b` y `lookout` está `resuelto`, el observatorio pasa a `disponible`:
+Por WebSocket, a los dos dispositivos, llega primero el descubrimiento y, si ya existen `coordenada_a` y `coordenada_b` y `lookout` está `resuelto`, en la misma petición el observatorio pasa a `disponible`:
 
 <!-- respuesta: ws -->
 ```json
+{"type": "descubrimiento.nuevo", "payload": {"clave": "observatory_enabled", "datos": {}, "origen": "juego"}}
 {"type": "puzzle.actualizado", "payload": {"puzzle": "observatory", "estado": "disponible", "datos": {}}}
 ```
 
@@ -1221,10 +1222,18 @@ cliente.DescubrimientoNuevo += d =>
     if (d.clave == "observatorio_visible") AbrirCaminoAlObservatorio();
     if (d.clave == "magnetar_localizado") StartCoroutine(IrAlDesenlace());
 };
-// Al entrar al faro: primero la escena, luego cada pieza que recoge (paso 6 y paso 9)
-StartCoroutine(cliente.CambiarEscena("faro"));
-StartCoroutine(cliente.RegistrarDescubrimiento("pieza_1"));
+StartCoroutine(EntrarAlFaro());
+
+// Dos StartCoroutine seguidos corren en paralelo y sus peticiones pueden llegar en cualquier orden. Para mandarlas en
+// orden (primero la escena, luego la pieza, como en los pasos 6 y 9), encadénalas con yield return:
+IEnumerator EntrarAlFaro()
+{
+    yield return cliente.CambiarEscena("faro");
+    yield return cliente.RegistrarDescubrimiento("pieza_1");
+}
 ```
+
+El orden entre la escena y las piezas no es obligatorio para el backend: las piezas habilitan `photo` en cualquier escena. Encadenarlas solo hace que la libreta muestre "Estás en el Faro" antes de "Piezas de foto encontradas 1/3".
 
 ## 11. Checklist de "ya terminé"
 
