@@ -26,6 +26,10 @@ Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWeb
 
 El cliente solo manda `auth`. Todo lo demás (descubrimientos, puzzles, escena, cierre) va por REST.
 
+## Probarlo sin Unity ni Flutter
+
+Con el backend corriendo, abre `http://localhost:8080/prueba-ws.html` en el navegador. La página tiene un panel para el juego y otro para la app: en cada uno pegas el token (o lo creas con los botones **Crear sala** y **Unirse**), pulsas **Conectar** y ves cada mensaje que llega, con su hora, y el código de cierre con su significado. El token se escribe en un campo y viaja solo dentro del mensaje `auth`: no va en la URL ni se guarda en el navegador. Las escrituras se mandan con `curl` o Swagger mientras la página escucha.
+
 ## Conectarse
 
 1. Abre `ws://<host>/ws` (`wss://` en producción). **El token no va en la URL.**

@@ -121,6 +121,18 @@ class DocumentacionIT {
 		assertThat(respuesta.body()).contains("swagger-ui");
 	}
 
+	@Test
+	@DisplayName("La página de prueba /prueba-ws.html se sirve como HTML, manda el token en auth y no lo pone en la URL ni en el navegador")
+	void paginaDePrueba() throws Exception {
+		HttpResponse<String> respuesta = get("/prueba-ws.html");
+
+		assertThat(respuesta.statusCode()).isEqualTo(200);
+		assertThat(respuesta.headers().firstValue("Content-Type")).hasValueSatisfying(
+				tipo -> assertThat(tipo).startsWith("text/html"));
+		assertThat(respuesta.body()).contains("new WebSocket(url)", "+ '/ws'", "type: 'auth', payload: { token: valor }")
+				.doesNotContain("localStorage", "sessionStorage", "document.cookie", "?token", "token=");
+	}
+
 	private JsonNode apiDocs() throws Exception {
 		HttpResponse<String> respuesta = get("/v3/api-docs");
 		assertThat(respuesta.statusCode()).isEqualTo(200);
