@@ -1,6 +1,6 @@
 # Vestigia: plan del backend (documento vivo)
 
-Última actualización: 6 de noviembre de 2026 (entrega 3b: los cuatro puzzles).
+Última actualización: 6 de noviembre de 2026 (Paso 4: WebSocket).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
 **Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
@@ -14,7 +14,7 @@ Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `do
 | 1 | Base: Flyway, Dockerfile, configuración, CI, README | ✅ Hecho |
 | 2 | Salas: catálogo de pueblos, crear, unirse, estado, expiración, token | ✅ Hecho |
 | 3 | Puzzles y descubrimientos (REST) | ✅ Hecho (3.0, 3a y 3b) |
-| 4 | WebSocket: autenticación, eventos y presencia | ⬜ |
+| 4 | WebSocket: autenticación, eventos y presencia | ✅ Hecho |
 | 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
 | 6 | Cierre: Swagger, guías, página de prueba | ⬜ |
 
@@ -59,6 +59,9 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | `codigo` en los errores que no lo definen | Siempre viaja como `"codigo": null`, no se omite, para que los clientes lean siempre la misma forma (entrega 3b) | 🟡 |
 | Id de puzzle desconocido en la ruta | `400` con la lista de ids, igual que una escena desconocida. También para los ids viejos `fotografia`, `mirador` y `observatorio` (entrega 3b) | 🟡 |
 | Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
+| Segunda conexión de WebSocket del mismo rol | Reemplaza a la anterior, que cierra con `4009`; el otro rol no recibe `desconectado` (Paso 4) | 🟡 |
+| Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada` (Paso 4) | 🟡 |
+| Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4) | 🟡 |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
 ## 3. Salas
@@ -100,7 +103,7 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 
 ## 6. Tiempo real (`/ws`)
 
-Cada dispositivo se conecta con su rol (`juego` o `app`) y su token.
+Cada dispositivo se conecta con su rol (`juego` o `app`) y su token, que manda en el primer mensaje (`auth`), nunca en la URL. El contrato completo, con ejemplos, errores y cierres, está en [`docs/tiempo-real.md`](tiempo-real.md).
 
 | Mensaje | Dirección | Notas |
 |---|---|---|
@@ -111,6 +114,8 @@ Cada dispositivo se conecta con su rol (`juego` o `app`) y su token.
 | `sala.cerrada` | servidor → todos | |
 
 Regla: si el WebSocket se cae, el cliente reconecta y pide `GET estado` para ponerse al día.
+
+Los mensajes de las escrituras salen después del commit, así que un `GET estado` pedido al recibirlos ya ve el cambio. Las escrituras repetidas no emiten nada. Las conexiones viven en memoria: el backend corre en una sola instancia.
 
 ⏸️ Quedan fuera por ahora `orientacion` (reenvío del giroscopio al juego) y `observatorio.proximidad` (niveles de cercanía).
 
@@ -180,7 +185,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | Coordenadas | `coordenada_a` y `coordenada_b` | "Coordenadas obtenidas 2/2" | 3 |
 | Mirador | Estado de `lookout` y `observatorio_visible` | "Mirador resuelto" | 3 |
 | Observatorio | Estado de `observatory` y `magnetar_localizado` | "Magnetar localizado" | 3 |
-| Dispositivos conectados | Presencia del juego y de la app | "PC conectada" | 4 |
+| Dispositivos conectados | `dispositivos` de `GET estado` y los mensajes `dispositivo.conectado` y `dispositivo.desconectado` | "PC conectada" | ✅ 4 |
 
 **Lo que no hay hoy:** progreso *dentro* de un puzzle (por ejemplo "señal 2 de 3" en la radio o "lente limpio" en el mirador), el nivel del faro por separado (la cuenta de piezas lo aproxima), pistas o tiempos. Se puede agregar cualquier elemento nuevo: basta que alguien registre un descubrimiento con otra clave y la libreta lo lea.
 
@@ -207,9 +212,13 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - [x] 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`. Evidencia en `docs/pruebas/paso-3.0-ids.md`.
   - [x] 3a. `POST /descubrimientos` (idempotente, también bajo concurrencia), `PUT /escena` (solo juego) y `DELETE /salas/{codigo}` (solo juego). Cada escritura renueva `ultima_actividad` y `expira_en` y guarda un evento; crear y unirse también. `HabilitacionPuzzlesService` recalcula `radio` y `photo` tras cada descubrimiento y ya tiene las reglas de `lookout` y `observatory` para el 3b. Evidencia en `docs/pruebas/paso-3a-descubrimientos.md`.
   - [x] 3b. `PUT /salas/{codigo}/puzzles/{puzzle}` para los cuatro puzzles (`{sintonizada: true}` en `radio`; `{iniciado: true}` o `{completada: true}` en `photo`, `lookout` y `observatory`; solo el booleano `true`). `PuzzleService` valida la forma, responde `409` con `codigo: "puzzle_bloqueado"` y mueve el puzzle solo hacia adelante; un aviso que ya no lo mueve responde `200` sin cambios. Al resolver crea el resultado con origen `servidor` (las coordenadas salen de `vestigia.puzzles.coordenadas.ar` y `.dec` como texto), recalcula los dependientes y guarda `puzzle.resuelto`, todo en una transacción. El cuerpo de error gana `codigo`. Evidencia en `docs/pruebas/paso-3b-puzzles.md`.
-- [ ] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
+- [x] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
+  - `/ws` reemplaza a `PendienteWebSocketHandler`. El primer mensaje es `auth` con el token, dentro de 5 s (`vestigia.ws.auth-plazo`); si no, cierra con `4000`, `4001` o `4008`. `auth.ok` trae `{rol, sala}` y el otro rol recibe `dispositivo.conectado`; al cerrarse, `dispositivo.desconectado`. `GET estado` reporta los `dispositivos` reales.
+  - `EmisorEventos` emite después del commit `puzzle.actualizado` en cada cambio de estado, `descubrimiento.nuevo`, `escena.cambiada` (solo a la app) y `sala.cerrada` (al cerrar o expirar, y luego cierra las conexiones). El job de expiración guarda y publica `sala.expirada`.
+  - Ya autenticado, JSON inválido, tipo desconocido u `orientacion` responden `error` y la conexión sigue. Más de 4096 caracteres cierra con `1009`. Ping cada 25 s.
+  - Contrato en `docs/tiempo-real.md`, con las decisiones que tomaron los agentes. Evidencia en `docs/pruebas/paso-4-websocket.md`.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
-- [ ] **Paso 6: Cierre.** Swagger, `docs/tiempo-real.md`, una guía de integración por cliente (`docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`) y página HTML de prueba.
+- [ ] **Paso 6: Cierre.** Swagger, una guía de integración por cliente (`docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`) y página HTML de prueba.
 
 ## 11. Pendientes
 
@@ -237,7 +246,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | O1 | Primer despliegue en Railway y URL de producción |
 | O2 | Job de CI posterior al despliegue en `main` (necesita la URL de Railway) |
 | O3 | Confirmar que la PWA ya no consume `/api/salas`, que el Paso 1 retiró |
-| O4 | Crear y unirse ya guardan su `evento` (3a). Falta que todas las escrituras emitan mensajes por WebSocket (Paso 4), enganchando `ActividadService.SalaEvento` después del commit |
+| O4 | ✅ Resuelto en el Paso 4: las escrituras emiten sus mensajes por WebSocket después del commit. Crear y unirse no emiten mensaje (nadie está conectado antes; el juego se entera de la app por `dispositivo.conectado`) |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
 | O6 | Escribir una guía por cliente (Unity, Flutter y PWA), en español sencillo y con cada paso explicado. Entra con el Paso 6 |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
