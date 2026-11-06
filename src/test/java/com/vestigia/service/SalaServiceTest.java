@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -19,11 +20,13 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +42,8 @@ import com.vestigia.dto.Pueblo;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
 import com.vestigia.model.CodigoPuebloModel;
+import com.vestigia.model.DescubrimientoModel;
+import com.vestigia.model.EventoModel;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.model.SalaModel;
 import com.vestigia.repository.CodigoPuebloRepository;
@@ -63,11 +68,15 @@ class SalaServiceTest {
 	@Mock
 	private DescubrimientoRepository descubrimientos;
 
+	@Mock
+	private ActividadService actividad;
+
 	private SalaService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new SalaService(pueblos, salas, puzzles, descubrimientos, Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
+		service = new SalaService(pueblos, salas, puzzles, descubrimientos, actividad,
+				Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
 	}
 
 	@Test
@@ -157,11 +166,47 @@ class SalaServiceTest {
 		ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
 		when(salas.unirApp(eq("ALAMOS"), hash.capture(), eq(AHORA), eq(AHORA.plus(Duration.ofHours(2))),
 				eq(SalaModel.Estado.esperando_app), eq(SalaModel.Estado.activa))).thenReturn(1);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
 
 		AppUnida unida = service.unirse(" alamos");
 
 		assertThat(hash.getValue()).isEqualTo(sha256(unida.token()));
-		verify(salas, never()).findByCodigoAndEstadoIn(any(), any());
+	}
+
+	@Test
+	@DisplayName("Crear la sala guarda el evento sala.creada con origen juego y el código en el payload")
+	void crearRegistraElEventoSalaCreada() {
+		when(pueblos.existsById("ALAMOS")).thenReturn(true);
+		when(salas.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		service.crear("alamos");
+
+		ArgumentCaptor<SalaModel> sala = ArgumentCaptor.forClass(SalaModel.class);
+		verify(actividad).registrar(sala.capture(), eq(EventoModel.Tipo.sala_creada),
+				eq(DescubrimientoModel.Origen.juego), eq(Map.of("codigo", "ALAMOS")));
+		assertThat(sala.getValue().getCodigo()).isEqualTo("ALAMOS");
+	}
+
+	@Test
+	@DisplayName("Unirse guarda el evento app.unida con origen app sobre la sala enlazada")
+	void unirseRegistraElEventoAppUnida() {
+		SalaModel sala = new SalaModel();
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(1);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(sala));
+
+		service.unirse("ALAMOS");
+
+		verify(actividad).registrar(sala, EventoModel.Tipo.app_unida, DescubrimientoModel.Origen.app, Map.of());
+	}
+
+	@Test
+	@DisplayName("Si unirse pierde la carrera no guarda ningún evento")
+	void unirseFallidoNoRegistraEvento() {
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
+
+		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOf(ResponseStatusException.class);
+		verifyNoInteractions(actividad);
 	}
 
 	@Test

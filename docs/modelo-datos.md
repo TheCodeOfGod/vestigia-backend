@@ -18,7 +18,7 @@ Una migración que ya se aplicó no se edita. Cualquier cambio va en una migraci
 | `salas` | `SalaModel` | Una partida: un juego y, como máximo, una app |
 | `puzzles_estado` | `PuzzleEstadoModel` | Una fila por sala y puzzle |
 | `descubrimientos` | `DescubrimientoModel` | Lo que aparece en la libreta |
-| `eventos` | (todavía sin entidad) | Bitácora para las métricas del plan de pruebas. Se usa a partir del Paso 3 |
+| `eventos` | `EventoModel` | Bitácora para las métricas del plan de pruebas. Una fila por escritura exitosa |
 
 Las entidades no declaran relaciones JPA entre sí. `puzzles_estado` y `descubrimientos` guardan `sala_id` y se consultan por esa columna.
 
@@ -76,9 +76,18 @@ Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` ta
 | `id` | `BIGSERIAL` PK | |
 | `sala_id` | `UUID` | FK a `salas`. Índice `eventos_sala_tiempo (sala_id, creado_en)` |
 | `tipo` | `VARCHAR(40)` | |
-| `payload` | `JSONB` | |
-| `origen` | `VARCHAR(10)` | |
+| `payload` | `JSONB` | Datos del evento (ver la tabla de tipos) |
+| `origen` | `VARCHAR(10)` | `juego`, `app` o `servidor`, igual que en `descubrimientos` |
 | `creado_en` | `TIMESTAMPTZ` | |
+
+Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel.Tipo` y un convertidor JPA pasa `sala_creada` a `sala.creada`.
+
+| `tipo` | Cuándo | `origen` | `payload` |
+|---|---|---|---|
+| `sala.creada` | `POST /salas` | `juego` | `{"codigo": "BACALAR"}` |
+| `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
+
+Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
 
 ## Mapeo en Java
 
@@ -105,7 +114,7 @@ Más adelante: DELETE /salas/{codigo} pasa una sala viva a finalizada.
 3. **Expirar.** Un job programado (`SalaService.expirarVencidas`) corre cada `vestigia.salas.expiracion-revision` (por defecto 1 minuto) y pasa a `expirada` toda sala viva con `expira_en < ahora`. El código queda libre y la fila se conserva.
 4. **Finalizar.** `DELETE /salas/{codigo}` la pasará a `finalizada`. Todavía no está implementado.
 
-Cada escritura exitosa renueva `ultima_actividad` y `expira_en`. En el Paso 2 las únicas escrituras son crear y unirse. Las lecturas (`GET estado`) no renuevan nada.
+Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Las lecturas (`GET estado`) no renuevan nada.
 
 Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue viva: su token todavía funciona y su código todavía está ocupado.
 

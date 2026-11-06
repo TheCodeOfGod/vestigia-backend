@@ -7,11 +7,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import com.vestigia.model.SalaModel;
 import com.vestigia.model.SalaModel.Estado;
+
+import jakarta.persistence.LockModeType;
 
 public interface SalaRepository extends JpaRepository<SalaModel, UUID> {
 
@@ -37,6 +40,14 @@ public interface SalaRepository extends JpaRepository<SalaModel, UUID> {
 			where s.codigo = :codigo and s.estado = :esperandoApp and s.tokenAppHash is null
 			""")
 	int unirApp(String codigo, String hash, Instant ahora, Instant expiraEn, Estado esperandoApp, Estado activa);
+
+	/**
+	 * Bloquea la fila de la sala hasta el final de la transacción ({@code SELECT ... FOR UPDATE}). Las escrituras de una
+	 * misma sala se ejecutan así una tras otra: cada una ve lo que la anterior confirmó.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select s from SalaModel s where s.id = :id")
+	Optional<SalaModel> bloquear(UUID id);
 
 	@Modifying
 	@Query("update SalaModel s set s.estado = :expirada where s.estado in :vivos and s.expiraEn < :ahora")

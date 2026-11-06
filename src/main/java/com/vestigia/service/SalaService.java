@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -33,6 +34,8 @@ import com.vestigia.dto.AppUnida;
 import com.vestigia.dto.Pueblo;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
+import com.vestigia.model.DescubrimientoModel;
+import com.vestigia.model.EventoModel;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.model.SalaModel;
 import com.vestigia.repository.CodigoPuebloRepository;
@@ -51,7 +54,12 @@ public class SalaService {
 
 	public enum Rol {
 
-		juego, app
+		juego, app;
+
+		/** El origen con el que se guarda lo que escribe este rol. */
+		public DescubrimientoModel.Origen origen() {
+			return DescubrimientoModel.Origen.valueOf(name());
+		}
 
 	}
 
@@ -67,16 +75,20 @@ public class SalaService {
 
 	private final DescubrimientoRepository descubrimientos;
 
+	private final ActividadService actividad;
+
 	private final Clock clock;
 
 	private final Duration expiracion;
 
 	public SalaService(CodigoPuebloRepository pueblos, SalaRepository salas, PuzzleEstadoRepository puzzles,
-			DescubrimientoRepository descubrimientos, Clock clock, @Value("${vestigia.salas.expiracion}") Duration expiracion) {
+			DescubrimientoRepository descubrimientos, ActividadService actividad, Clock clock,
+			@Value("${vestigia.salas.expiracion}") Duration expiracion) {
 		this.pueblos = pueblos;
 		this.salas = salas;
 		this.puzzles = puzzles;
 		this.descubrimientos = descubrimientos;
+		this.actividad = actividad;
 		this.clock = clock;
 		this.expiracion = expiracion;
 	}
@@ -125,6 +137,7 @@ public class SalaService {
 		for (PuzzleEstadoModel.Puzzle puzzle : PuzzleEstadoModel.Puzzle.values()) {
 			puzzles.save(new PuzzleEstadoModel(sala.getId(), puzzle, PuzzleEstadoModel.Estado.bloqueado, ahora));
 		}
+		actividad.registrar(sala, EventoModel.Tipo.sala_creada, Rol.juego.origen(), Map.of("codigo", codigo));
 		return new SalaCreada(codigo, sala.getEstado(), token);
 	}
 
@@ -140,6 +153,8 @@ public class SalaService {
 		int enlazadas = salas.unirApp(codigo, hashToken(token), ahora, ahora.plus(expiracion),
 				SalaModel.Estado.esperando_app, SalaModel.Estado.activa);
 		if (enlazadas == 1) {
+			SalaModel sala = salas.findByCodigoAndEstadoIn(codigo, SalaModel.Estado.VIVOS).orElseThrow();
+			actividad.registrar(sala, EventoModel.Tipo.app_unida, Rol.app.origen(), Map.of());
 			return new AppUnida(token);
 		}
 		if (salas.findByCodigoAndEstadoIn(codigo, SalaModel.Estado.VIVOS).isPresent()) {
