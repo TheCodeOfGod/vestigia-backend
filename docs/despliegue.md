@@ -179,8 +179,8 @@ scripts/smoke-test.sh https://<tu-servicio>.up.railway.app          # elige un p
 scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR  # o uno en concreto
 ```
 
-- Sale con `0` si toda la cadena pasó y con `1` si falló un paso, que nombra junto con la respuesta del backend. `2` es uso incorrecto y `3` que falta `curl` o `jq`.
-- Al salir, también tras un fallo o `Ctrl+C`, cierra la sala que creó con `DELETE`. El pueblo vuelve a quedar libre.
+- Sale con `0` si toda la cadena pasó y con `1` si falló un paso, que nombra junto con la respuesta del backend. `2` es uso incorrecto, `3` que falta `curl` o `jq`, y `129`, `130` o `143` que se interrumpió (`HUP`, `Ctrl+C` o `TERM`). Si la respuesta no es JSON, como la página HTML de un `502` del proxy, la muestra igual.
+- Al salir, también tras un fallo o una interrupción, cierra la sala que creó con `DELETE`. Guarda el token del juego en cuanto `POST /salas` responde `201`, antes de revisar el cuerpo, así que también la cierra si esa revisión falla. El pueblo vuelve a quedar libre.
 - La sala queda en la base como historial (`finalizada`), con sus eventos. Sus descubrimientos llevan `{"origen_prueba": "smoke-test"}` en `datos`, para distinguirla en las métricas.
 - No imprime los tokens.
 - No prueba el WebSocket: `curl` no lo habla. Para verlo, usa `/prueba-ws.html` (ver O10).

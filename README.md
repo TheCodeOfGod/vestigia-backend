@@ -154,7 +154,7 @@ scripts/smoke-test.sh http://localhost:8080
 scripts/smoke-test.sh http://localhost:8080 BACALAR
 ```
 
-Imprime cada paso con ✓ y termina con `RESULTADO: ✅`. Si un paso falla, dice cuál, muestra la respuesta y sale con código `1` (`2` si falta la URL, `3` si falta `curl` o `jq`). Pase lo que pase, al salir cierra la sala que creó, para no dejar el pueblo ocupado. Nunca imprime los tokens. Cómo correrlo contra Railway está en [`docs/despliegue.md`](docs/despliegue.md). `SmokeTestIT` y `SmokeTestFalloIT` lo corren en `./mvnw verify` contra el backend real, así que esas pruebas necesitan `bash`, `curl` y `jq`.
+Imprime cada paso con ✓ y termina con `RESULTADO: ✅`. Si un paso falla, dice cuál, muestra la respuesta y sale con código `1` (`2` si falta la URL, `3` si falta `curl` o `jq`, y `129`, `130` o `143` si se interrumpe). Pase lo que pase, al salir cierra la sala que creó, para no dejar el pueblo ocupado. Nunca imprime los tokens. Cómo correrlo contra Railway está en [`docs/despliegue.md`](docs/despliegue.md). `SmokeTestIT` y `SmokeTestFalloIT` lo corren en `./mvnw verify` contra el backend real y `SmokeTestServidorFalsoIT` contra un servidor falso, así que esas pruebas necesitan `bash`, `curl` y `jq`.
 
 ## Despliegue
 

@@ -12,14 +12,16 @@
 #
 # Si un paso falla, se detiene, dice cuál y sale con código 1. Pase lo que pase, al salir cierra la sala que creó
 # (DELETE con el token del juego), para no dejar un pueblo ocupado. La sala queda como historial en estado finalizada.
-# Códigos de salida: 0 todo bien, 1 falló un paso, 2 uso incorrecto, 3 falta curl o jq.
+# Códigos de salida: 0 todo bien, 1 falló un paso, 2 uso incorrecto, 3 falta curl o jq, 129, 130 o 143 se
+# interrumpió (HUP, INT o TERM).
 #
 # Nunca imprime los tokens: en la salida aparecen como <token>.
 
+# Sin -e a propósito: cada fallo pasa por fallar(), que nombra lo esperado; -e cortaría sin decir por qué.
 set -uo pipefail
 
 if [[ $# -lt 1 || $# -gt 2 || "$1" == "-h" || "$1" == "--help" ]]; then
-	sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 	exit 2
 fi
 
@@ -44,16 +46,20 @@ PASO=0
 STATUS=""
 CUERPO=""
 
-# Oculta el valor de cualquier campo "token" de un JSON, en cualquier nivel.
+# Oculta el valor de cualquier campo "token" del texto: con jq si es JSON y con sed si no (una página HTML del proxy).
 ocultar_tokens() {
-	jq -c 'walk(if type == "object" and has("token") then .token = "<token>" else . end)' 2>/dev/null \
-		|| sed -E 's/"token"[[:space:]]*:[[:space:]]*"[^"]*"/"token":"<token>"/g'
+	local limpio
+	if limpio="$(printf '%s' "$1" | jq -c 'walk(if type == "object" and has("token") then .token = "<token>" else . end)' 2>/dev/null)"; then
+		printf '%s' "$limpio"
+	else
+		printf '%s' "$1" | sed -E 's/"token"[[:space:]]*:[[:space:]]*"[^"]*"/"token":"<token>"/g'
+	fi
 }
 
 fallar() {
 	echo "  ✗ $1" >&2
 	if [[ -n "$STATUS" ]]; then
-		echo "    Respuesta $STATUS: $(printf '%s' "$CUERPO" | ocultar_tokens | cut -c1-600)" >&2
+		echo "    Respuesta $STATUS: $(ocultar_tokens "$CUERPO" | tr '\n' ' ' | cut -c1-600)" >&2
 	fi
 	exit 1
 }
@@ -100,7 +106,7 @@ comprueba() {
 
 cerrar_al_salir() {
 	local salida=$?
-	trap - EXIT INT TERM
+	trap - EXIT HUP INT TERM
 	if [[ -n "$TOKEN_JUEGO" && "$SALA_CERRADA" -eq 0 ]]; then
 		local status
 		status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time "$TIEMPO_MAX" -X DELETE \
@@ -115,7 +121,7 @@ cerrar_al_salir() {
 	rm -f "$CUERPO_TMP"
 	if [[ $salida -eq 0 ]]; then
 		echo "RESULTADO: ✅ la cadena completa pasó contra $BASE"
-	elif [[ $salida -eq 130 ]]; then
+	elif [[ $salida -gt 128 ]]; then
 		echo "RESULTADO: ❌ se interrumpió en el paso $PASO contra $BASE" >&2
 	else
 		echo "RESULTADO: ❌ falló en el paso $PASO contra $BASE" >&2
@@ -123,7 +129,9 @@ cerrar_al_salir() {
 	exit "$salida"
 }
 trap cerrar_al_salir EXIT
-trap 'exit 130' INT TERM
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "Prueba de humo contra $BASE"
 
@@ -145,9 +153,11 @@ fi
 paso "POST /salas (juego crea la sala $PUEBLO)"
 peticion POST "$API/salas" "" "$(jq -nc --arg c "$PUEBLO" '{codigo: $c}')"
 espera 201
+# El token se guarda antes de cualquier comprobación: si una falla, la limpieza del trap ya puede cerrar la sala.
+TOKEN_JUEGO="$(printf '%s' "$CUERPO" | jq -r '.token // empty | strings' 2>/dev/null)"
+CODIGO="$(printf '%s' "$CUERPO" | jq -r '.codigo // empty | strings' 2>/dev/null)"
+[[ -n "$CODIGO" ]] || CODIGO="$(printf '%s' "$PUEBLO" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
 comprueba '.estado == "esperando_app" and (.token | type == "string" and length == 43)' 'sala en esperando_app con token'
-CODIGO="$(printf '%s' "$CUERPO" | jq -r .codigo)"
-TOKEN_JUEGO="$(printf '%s' "$CUERPO" | jq -r .token)"
 ok "sala $CODIGO, token del juego recibido"
 
 paso "POST /salas/$CODIGO/unirse (app)"
