@@ -35,7 +35,10 @@ Leyenda: ✅ aprobado · 🟡 espera tu respuesta · ⏸️ diferido
 | Cercanía (frío, tibio, caliente) | No por ahora | ⏸️ |
 | Telescopio de la PC moviéndose en tiempo real | No por ahora | ⏸️ |
 | Flujo de la app | Inicio, escribir código de sala, libreta, burbuja que pulsa | ✅ |
-| Habilitar mirador y observatorio | Con una bandera que manda el juego | 🟡 Nombres por confirmar |
+| Habilitar mirador y observatorio | Con las banderas `lookout_enabled` y `observatory_enabled` que manda el juego | ✅ Falta confirmar con Unity |
+| `en_curso` | La app avisa `{iniciado: true}` al abrir `photo`, `lookout` u `observatory` | ✅ |
+| Código del error `puzzle_bloqueado` | Campo `codigo` en el cuerpo de error (nulo si no aplica) | ✅ |
+| Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
 | Validación en el servidor del mirador y el observatorio | Lo intentarás después si hay tiempo | ⏸️ |
 
 ---
@@ -112,22 +115,23 @@ Un solo endpoint: `PUT /salas/{codigo}/puzzles/{puzzle}` con `{datos: {...}}`.
 | Puzzle | Quién lo manda | `datos` válidos | Resultado que crea el servidor |
 |---|---|---|---|
 | `radio` | Juego | `{sintonizada: true}` | `coordenada_a` = `{tipo: "ascension_recta", valor: "137"}` |
-| `photo` | App | `{completada: true}` | `coordenada_b` = `{tipo: "declinacion", valor: "+042"}` |
-| `lookout` | App | `{completada: true}` | `observatorio_visible` |
-| `observatory` | App | `{completada: true}` | `magnetar_localizado` |
+| `photo` | App | `{completada: true}` o `{iniciado: true}` | `coordenada_b` = `{tipo: "declinacion", valor: "+042"}` |
+| `lookout` | App | `{completada: true}` o `{iniciado: true}` | `observatorio_visible` |
+| `observatory` | App | `{completada: true}` o `{iniciado: true}` | `magnetar_localizado` |
 
 Reglas:
 
 | Caso | Respuesta |
 |---|---|
 | `datos` no es exactamente el esperado, o el valor no es `true` | `400` |
-| El puzzle está `bloqueado` | `409` (el código de error depende de P6) |
+| El puzzle está `bloqueado` | `409` con `codigo: "puzzle_bloqueado"` en el cuerpo de error |
 | El puzzle ya estaba `resuelto` | `200` con el estado actual, sin duplicar nada |
 | Éxito | `200` con `{puzzle, estado, datos}`. Estado `resuelto`, descubrimiento creado con origen `servidor`, dependientes recalculados, `evento` guardado y `ultima_actividad` actualizada |
 
 - Clases: `PuzzleService`, `PuzzleController`, DTOs `ReportarPuzzleRequest` y `PuzzleEstado`.
 - Los puzzles no tienen lógica de números. Cada uno se valida con la misma regla de "una bandera `true`", así que no hacen falta validadores por tipo.
-- 🟡 **P8:** si apruebas que la app avise `{iniciado: true}` al abrir el puzzle, el estado pasa a `en_curso` y las métricas pueden medir el tiempo de resolución. Se agrega como un valor más permitido en `photo`, `lookout` y `observatory`.
+- `{iniciado: true}` (solo en `photo`, `lookout` y `observatory`) pasa el puzzle de `disponible` a `en_curso`, y las métricas pueden medir el tiempo de resolución. En `radio` no existe: da `400`. Si el puzzle ya estaba `en_curso` o `resuelto`, responde `200` sin cambios.
+- **Cambio en los errores:** el cuerpo uniforme gana un campo `codigo` (nulo si no aplica). Es un cambio aditivo al contrato del Paso 2. Se actualizan `docs/api.md` y las pruebas de `ApiExceptionHandler`.
 
 ### Paso 5. Orientación ⏸️ Diferido
 
@@ -157,7 +161,7 @@ El servidor recalcula tras cada descubrimiento o puzzle resuelto. **El orden en 
 
 - Se registran con `POST /descubrimientos` y origen `juego`. **No hace falta ningún endpoint nuevo.**
 - Los nombres siguen tu preferencia de dejar en inglés lo que no se muestra al usuario. Las claves que ya existen (`pescador_dialogo_completo`, `pieza_1`...) se quedan como están.
-- 🟡 Hay que confirmar con quien hace Unity que puede mandarlas y en qué momento exacto.
+- Falta confirmar con quien hace Unity que puede mandarlas y en qué momento exacto.
 
 ---
 
@@ -180,7 +184,7 @@ Los valores del mirador y del observatorio (85 %, ±14, 6°, 2 s...) viven en la
 |---|---|---|---|
 | 3.0 Ids | Se ajustan las existentes | Sin cambios | `V3` migra filas viejas y el `CHECK` rechaza los ids anteriores |
 | 3a | Idempotencia, claves del servidor, recálculo de disponibles | `403`, `401`, rol del juego en escena y cierre | Descubrimiento repetido sin duplicar. El cierre libera el código |
-| 3b | Solo `true`, bloqueado, idempotencia, valores de las coordenadas, bandera antes o después de los requisitos | `400` y `409` con cuerpo uniforme | Cadena completa hasta `magnetar_localizado` |
+| 3b | Solo `true`, bloqueado, `iniciado`, idempotencia, valores de las coordenadas, bandera antes o después de los requisitos | `400` y `409` con `codigo` en el cuerpo uniforme | Cadena completa hasta `magnetar_localizado` |
 | 5 ⏸️ | | | |
 
 Se mantiene la regla de siempre: `./mvnw verify` antes de cada commit.
@@ -202,14 +206,14 @@ Se mantiene la regla de siempre: `./mvnw verify` antes de cada commit.
 
 ```
  3.0 Ids ──▶ 3a Descubrimientos ──▶ 3b Puzzles ──▶ Paso 4 ──▶ Paso 6      (Paso 5 diferido)
-  libre         libre              espera P5, P6, P8
+  libre         libre              libre
 ```
 
 | Entrega | Puede empezar cuando |
 |---|---|
 | 3.0 | Das el visto bueno al Paso 3 |
 | 3a | 3.0 termine |
-| 3b | 3a termine, y estén resueltos P5, P6 y P8 |
+| 3b | 3a termine |
 | Paso 4 | 3b termine |
 | Paso 6 | El Paso 4 termine |
 
@@ -219,10 +223,8 @@ Se mantiene la regla de siempre: `./mvnw verify` antes de cada commit.
 
 | # | Pendiente | Bloquea | Mi recomendación |
 |---|---|---|---|
-| P5 | Confirmar los nombres `lookout_enabled` y `observatory_enabled` con Unity | 3b | Usar esos nombres |
-| P6 | Dónde viaja el código `puzzle_bloqueado` | 3b | Agregar un campo `codigo` a todos los errores |
-| P8 | ¿La app avisa `{iniciado: true}` al abrir el puzzle, para tener `en_curso` y los tiempos? | 3b | Sí |
 | P7 | Archivo de salas terminadas para la PWA | Después del Paso 6 | |
+| C2 | Confirmar con Unity los nombres `lookout_enabled` y `observatory_enabled` y el momento exacto en que los manda | No bloquea la implementación | |
 
 ---
 

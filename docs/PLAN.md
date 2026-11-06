@@ -53,7 +53,10 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Ids de puzzle | En inglés, como en la app: `radio`, `photo`, `lookout`, `observatory` (solo estos cuatro) | ✅ |
 | Códigos del misterio en la app | La app los muestra desde lo que entrega el servidor, no los lleva escritos | ✅ |
 | Feedback de cercanía del observatorio (frío, tibio, caliente) | No se hace por ahora | ⏸️ |
-| Habilitar un puzzle | El servidor lo hace por requisitos; el mirador y el observatorio además esperan una bandera del juego | 🟡 |
+| Habilitar un puzzle | El servidor lo hace por requisitos; el mirador y el observatorio además esperan una bandera del juego: `lookout_enabled` y `observatory_enabled` | ✅ (falta confirmarlo con Unity) |
+| `en_curso` | La app avisa `{iniciado: true}` al abrir `photo`, `lookout` u `observatory` | ✅ |
+| Código del error `puzzle_bloqueado` | Campo `codigo` en el cuerpo de error (nulo si no aplica) | ✅ |
+| Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
 ## 3. Salas
@@ -120,7 +123,7 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 | 3 | `lookout` | La app | `photo` resuelto y la bandera `lookout_enabled` del juego | `{completada: true}`, lo manda la app | `observatorio_visible` |
 | 4 | `observatory` | **La app** (el juego solo se entera) | `coordenada_a`, `coordenada_b`, `lookout` resuelto y la bandera `observatory_enabled` del juego | `{completada: true}`, lo manda la app | `magnetar_localizado` |
 
-**Reglas comunes:** solo `true` es válido en `sintonizada` y `completada` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409`. Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`).
+**Reglas comunes:** solo `true` es válido en `sintonizada`, `completada` e `iniciado` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409` con `codigo: "puzzle_bloqueado"`. Al abrir `photo`, `lookout` u `observatory` la app avisa `{iniciado: true}` y el puzzle pasa a `en_curso`. Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`).
 
 **Coordenadas:** se entregan como descubrimientos con `valor` en **texto**, para conservar el signo y los ceros. Son los únicos valores del misterio que viven en el servidor (configurables).
 
@@ -142,7 +145,7 @@ El servidor recalcula cada vez que llega un descubrimiento o se resuelve un puzz
 | `lookout` | `photo` está `resuelto` **y** existe `lookout_enabled` |
 | `observatory` | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` **y** existe `observatory_enabled` |
 
-`lookout_enabled` y `observatory_enabled` son banderas que el juego registra con `POST /descubrimientos` cuando el jugador llega al lugar (la cima del faro, el observatorio). Evitan que la burbuja de la app pulse antes de tiempo. Los nombres son una propuesta 🟡 que hay que confirmar con Unity.
+`lookout_enabled` y `observatory_enabled` son banderas que el juego registra con `POST /descubrimientos` cuando el jugador llega al lugar (la cima del faro, el observatorio). Evitan que la burbuja de la app pulse antes de tiempo. Los nombres los aprobó Raúl; falta confirmarlos con Unity.
 
 ## 8. App móvil: flujo y libreta
 
@@ -201,7 +204,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 - [ ] **Paso 3: Puzzles y descubrimientos.** Se parte en entregas pequeñas, cada una con su rama, PR y pruebas:
   - 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`.
   - 3a. `POST /descubrimientos`, `PUT /escena` y `DELETE /salas/{codigo}`, con evento guardado y `ultima_actividad`.
-  - 3b. `PUT` de los cuatro puzzles (`{sintonizada: true}` o `{completada: true}`), habilitación de dependientes y creación de los descubrimientos resultado.
+  - 3b. `PUT` de los cuatro puzzles (`{sintonizada: true}`, `{completada: true}` o `{iniciado: true}`), habilitación de dependientes, creación de los descubrimientos resultado y el campo `codigo` en los errores.
 - [ ] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
 - [ ] **Paso 6: Cierre.** Swagger, `docs/tiempo-real.md`, guías para Unity y Flutter, página HTML de prueba.
@@ -212,17 +215,14 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 
 | # | Pendiente | Quién decide | Bloquea | Mi recomendación |
 |---|---|---|---|---|
-| P5 | **Nombres de las banderas del juego** `lookout_enabled` y `observatory_enabled`, y confirmar que el juego puede mandarlas | Raúl y Unity | Paso 3b | Usar esos nombres |
-| P6 | Dónde viaja el código `puzzle_bloqueado`: el cuerpo de error no tiene un campo para él | Raúl | Paso 3b | Agregar un campo `codigo` a todos los errores |
 | P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
-| P8 | **`en_curso`:** como los puzzles solo avisan al completarse, nada marca cuándo empezaron (y las métricas piden tiempos de resolución). ¿La app avisa `{iniciado: true}` al abrir el puzzle? | Raúl | Paso 3b | Sí, solo para `photo`, `lookout` y `observatory` |
 
 ### Por confirmar con otros equipos
 
 | # | Con quién | Qué |
 |---|---|---|
 | C1 | Unity | Que las pistas del juego apunten a `137` y `+042` |
-| C2 | Unity | Que registre `lookout_enabled` y `observatory_enabled` al llegar al lugar, y la bandera del pescador. Si necesita reaccionar a `lente_limpio` u `obs_encontrado` dentro del mirador, la app puede registrarlas con `POST /descubrimientos` |
+| C2 | Unity | Que registre `lookout_enabled` y `observatory_enabled` al llegar al lugar (nombres aprobados por Raúl), y la bandera del pescador. Si necesita reaccionar a `lente_limpio` u `obs_encontrado` dentro del mirador, la app puede registrarlas con `POST /descubrimientos` |
 | C3 | App | Que implemente el flujo de la sección 8 y los avisos de completado |
 | C4 | App | Dónde guardar el token para reconectar sin volver a escribir el código |
 | C5 | Aldo | Los valores adaptados de las secciones 7 y 13 |
