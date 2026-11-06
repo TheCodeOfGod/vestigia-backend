@@ -376,10 +376,29 @@ class SalaServiceTest {
 	}
 
 	@Test
-	void expirarVencidasUsaLaHoraDelReloj() {
+	@DisplayName("El job bloquea las salas vivas vencidas según el reloj, las marca expirada y guarda sala.expirada de cada una")
+	void expirarVencidasMarcaYRegistraCadaSala() {
+		SalaModel esperando = salaQueExpiraEn(AHORA.minusSeconds(1));
+		SalaModel activa = salaQueExpiraEn(AHORA.minusSeconds(60));
+		activa.setEstado(SalaModel.Estado.activa);
+		when(salas.bloquearVencidas(AHORA, SalaModel.Estado.VIVOS)).thenReturn(List.of(esperando, activa));
+
 		service.expirarVencidas();
 
-		verify(salas).expirarVencidas(AHORA, SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+		assertThat(List.of(esperando, activa)).extracting(SalaModel::getEstado)
+				.containsOnly(SalaModel.Estado.expirada);
+		verify(actividad).registrarExpiracion(esperando);
+		verify(actividad).registrarExpiracion(activa);
+	}
+
+	@Test
+	@DisplayName("Sin salas vencidas, el job no registra nada")
+	void expirarSinVencidasNoRegistraNada() {
+		when(salas.bloquearVencidas(AHORA, SalaModel.Estado.VIVOS)).thenReturn(List.of());
+
+		service.expirarVencidas();
+
+		verifyNoInteractions(actividad);
 	}
 
 	private static SalaModel salaQueExpiraEn(Instant expiraEn) {

@@ -109,6 +109,7 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 | `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva, o el servidor crea el resultado de un puzzle resuelto | `juego` o `app`; `servidor` para los resultados | `{"clave": "pieza_1", "datos": {...}}`, `{"clave": "coordenada_b", "datos": {"tipo": "declinacion", "valor": "+042"}}` |
 | `escena.cambiada` | `PUT /salas/{codigo}/escena` con una escena distinta de la actual | `juego` | `{"anterior": "introduccion", "escena": "faro"}` |
 | `sala.finalizada` | `DELETE /salas/{codigo}` | `juego` | `{}` |
+| `sala.expirada` | El job de expiración marca la sala `expirada` | `servidor` | `{}` |
 | `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo", "estado": "disponible", "datos": {}}` |
 | `puzzle.iniciado` | `PUT /salas/{codigo}/puzzles/{puzzle}` con `iniciado` pasa el puzzle de `disponible` a `en_curso` | `juego` o `app` | `{"puzzle": "photo", "estado": "en_curso", "datos": {"iniciado": true}}` |
 | `puzzle.resuelto` | `PUT /salas/{codigo}/puzzles/{puzzle}` con `completada` o `sintonizada` pasa el puzzle a `resuelto` | `juego` o `app` | `{"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}` |
@@ -116,6 +117,8 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 Los tres eventos de puzzle guardan la misma forma, `{puzzle, estado, datos}`, que usará el mensaje `puzzle.actualizado` del Paso 4. Al resolver un puzzle se guardan en orden `puzzle.resuelto`, el `descubrimiento.registrado` del resultado y un `puzzle.habilitado` por cada puzzle que se habilita. Un aviso que no cambia el puzzle no guarda evento.
 
 Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
+
+`sala.expirada` es el único evento que no viene de una petición de un cliente. Lo guarda el job (Paso 4) para que el WebSocket avise `sala.cerrada` y para que las métricas distingan una sala expirada de una cerrada por el juego. No toca `ultima_actividad`: expirar no es actividad.
 
 ## Mapeo en Java
 
@@ -139,7 +142,7 @@ Cada evento también se publica dentro de la transacción como evento de aplicac
 
 1. **Crear.** El juego reclama un código libre. La sala nace en `esperando_app` con sus cuatro puzzles bloqueados y `expira_en = ahora + 2 h`.
 2. **Unirse.** La app se enlaza con un solo `UPDATE … WHERE codigo = ? AND estado = 'esperando_app' AND token_app_hash IS NULL`. Si dos apps llegan a la vez, Postgres bloquea la fila, la segunda vuelve a evaluar el `WHERE`, ya no lo cumple y recibe `409`. La sala pasa a `activa` y se renuevan `ultima_actividad` y `expira_en`.
-3. **Expirar.** Un job programado (`SalaService.expirarVencidas`) corre cada `vestigia.salas.expiracion-revision` (por defecto 1 minuto) y pasa a `expirada` toda sala viva con `expira_en < ahora`. El código queda libre y la fila se conserva.
+3. **Expirar.** Un job programado (`SalaService.expirarVencidas`) corre cada `vestigia.salas.expiracion-revision` (por defecto 1 minuto). Bloquea con `SELECT … FOR UPDATE` toda sala viva con `expira_en < ahora`, la pasa a `expirada` y guarda su evento `sala.expirada`. Si una escritura tiene bloqueada una de esas salas, el job espera a que termine y Postgres vuelve a evaluar el filtro, así que una sala que esa escritura renovó o cerró no expira. El código queda libre y la fila se conserva.
 4. **Finalizar.** `DELETE /salas/{codigo}`, solo con el token del juego, la pasa a `finalizada`. El código queda libre, la fila se conserva y los dos tokens dejan de servir porque solo autentican salas vivas.
 
 Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Una escritura repetida (un descubrimiento que ya existía, la escena en la que ya está la sala o un aviso que ya no mueve un puzzle) responde con éxito y renueva, pero no guarda otro evento. El cierre guarda su evento y actualiza `ultima_actividad`, pero no renueva `expira_en`: una sala finalizada ya no expira. Las lecturas (`GET estado`) no renuevan nada.

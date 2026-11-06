@@ -253,13 +253,20 @@ public class SalaService {
 		return sala.getExpiraEn().isBefore(ahora);
 	}
 
-	/** Marca expirada cada sala viva cuyo expira_en ya pasó. Su código queda libre y la fila se conserva. */
+	/**
+	 * Marca expirada cada sala viva cuyo expira_en ya pasó y guarda su evento sala.expirada. Su código queda libre y la
+	 * fila se conserva.
+	 */
 	@Scheduled(fixedDelayString = "${vestigia.salas.expiracion-revision}")
 	@Transactional
 	public void expirarVencidas() {
-		int expiradas = salas.expirarVencidas(clock.instant(), SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
-		if (expiradas > 0) {
-			log.info("[SALAS] {} sala(s) expirada(s)", expiradas);
+		List<SalaModel> vencidas = salas.bloquearVencidas(clock.instant(), SalaModel.Estado.VIVOS);
+		for (SalaModel sala : vencidas) {
+			sala.setEstado(SalaModel.Estado.expirada);
+			actividad.registrarExpiracion(sala);
+		}
+		if (!vencidas.isEmpty()) {
+			log.info("[SALAS] {} sala(s) expirada(s)", vencidas.size());
 		}
 	}
 

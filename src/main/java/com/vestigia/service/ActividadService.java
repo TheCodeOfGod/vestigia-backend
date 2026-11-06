@@ -82,7 +82,21 @@ public class ActividadService {
 	public void registrar(SalaModel sala, EventoModel.Tipo tipo, DescubrimientoModel.Origen origen,
 			Map<String, Object> payload) {
 		renovar(sala);
-		EventoModel evento = eventos.save(new EventoModel(sala.getId(), tipo, origen, payload, sala.getUltimaActividad()));
+		guardarYPublicar(sala, tipo, origen, payload, sala.getUltimaActividad());
+	}
+
+	/**
+	 * Guarda y publica sala.expirada, con origen servidor, sin renovar la sala: expirar no es actividad, así que
+	 * ultima_actividad se queda en la última escritura de un cliente.
+	 */
+	public void registrarExpiracion(SalaModel sala) {
+		guardarYPublicar(sala, EventoModel.Tipo.sala_expirada, DescubrimientoModel.Origen.servidor, Map.of(),
+				clock.instant());
+	}
+
+	private void guardarYPublicar(SalaModel sala, EventoModel.Tipo tipo, DescubrimientoModel.Origen origen,
+			Map<String, Object> payload, Instant creadoEn) {
+		EventoModel evento = eventos.save(new EventoModel(sala.getId(), tipo, origen, payload, creadoEn));
 		publicador.publishEvent(new SalaEvento(sala.getId(), sala.getCodigo(), tipo, origen, evento.getPayload(),
 				evento.getCreadoEn()));
 	}

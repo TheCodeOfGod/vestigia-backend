@@ -50,8 +50,13 @@ public interface SalaRepository extends JpaRepository<SalaModel, UUID> {
 	@Query("select s from SalaModel s where s.id = :id")
 	Optional<SalaModel> bloquear(UUID id);
 
-	@Modifying
-	@Query("update SalaModel s set s.estado = :expirada where s.estado in :vivos and s.expiraEn < :ahora")
-	int expirarVencidas(Instant ahora, Collection<Estado> vivos, Estado expirada);
+	/**
+	 * Las salas vivas con expira_en vencido, bloqueadas hasta el commit ({@code SELECT ... FOR UPDATE}). Si una
+	 * escritura tiene bloqueada una de ellas, Postgres espera a que termine y vuelve a evaluar el filtro, así que una
+	 * sala que esa escritura renovó o cerró ya no sale.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select s from SalaModel s where s.estado in :vivos and s.expiraEn < :ahora")
+	List<SalaModel> bloquearVencidas(Instant ahora, Collection<Estado> vivos);
 
 }
