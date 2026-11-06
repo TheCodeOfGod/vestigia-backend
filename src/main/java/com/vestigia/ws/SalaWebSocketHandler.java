@@ -2,7 +2,10 @@ package com.vestigia.ws;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +50,9 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 
 	private final Duration limiteEnvio;
 
+	/** El cierre programado de cada sesión que todavía no se autentica. */
+	private final Map<String, ScheduledFuture<?>> plazos = new ConcurrentHashMap<>();
+
 	public SalaWebSocketHandler(SesionesWebSocket sesiones, SalaService salaService, JsonMapper json,
 			TaskScheduler scheduler, @Value("${vestigia.ws.auth-plazo}") Duration plazoAuth,
 			@Value("${vestigia.ws.envio-limite}") Duration limiteEnvio) {
@@ -66,11 +72,12 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 				&& nativa.getNativeSession() instanceof jakarta.websocket.Session tomcat) {
 			tomcat.getUserProperties().put(LIMITE_ENVIO_TOMCAT, limiteEnvio.toMillis());
 		}
-		scheduler.schedule(() -> {
+		plazos.put(session.getId(), scheduler.schedule(() -> {
+			plazos.remove(session.getId());
 			if (sesiones.cerrarSiNoSeAutentico(session, Cierre.SIN_AUTH_A_TIEMPO.status())) {
 				log.info("[WS] sin auth a tiempo {}", session.getId());
 			}
-		}, Instant.now().plus(plazoAuth));
+		}, Instant.now().plus(plazoAuth)));
 	}
 
 	@Override
@@ -85,6 +92,7 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+		cancelarPlazo(session);
 		sesiones.desconectar(session);
 		log.info("[WS] conexión cerrada {} código={}", session.getId(), status.getCode());
 	}
@@ -108,8 +116,18 @@ public class SalaWebSocketHandler extends AbstractWebSocketHandler {
 		Optional<SalaService.Credencial> credencial = token.isString() && !token.asString().isBlank()
 				? salaService.autenticar(token.asString()) : Optional.empty();
 		boolean conectada = credencial.isPresent() && sesiones.conectar(session, credencial.get());
-		if (!conectada && sesiones.cerrarSiNoSeAutentico(session, Cierre.TOKEN_INVALIDO.status())) {
+		if (conectada) {
+			cancelarPlazo(session);
+		}
+		else if (sesiones.cerrarSiNoSeAutentico(session, Cierre.TOKEN_INVALIDO.status())) {
 			log.info("[WS] auth rechazada {}", session.getId());
+		}
+	}
+
+	private void cancelarPlazo(WebSocketSession session) {
+		ScheduledFuture<?> plazo = plazos.remove(session.getId());
+		if (plazo != null) {
+			plazo.cancel(false);
 		}
 	}
 
