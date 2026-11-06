@@ -76,9 +76,11 @@ class SesionesWebSocketTest {
 		CountDownLatch soltar = new CountDownLatch(1);
 		WebSocketSession lenta = sesion("lenta");
 		List<String> recibidos = new CopyOnWriteArrayList<>();
+		CountDownLatch dosEnviados = new CountDownLatch(2);
 		doAnswer(inv -> {
 			soltar.await();
 			recibidos.add(tipo(inv.getArgument(0)));
+			dosEnviados.countDown();
 			return null;
 		}).when(lenta).sendMessage(any());
 		WebSocketSession otra = sesion("otra");
@@ -92,8 +94,9 @@ class SesionesWebSocketTest {
 		verify(otra, timeout(2000).times(2)).sendMessage(any());
 		assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - inicio)).isLessThan(2000);
 
+		assertThat(recibidos).isEmpty();
 		soltar.countDown();
-		verify(lenta, timeout(2000).times(2)).sendMessage(any());
+		assertThat(dosEnviados.await(2, TimeUnit.SECONDS)).isTrue();
 		assertThat(recibidos).containsExactly("auth.ok", "uno");
 	}
 
