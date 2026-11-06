@@ -8,7 +8,7 @@ import com.vestigia.model.DescubrimientoModel;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.model.SalaModel;
 
-public record Sala(String codigo, SalaModel.Estado estado, String escenaActual, List<Puzzle> puzzles,
+public record Sala(String codigo, SalaModel.Estado estado, SalaModel.Escena escenaActual, List<Puzzle> puzzles,
 		List<Descubrimiento> descubrimientos, Dispositivos dispositivos, Instant creadaEn, Instant expiraEn) {
 
 	public record Puzzle(PuzzleEstadoModel.Puzzle puzzle, PuzzleEstadoModel.Estado estado, Map<String, Object> datos) {

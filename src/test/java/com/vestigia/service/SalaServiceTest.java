@@ -94,7 +94,7 @@ class SalaServiceTest {
 		assertThat(sala.getValue().getCodigo()).isEqualTo("ALAMOS");
 		assertThat(sala.getValue().getTokenJuegoHash()).isEqualTo(sha256(creada.token())).hasSize(64);
 		assertThat(sala.getValue().getTokenAppHash()).isNull();
-		assertThat(sala.getValue().getEscenaActual()).isEqualTo("introduccion");
+		assertThat(sala.getValue().getEscenaActual()).isEqualTo(SalaModel.Escena.introduccion);
 		assertThat(sala.getValue().getUltimaActividad()).isEqualTo(AHORA);
 		assertThat(sala.getValue().getExpiraEn()).isEqualTo(AHORA.plus(Duration.ofHours(2)));
 	}
@@ -255,7 +255,7 @@ class SalaServiceTest {
 		SalaModel sala = new SalaModel();
 		sala.setCodigo("ALAMOS");
 		sala.setEstado(SalaModel.Estado.activa);
-		sala.setEscenaActual("introduccion");
+		sala.setEscenaActual(SalaModel.Escena.introduccion);
 		sala.setCreadaEn(AHORA);
 		sala.setExpiraEn(AHORA.plusSeconds(60));
 		when(salas.findById(id)).thenReturn(Optional.of(sala));
@@ -273,10 +273,65 @@ class SalaServiceTest {
 	}
 
 	@Test
+	@DisplayName("La app no puede cambiar la escena: 403 sin tocar la sala")
+	void appNoCambiaLaEscena() {
+		assertThatThrownBy(() -> service.cambiarEscena(credencial(SalaService.Rol.app), "faro"))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
+	@DisplayName("Una escena fuera de introduccion, pueblo, faro, observatorio y desenlace da 400 con la lista de válidas")
+	void escenaInvalidaDa400() {
+		for (String escena : new String[] { "bosque", "Faro", " faro", "FARO" }) {
+			assertThatThrownBy(() -> service.cambiarEscena(credencial(SalaService.Rol.juego), escena)).as(escena)
+					.isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+						assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+						assertThat(ex.getReason()).contains("introduccion, pueblo, faro, observatorio, desenlace");
+					});
+		}
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
+	@DisplayName("Cambiar la escena la guarda y registra escena.cambiada con la anterior y la nueva")
+	void cambiarEscenaRegistraEvento() {
+		SalaService.Credencial credencial = credencial(SalaService.Rol.juego);
+		SalaModel sala = new SalaModel();
+		sala.setEscenaActual(SalaModel.Escena.pueblo);
+		when(actividad.bloquear(credencial.salaId())).thenReturn(sala);
+
+		assertThat(service.cambiarEscena(credencial, "faro").escenaActual()).isEqualTo(SalaModel.Escena.faro);
+
+		assertThat(sala.getEscenaActual()).isEqualTo(SalaModel.Escena.faro);
+		verify(actividad).registrar(sala, EventoModel.Tipo.escena_cambiada, DescubrimientoModel.Origen.juego,
+				Map.of("anterior", "pueblo", "escena", "faro"));
+	}
+
+	@Test
+	@DisplayName("Repetir la escena actual responde igual y solo renueva la sala, sin evento")
+	void repetirEscenaSoloRenueva() {
+		SalaService.Credencial credencial = credencial(SalaService.Rol.juego);
+		SalaModel sala = new SalaModel();
+		sala.setEscenaActual(SalaModel.Escena.faro);
+		when(actividad.bloquear(credencial.salaId())).thenReturn(sala);
+
+		assertThat(service.cambiarEscena(credencial, "faro").escenaActual()).isEqualTo(SalaModel.Escena.faro);
+
+		verify(actividad).renovar(sala);
+		verify(actividad, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
 	void expirarVencidasUsaLaHoraDelReloj() {
 		service.expirarVencidas();
 
 		verify(salas).expirarVencidas(AHORA, SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+	}
+
+	private static SalaService.Credencial credencial(SalaService.Rol rol) {
+		return new SalaService.Credencial(UUID.randomUUID(), "ALAMOS", rol);
 	}
 
 	private static DataIntegrityViolationException violacion(String constraint) {

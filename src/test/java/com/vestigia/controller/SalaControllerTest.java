@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -26,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.vestigia.dto.AppUnida;
+import com.vestigia.dto.EscenaActual;
 import com.vestigia.dto.Pueblo;
 import com.vestigia.dto.Sala;
 import com.vestigia.model.PuzzleEstadoModel;
@@ -119,7 +122,7 @@ class SalaControllerTest {
 		SalaService.Credencial credencial = credencial("ALAMOS");
 		when(salaService.autenticar("tok")).thenReturn(Optional.of(credencial));
 		when(salaService.estado(credencial.salaId())).thenReturn(new Sala("ALAMOS", SalaModel.Estado.activa,
-				"introduccion",
+				SalaModel.Escena.introduccion,
 				List.of(new Sala.Puzzle(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado, Map.of())),
 				List.of(), new Sala.Dispositivos(false, false), Instant.parse("2026-10-26T18:00:00Z"),
 				Instant.parse("2026-10-26T20:00:00Z")));
@@ -133,6 +136,41 @@ class SalaControllerTest {
 				.andExpect(jsonPath("$.dispositivos.app").value(false))
 				.andExpect(jsonPath("$.creada_en").value("2026-10-26T18:00:00Z"))
 				.andExpect(jsonPath("$.expira_en").value("2026-10-26T20:00:00Z"));
+	}
+
+	@Test
+	@DisplayName("PUT escena responde 200 con escena_actual")
+	void cambiarEscenaResponde200() throws Exception {
+		SalaService.Credencial credencial = credencial("ALAMOS");
+		when(salaService.autenticar("tok")).thenReturn(Optional.of(credencial));
+		when(salaService.cambiarEscena(credencial, "faro")).thenReturn(new EscenaActual(SalaModel.Escena.faro));
+
+		mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").header("Authorization", "Bearer tok")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"escena\":\"faro\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.escena_actual").value("faro"));
+	}
+
+	@Test
+	@DisplayName("PUT escena sin escena o con escena vacía da 400 con detalle, sin llamar al servicio")
+	void cambiarEscenaSinValorDa400() throws Exception {
+		when(salaService.autenticar("tok")).thenReturn(Optional.of(credencial("ALAMOS")));
+
+		for (String cuerpo : new String[] { "{}", "{\"escena\":\"\"}", "{\"escena\":null}" }) {
+			mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").header("Authorization", "Bearer tok")
+					.contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.details[0].field").value("escena"));
+		}
+		verify(salaService, never()).cambiarEscena(any(), any());
+	}
+
+	@Test
+	@DisplayName("PUT escena sin token da 401")
+	void cambiarEscenaSinTokenDa401() throws Exception {
+		mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"escena\":\"faro\"}")).andExpect(status().isUnauthorized());
+		verify(salaService, never()).cambiarEscena(any(), any());
 	}
 
 	@Test

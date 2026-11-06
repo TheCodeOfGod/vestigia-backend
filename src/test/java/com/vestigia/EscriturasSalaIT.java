@@ -225,6 +225,54 @@ class EscriturasSalaIT {
 		assertThat(estadoPuzzle("MIER", "lookout")).isEqualTo("disponible");
 	}
 
+	@Test
+	@DisplayName("El juego cambia la escena: 200, GET estado la muestra, guarda escena.cambiada y renueva expira_en")
+	void juegoCambiaLaEscena() throws Exception {
+		String juego = api.tokenJuego("MOCORITO");
+		reloj.avanzar(Duration.ofHours(1));
+		Instant antes = reloj.instant();
+
+		HttpResponse<String> respuesta = escena("MOCORITO", "\"faro\"", juego);
+
+		assertThat(respuesta.statusCode()).isEqualTo(200);
+		assertThat(api.cuerpo(respuesta).get("escena_actual").asString()).isEqualTo("faro");
+		assertThat(api.cuerpo(api.enviar("GET", "/api/v1/salas/MOCORITO/estado", null, juego)).get("escena_actual")
+				.asString()).isEqualTo("faro");
+		assertThat(eventos("MOCORITO")).last()
+				.isEqualTo("escena.cambiada:juego:{\"escena\": \"faro\", \"anterior\": \"introduccion\"}");
+		assertThat(expiraEn("MOCORITO")).isBetween(antes.plus(Duration.ofHours(2)),
+				antes.plus(Duration.ofHours(2)).plusSeconds(5));
+	}
+
+	@Test
+	@DisplayName("La app recibe 403 al cambiar la escena y la escena no cambia")
+	void appNoCambiaLaEscena() throws Exception {
+		api.tokenJuego("MOTUL");
+		String app = api.tokenApp("MOTUL");
+
+		assertThat(escena("MOTUL", "\"faro\"", app).statusCode()).isEqualTo(403);
+		assertThat(jdbc.queryForObject("SELECT escena_actual FROM salas WHERE id = ?", String.class,
+				salaViva("MOTUL"))).isEqualTo("introduccion");
+	}
+
+	@Test
+	@DisplayName("Una escena inválida, vacía, de otro tipo o ausente da 400 y no cambia nada")
+	void escenaInvalidaDa400() throws Exception {
+		String juego = api.tokenJuego("ORIZABA");
+
+		for (String valor : List.of("\"bosque\"", "\"FARO\"", "\"\"", "5", "null", "[\"faro\"]")) {
+			assertThat(escena("ORIZABA", valor, juego).statusCode()).as(valor).isEqualTo(400);
+		}
+		assertThat(api.enviar("PUT", "/api/v1/salas/ORIZABA/escena", "{}", juego).statusCode()).isEqualTo(400);
+		assertThat(jdbc.queryForObject("SELECT escena_actual FROM salas WHERE id = ?", String.class,
+				salaViva("ORIZABA"))).isEqualTo("introduccion");
+		assertThat(eventos("ORIZABA")).containsExactly("sala.creada:juego:{\"codigo\": \"ORIZABA\"}");
+	}
+
+	private HttpResponse<String> escena(String codigo, String valorJson, String token) throws Exception {
+		return api.enviar("PUT", "/api/v1/salas/" + codigo + "/escena", "{\"escena\":" + valorJson + "}", token);
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);

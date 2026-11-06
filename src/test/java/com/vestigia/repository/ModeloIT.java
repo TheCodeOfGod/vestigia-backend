@@ -41,7 +41,7 @@ class ModeloIT {
 		SalaModel sala = new SalaModel();
 		sala.setCodigo("PRUEBAMODELO");
 		sala.setEstado(SalaModel.Estado.esperando_app);
-		sala.setEscenaActual("introduccion");
+		sala.setEscenaActual(SalaModel.Escena.introduccion);
 		sala.setTokenJuegoHash("b".repeat(64));
 		sala.setCreadaEn(ahora);
 		sala.setUltimaActividad(ahora);

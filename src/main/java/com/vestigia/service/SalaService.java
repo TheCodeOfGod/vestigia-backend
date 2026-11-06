@@ -7,6 +7,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.vestigia.dto.AppUnida;
+import com.vestigia.dto.EscenaActual;
 import com.vestigia.dto.Pueblo;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
@@ -51,6 +54,10 @@ public class SalaService {
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private static final String INDICE_SALA_VIVA = "salas_codigo_viva";
+
+	private static final String ESCENAS = Arrays.stream(SalaModel.Escena.values())
+			.map(Enum::name)
+			.collect(Collectors.joining(", "));
 
 	public enum Rol {
 
@@ -118,7 +125,7 @@ public class SalaService {
 		SalaModel sala = new SalaModel();
 		sala.setCodigo(codigo);
 		sala.setEstado(SalaModel.Estado.esperando_app);
-		sala.setEscenaActual("introduccion");
+		sala.setEscenaActual(SalaModel.Escena.introduccion);
 		sala.setTokenJuegoHash(hashToken(token));
 		sala.setCreadaEn(ahora);
 		sala.setUltimaActividad(ahora);
@@ -185,6 +192,37 @@ public class SalaService {
 				.toList();
 		return new Sala(sala.getCodigo(), sala.getEstado(), sala.getEscenaActual(), puzzlesSala, descubrimientosSala,
 				new Sala.Dispositivos(false, false), sala.getCreadaEn(), sala.getExpiraEn());
+	}
+
+	/**
+	 * Cambia la escena actual. Solo el juego (403 para la app). Repetir la escena actual responde igual y solo renueva
+	 * la expiración, sin guardar otro evento.
+	 */
+	@Transactional
+	public EscenaActual cambiarEscena(Credencial credencial, String valor) {
+		exigirJuego(credencial, "Solo el juego puede cambiar la escena");
+		SalaModel.Escena escena = Arrays.stream(SalaModel.Escena.values())
+				.filter(e -> e.name().equals(valor))
+				.findFirst()
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "'" + valor
+						+ "' no es una escena válida. Usa una de: " + ESCENAS));
+		SalaModel sala = actividad.bloquear(credencial.salaId());
+		SalaModel.Escena anterior = sala.getEscenaActual();
+		if (anterior == escena) {
+			actividad.renovar(sala);
+		}
+		else {
+			sala.setEscenaActual(escena);
+			actividad.registrar(sala, EventoModel.Tipo.escena_cambiada, Rol.juego.origen(),
+					Map.of("anterior", anterior.name(), "escena", escena.name()));
+		}
+		return new EscenaActual(escena);
+	}
+
+	private static void exigirJuego(Credencial credencial, String mensaje) {
+		if (credencial.rol() != Rol.juego) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, mensaje);
+		}
 	}
 
 	/** Marca expirada cada sala viva cuyo expira_en ya pasó. Su código queda libre y la fila se conserva. */

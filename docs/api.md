@@ -209,6 +209,33 @@ El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `o
 
 Esas cuatro claves son los resultados de los puzzles y solo las crea el servidor (Paso 3b).
 
+## `PUT /salas/{codigo}/escena`
+
+**Solo el juego**, con el token de esa sala. Cambia la escena que ve la libreta.
+
+```sh
+curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/escena \
+	-H "Authorization: Bearer $TOKEN" \
+	-H 'Content-Type: application/json' \
+	-d '{"escena": "faro"}'
+```
+
+`200 OK`:
+
+```json
+{"escena_actual": "faro"}
+```
+
+Escenas válidas, en orden: `introduccion`, `pueblo`, `faro`, `observatorio` y `desenlace`. Se escriben exactamente así, en minúsculas. La sala empieza en `introduccion`. Mandar la escena en la que ya está responde lo mismo, renueva la expiración y no guarda otro evento.
+
+| Error | Cuándo | `message` |
+|---|---|---|
+| `400` | Falta `escena` o viene vacía | `Datos inválidos`, con `details: [{"field": "escena", "message": "es obligatoria"}]` |
+| `400` | Escena desconocida (`"bosque"`, `"FARO"`) | `'bosque' no es una escena válida. Usa una de: introduccion, pueblo, faro, observatorio, desenlace` |
+| `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
+| `403` | Token de la app | `Solo el juego puede cambiar la escena` |
+| `403` | Token de otra sala | `El token no pertenece a esta sala` |
+
 ## Pendiente en pasos siguientes
 
-`PUT /salas/{codigo}/puzzles/{puzzle}`, `PUT /salas/{codigo}/escena` y `DELETE /salas/{codigo}` todavía no existen. Responden `404`.
+`PUT /salas/{codigo}/puzzles/{puzzle}` y `DELETE /salas/{codigo}` todavía no existen. Responden `404`.

@@ -37,7 +37,7 @@ Son nombres de Pueblos Mágicos de México de una sola palabra. La lista no camb
 | `id` | `UUID` PK | Lo genera el backend |
 | `codigo` | `VARCHAR(30)` | FK a `codigos_pueblo` |
 | `estado` | `VARCHAR(20)` | `esperando_app`, `activa`, `finalizada` o `expirada` |
-| `escena_actual` | `VARCHAR(20)` | Empieza en `introduccion` |
+| `escena_actual` | `VARCHAR(20)` | Empieza en `introduccion`. Valores: `introduccion`, `pueblo`, `faro`, `observatorio`, `desenlace`. La base no los restringe (son provisionales); los valida el enum `SalaModel.Escena` |
 | `token_juego_hash` | `CHAR(64)` | SHA-256 del token del juego, en hexadecimal minúscula |
 | `token_app_hash` | `CHAR(64)` | SHA-256 del token de la app. `NULL` hasta que la app se une |
 | `creada_en` | `TIMESTAMPTZ` | |
@@ -96,6 +96,7 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 | `sala.creada` | `POST /salas` | `juego` | `{"codigo": "BACALAR"}` |
 | `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
 | `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva | `juego` o `app` | `{"clave": "pieza_1", "datos": {...}}` |
+| `escena.cambiada` | `PUT /salas/{codigo}/escena` con una escena distinta de la actual | `juego` | `{"anterior": "introduccion", "escena": "faro"}` |
 | `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo"}` |
 
 Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
