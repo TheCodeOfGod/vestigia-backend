@@ -176,11 +176,15 @@ class ConcurrenciaWebSocketIT {
 				Integer.class, salaId)).isZero();
 	}
 
-	/** Espera a que una consulta de Postgres esté detenida por un candado de fila: el job esperando la escritura. */
+	/**
+	 * Espera a que la consulta del job ({@code SELECT ... WHERE ... expira_en < ? FOR ... UPDATE}) esté detenida por un
+	 * candado de fila. Si el que espera es el job programado de Spring y no el de la prueba, la carrera es la misma.
+	 */
 	private void esperarJobBloqueado() {
 		long limite = System.nanoTime() + Duration.ofSeconds(5).toNanos();
 		while (jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
-				+ " AND datname = current_database()", Integer.class) == 0) {
+				+ " AND datname = current_database() AND query ILIKE '%expira_en<%' AND query ILIKE '%for %update%'",
+				Integer.class) == 0) {
 			assertThat(System.nanoTime()).as("el job espera el candado de la sala antes de 5 s").isLessThan(limite);
 			Thread.onSpinWait();
 		}
@@ -202,7 +206,7 @@ class ConcurrenciaWebSocketIT {
 
 	private Carrera authEnPausa(String token) throws Exception {
 		WebSocketSession sesion = mock(WebSocketSession.class);
-		when(sesion.getId()).thenReturn("carrera-" + token.substring(0, 8));
+		when(sesion.getId()).thenReturn("carrera-" + UUID.randomUUID());
 		when(sesion.isOpen()).thenReturn(true);
 		CountDownLatch validado = new CountDownLatch(1);
 		CountDownLatch seguir = new CountDownLatch(1);
