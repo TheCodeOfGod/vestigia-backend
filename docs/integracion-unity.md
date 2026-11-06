@@ -2,6 +2,8 @@
 
 Esta guía es para quien programa **el juego de PC en Unity (C#)**. Explica, paso a paso y en orden, cada cosa que el juego le pide o le avisa al backend de Vestigia. No necesitas abrir otras guías ni el código del backend: todo lo que el juego usa está aquí.
 
+> **Antes de copiar cualquier comando:** todos usan la variable `BASE` con la dirección del backend. Escribe primero `export BASE=http://localhost:8080` en tu terminal. Si el backend corre en otro puerto (por ejemplo `18081`), usa ese número: `export BASE=http://localhost:18081`. Ver la sección 2.1.
+
 Cada respuesta de ejemplo salió de correr el backend real. Los tokens están recortados (`K8srOIYIL0jr…`). Los fragmentos de C# están marcados como **no compilados**: se escribieron para Unity 2021 o posterior, pero no se compilaron en un proyecto de Unity.
 
 **Índice**
@@ -47,11 +49,13 @@ El juego también **escucha**: el teléfono resuelve la fotografía, el mirador 
 
 Todas las rutas REST empiezan con `/api/v1`. El WebSocket está en `/ws`, en el mismo servidor: `ws://localhost:8080/ws` en local y `wss://…/ws` en producción.
 
-En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo esta línea:
+En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo el número de esta línea:
 
 ```sh
-BASE=http://localhost:8080
+export BASE=http://localhost:8080
 ```
+
+Sin `/` al final. Si abres otra terminal, vuelve a escribir la línea: la variable vive solo en la terminal donde la definiste.
 
 ### 2.2 Levantar el backend en tu computadora
 
@@ -99,11 +103,20 @@ Si tienes `jq`, puedes guardarlo directo: `TOKEN_JUEGO=$(curl -s -X POST $BASE/a
 curl -X POST $BASE/api/v1/salas/BACALAR/unirse
 TOKEN_APP=pega-aqui-el-token-de-la-app
 
-# La app resuelve la fotografía (photo), el mirador (lookout) o el observatorio (observatory)
+# La app abre la fotografía (photo), el mirador (lookout) o el observatorio (observatory): el puzzle pasa a en_curso
+curl -X PUT $BASE/api/v1/salas/BACALAR/puzzles/photo \
+	-H "Authorization: Bearer $TOKEN_APP" -H 'Content-Type: application/json' \
+	-d '{"datos": {"iniciado": true}}'
+
+# La app lo completa: el puzzle pasa a resuelto
 curl -X PUT $BASE/api/v1/salas/BACALAR/puzzles/photo \
 	-H "Authorization: Bearer $TOKEN_APP" -H 'Content-Type: application/json' \
 	-d '{"datos": {"completada": true}}'
 ```
+
+Cambia `photo` por `lookout` u `observatory` para los otros dos. El aviso `iniciado` es opcional: `completada` también resuelve un puzzle `disponible`.
+
+**Unirse con `curl` no avisa al juego.** `dispositivo.conectado` llega cuando la app **abre y autentica su WebSocket**, no cuando llama a `/unirse`. Para simularlo sin teléfono, abre la página de prueba (abajo), pega `TOKEN_APP` en el panel de la app y pulsa **Conectar**.
 
 **Con la página de prueba.** Abre `$BASE/prueba-ws.html` en el navegador (en local, `http://localhost:8080/prueba-ws.html`). Tiene un panel para el juego y otro para la app. En cada uno pegas el token, pulsas **Conectar** y ves cada mensaje del WebSocket que llega, con su hora. Sirve para ver qué recibiría Unity mientras mandas peticiones con `curl`.
 
@@ -284,7 +297,7 @@ IEnumerator CrearSala(string codigo)
 **Cuándo:** justo después de crear la sala, y cada vez que la conexión se caiga (sección 7).
 
 1. Abre `ws://localhost:8080/ws` (en producción `wss://…/ws`). **El token no va en la URL.**
-2. En menos de 5 segundos manda este texto:
+2. En menos de 5 segundos manda este texto, cambiando `<token>` por el token del juego que guardaste en el paso 2:
 
 	<!-- peticion -->
 	```json
@@ -368,7 +381,7 @@ IEnumerator PedirEstado()
 
 **Cuándo:** mientras el código está en pantalla.
 
-No mandas nada. La jugadora escribe `BACALAR` en la app, la app se une y abre su WebSocket. En ese momento el juego recibe:
+No mandas nada. La jugadora escribe `BACALAR` en la app, la app se une y abre su WebSocket. En cuanto la app se **autentica en el WebSocket** (no antes: unirse por REST no basta), el juego recibe:
 
 <!-- respuesta: ws -->
 ```json
@@ -376,6 +389,8 @@ No mandas nada. La jugadora escribe `BACALAR` en la app, la app se une y abre su
 ```
 
 **Qué hacer:** muestra "Teléfono conectado" y deja avanzar a la escena del pueblo. Si la app ya estaba conectada antes de que el juego abriera su WebSocket, no llega este mensaje: por eso el paso 4 lee `dispositivos.app`.
+
+**Para probarlo sin teléfono:** une la app con `curl` (sección 2.3) y después conecta su WebSocket con el panel de la app de `$BASE/prueba-ws.html`. Solo con el `curl` de `/unirse` el juego no recibe nada.
 
 Si el teléfono se desconecta durante la partida llega `{"type": "dispositivo.desconectado", "payload": {"rol": "app"}}`. Muestra un aviso discreto ("El teléfono se desconectó"); la partida no se detiene y la sala no cambia.
 
@@ -962,6 +977,20 @@ public class VestigiaCliente : MonoBehaviour
 {
     [SerializeField] string baseUrl = "http://localhost:8080";
 
+    // Acepta "localhost:8080", "http://localhost:8080/" o "https://…": siempre con esquema y sin "/" final.
+    string Base
+    {
+        get
+        {
+            string b = baseUrl.Trim().TrimEnd('/');
+            return b.StartsWith("http://") || b.StartsWith("https://") ? b : "http://" + b;
+        }
+    }
+
+    // http → ws y https → wss.
+    string WsUrl => (Base.StartsWith("https://") ? "wss://" + Base.Substring("https://".Length)
+                                                  : "ws://" + Base.Substring("http://".Length)) + "/ws";
+
     public string Codigo => PlayerPrefs.GetString("vestigia_codigo", "");
     string Token => PlayerPrefs.GetString("vestigia_token", "");
 
@@ -989,7 +1018,7 @@ public class VestigiaCliente : MonoBehaviour
 
     public IEnumerator Enviar(string metodo, string ruta, string cuerpoJson, bool conToken, Action<long, string> listo)
     {
-        using var req = new UnityWebRequest(baseUrl + ruta, metodo);
+        using var req = new UnityWebRequest(Base + ruta, metodo);
         req.downloadHandler = new DownloadHandlerBuffer();
         if (cuerpoJson != null)
         {
@@ -1097,7 +1126,7 @@ public class VestigiaCliente : MonoBehaviour
             var socket = ws = new ClientWebSocket();
             try
             {
-                await socket.ConnectAsync(new Uri("ws" + baseUrl.Substring(4) + "/ws"), miCancelacion.Token);
+                await socket.ConnectAsync(new Uri(WsUrl), miCancelacion.Token);
                 string auth = "{\"type\":\"auth\",\"payload\":{\"token\":\"" + Token + "\"}}";
                 await socket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(auth)), WebSocketMessageType.Text, true, miCancelacion.Token);
                 cierre = await LeerHastaCerrar(socket, miCancelacion.Token);
@@ -1192,8 +1221,9 @@ cliente.DescubrimientoNuevo += d =>
     if (d.clave == "observatorio_visible") AbrirCaminoAlObservatorio();
     if (d.clave == "magnetar_localizado") StartCoroutine(IrAlDesenlace());
 };
-StartCoroutine(cliente.RegistrarDescubrimiento("pieza_1"));
+// Al entrar al faro: primero la escena, luego cada pieza que recoge (paso 6 y paso 9)
 StartCoroutine(cliente.CambiarEscena("faro"));
+StartCoroutine(cliente.RegistrarDescubrimiento("pieza_1"));
 ```
 
 ## 11. Checklist de "ya terminé"
