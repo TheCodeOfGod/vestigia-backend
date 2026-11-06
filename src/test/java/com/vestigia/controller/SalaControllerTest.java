@@ -168,6 +168,25 @@ class SalaControllerTest {
 	}
 
 	@Test
+	@DisplayName("La app recibe 403 en PUT escena y en DELETE antes de validar el cuerpo, sin llamar al servicio")
+	void appRecibe403AntesDeValidarElCuerpo() throws Exception {
+		when(salaService.autenticar("tok-app")).thenReturn(Optional.of(
+				new SalaService.Credencial(UUID.randomUUID(), "ALAMOS", SalaService.Rol.app)));
+
+		for (String cuerpo : new String[] { "{}", "{\"escena\":\"bosque\"}", "{\"escena\":\"faro\"}", "no es json" }) {
+			mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").header("Authorization", "Bearer tok-app")
+					.contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+					.andExpect(status().isForbidden())
+					.andExpect(jsonPath("$.message").value("Solo el juego puede cambiar la escena"));
+		}
+		mockMvc.perform(delete("/api/v1/salas/ALAMOS").header("Authorization", "Bearer tok-app"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.message").value("Solo el juego puede cerrar la sala"));
+		verify(salaService, never()).cambiarEscena(any(), any());
+		verify(salaService, never()).finalizar(any());
+	}
+
+	@Test
 	@DisplayName("PUT escena sin token da 401")
 	void cambiarEscenaSinTokenDa401() throws Exception {
 		mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").contentType(MediaType.APPLICATION_JSON)

@@ -16,8 +16,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Exige {@code Authorization: Bearer <token>} de una sala viva y que el {@code {codigo}} de la ruta sea el de esa sala.
- * Deja la credencial en el atributo {@link #CREDENCIAL} de la petición.
+ * Exige {@code Authorization: Bearer <token>} de una sala viva, que el {@code {codigo}} de la ruta sea el de esa sala y,
+ * en los endpoints con {@link SoloJuego}, que el token sea el del juego. Deja la credencial en el atributo
+ * {@link #CREDENCIAL} de la petición.
  */
 @Component
 public class TokenInterceptor implements HandlerInterceptor {
@@ -35,7 +36,7 @@ public class TokenInterceptor implements HandlerInterceptor {
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
 		// Rutas sin controlador (404, recursos estáticos) siguen su curso normal.
-		if (!(handler instanceof HandlerMethod)) {
+		if (!(handler instanceof HandlerMethod metodo)) {
 			return true;
 		}
 		String token = token(request.getHeader(HttpHeaders.AUTHORIZATION));
@@ -45,6 +46,10 @@ public class TokenInterceptor implements HandlerInterceptor {
 		String codigo = codigoDeLaRuta(request);
 		if (codigo != null && !SalaService.normalizarCodigo(codigo).equals(credencial.codigo())) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El token no pertenece a esta sala");
+		}
+		SoloJuego soloJuego = metodo.getMethodAnnotation(SoloJuego.class);
+		if (soloJuego != null && credencial.rol() != SalaService.Rol.juego) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, soloJuego.value());
 		}
 		request.setAttribute(CREDENCIAL, credencial);
 		return true;

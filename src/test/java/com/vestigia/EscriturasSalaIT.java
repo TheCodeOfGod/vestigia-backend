@@ -249,12 +249,14 @@ class EscriturasSalaIT {
 	}
 
 	@Test
-	@DisplayName("La app recibe 403 al cambiar la escena y la escena no cambia")
+	@DisplayName("La app recibe 403 al cambiar la escena, con cuerpo válido, inválido o vacío, y la escena no cambia")
 	void appNoCambiaLaEscena() throws Exception {
 		api.tokenJuego("MOTUL");
 		String app = api.tokenApp("MOTUL");
 
 		assertThat(escena("MOTUL", "\"faro\"", app).statusCode()).isEqualTo(403);
+		assertThat(escena("MOTUL", "\"bosque\"", app).statusCode()).isEqualTo(403);
+		assertThat(api.enviar("PUT", "/api/v1/salas/MOTUL/escena", "{}", app).statusCode()).isEqualTo(403);
 		assertThat(jdbc.queryForObject("SELECT escena_actual FROM salas WHERE id = ?", String.class,
 				salaViva("MOTUL"))).isEqualTo("introduccion");
 	}

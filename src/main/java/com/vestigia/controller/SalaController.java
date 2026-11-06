@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.vestigia.config.SeguridadConfig;
+import com.vestigia.config.SoloJuego;
 import com.vestigia.config.TokenInterceptor;
 import com.vestigia.controller.ApiExceptionHandler.ErrorBody;
 import com.vestigia.dto.AppUnida;
@@ -98,6 +99,7 @@ public class SalaController {
 			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
 	@ApiResponse(responseCode = "403", description = "El token es de otra sala o es el de la app",
 			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@SoloJuego(SalaService.SOLO_JUEGO_ESCENA)
 	public EscenaActual cambiarEscena(@Valid @RequestBody CambiarEscenaRequest request,
 			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL) SalaService.Credencial credencial) {
 		return salaService.cambiarEscena(credencial, request.escena());
@@ -115,6 +117,7 @@ public class SalaController {
 			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
 	@ApiResponse(responseCode = "403", description = "El token es de otra sala o es el de la app",
 			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@SoloJuego(SalaService.SOLO_JUEGO_CIERRE)
 	public void finalizar(@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL)
 	SalaService.Credencial credencial) {
 		salaService.finalizar(credencial);

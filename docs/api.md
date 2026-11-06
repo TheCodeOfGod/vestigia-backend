@@ -238,7 +238,7 @@ Escenas válidas, en orden: `introduccion`, `pueblo`, `faro`, `observatorio` y `
 | `400` | `escena` no es texto (`123`, `true`) | `JSON malformado o ilegible` |
 | `400` | Escena desconocida (`"bosque"`, `"FARO"`) | `'bosque' no es una escena válida. Usa una de: introduccion, pueblo, faro, observatorio, desenlace` |
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
-| `403` | Token de la app | `Solo el juego puede cambiar la escena` |
+| `403` | Token de la app, mande el cuerpo que mande (se revisa antes que el cuerpo) | `Solo el juego puede cambiar la escena` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 
 ## `DELETE /salas/{codigo}`

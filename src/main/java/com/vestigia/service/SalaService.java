@@ -55,6 +55,10 @@ public class SalaService {
 
 	private static final String INDICE_SALA_VIVA = "salas_codigo_viva";
 
+	public static final String SOLO_JUEGO_ESCENA = "Solo el juego puede cambiar la escena";
+
+	public static final String SOLO_JUEGO_CIERRE = "Solo el juego puede cerrar la sala";
+
 	private static final String ESCENAS = Arrays.stream(SalaModel.Escena.values())
 			.map(Enum::name)
 			.collect(Collectors.joining(", "));
@@ -200,7 +204,7 @@ public class SalaService {
 	 */
 	@Transactional
 	public EscenaActual cambiarEscena(Credencial credencial, String valor) {
-		exigirJuego(credencial, "Solo el juego puede cambiar la escena");
+		exigirJuego(credencial, SOLO_JUEGO_ESCENA);
 		SalaModel.Escena escena = Arrays.stream(SalaModel.Escena.values())
 				.filter(e -> e.name().equals(valor))
 				.findFirst()
@@ -225,12 +229,13 @@ public class SalaService {
 	 */
 	@Transactional
 	public void finalizar(Credencial credencial) {
-		exigirJuego(credencial, "Solo el juego puede cerrar la sala");
+		exigirJuego(credencial, SOLO_JUEGO_CIERRE);
 		SalaModel sala = actividad.bloquear(credencial.salaId());
 		sala.setEstado(SalaModel.Estado.finalizada);
 		actividad.registrar(sala, EventoModel.Tipo.sala_finalizada, Rol.juego.origen(), Map.of());
 	}
 
+	/** El controlador ya lo exige con @SoloJuego; se repite aquí para quien llame al servicio sin pasar por HTTP. */
 	private static void exigirJuego(Credencial credencial, String mensaje) {
 		if (credencial.rol() != Rol.juego) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, mensaje);
