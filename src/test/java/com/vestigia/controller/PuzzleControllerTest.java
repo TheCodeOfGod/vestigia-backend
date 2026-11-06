@@ -88,13 +88,14 @@ class PuzzleControllerTest {
 	}
 
 	@Test
-	@DisplayName("datos que no es un objeto JSON da 400, sin llamar al servicio")
-	void datosQueNoSonObjetoDa400() throws Exception {
-		for (String datos : List.of("true", "\"completada\"", "[true]", "1")) {
-			enviar("photo", "{\"datos\":" + datos + "}").andExpect(status().isBadRequest())
-					.andExpect(jsonPath("$.message").value("JSON malformado o ilegible"));
+	@DisplayName("datos que no es un objeto JSON llega al servicio tal cual, para que responda 400 con details")
+	void datosQueNoSonObjetoLleganAlServicio() throws Exception {
+		Map<String, Object> esperados = Map.of("true", true, "\"completada\"", "completada", "[true]", List.of(true),
+				"1", 1);
+		for (Map.Entry<String, Object> caso : esperados.entrySet()) {
+			enviar("photo", "{\"datos\":" + caso.getKey() + "}");
+			verify(puzzleService).reportar(credencial, "photo", caso.getValue());
 		}
-		verifyNoInteractions(puzzleService);
 	}
 
 	@Test
@@ -102,13 +103,14 @@ class PuzzleControllerTest {
 	void datosConservanSuTipoJson() throws Exception {
 		enviar("photo", "{\"datos\":{\"a\":\"true\",\"b\":1,\"c\":true,\"d\":null}}");
 
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<Map<String, Object>> datos = ArgumentCaptor.forClass(Map.class);
-		verify(puzzleService).reportar(eq(credencial), eq("photo"), datos.capture());
-		assertThat(datos.getValue().get("a")).isEqualTo("true");
-		assertThat(datos.getValue().get("b")).isEqualTo(1);
-		assertThat(datos.getValue().get("c")).isEqualTo(Boolean.TRUE);
-		assertThat(datos.getValue()).containsEntry("d", null);
+		ArgumentCaptor<Object> capturado = ArgumentCaptor.forClass(Object.class);
+		verify(puzzleService).reportar(eq(credencial), eq("photo"), capturado.capture());
+		assertThat(capturado.getValue()).isInstanceOfSatisfying(Map.class, datos -> {
+			assertThat(datos.get("a")).isEqualTo("true");
+			assertThat(datos.get("b")).isEqualTo(1);
+			assertThat(datos.get("c")).isEqualTo(Boolean.TRUE);
+			assertThat(datos).containsEntry("d", null);
+		});
 	}
 
 	@Test

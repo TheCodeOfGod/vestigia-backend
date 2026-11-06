@@ -78,16 +78,17 @@ class PuzzleServiceTest {
 	}
 
 	@Test
-	@DisplayName("Solo vale una clave aceptada con el booleano true: texto, número, false, null, claves extra, vacío o una clave ajena dan 400 con details en datos")
+	@DisplayName("Solo vale un objeto con una clave aceptada y el booleano true: un valor que no es objeto, texto, número, false, null, claves extra, vacío o una clave ajena dan 400 con details en datos")
 	void soloTrueEsValido() {
-		List<Map<String, Object>> invalidos = new ArrayList<>(List.of(Map.of("completada", "true"),
+		List<Object> invalidos = new ArrayList<>(List.of(true, List.of(true), List.of(), "completada", 123,
+				Map.of("completada", "true"),
 				Map.of("completada", 1), Map.of("completada", false), Map.of("completada", "si"),
 				Map.of("completada", Map.of()), Map.of("completada", List.of(true)), Map.of(),
 				Map.of("completada", true, "iniciado", true), Map.of("completada", true, "extra", 1),
 				Map.of("terminada", true), Map.of("Completada", true)));
 		invalidos.add(Collections.singletonMap("completada", null));
 
-		for (Map<String, Object> datos : invalidos) {
+		for (Object datos : invalidos) {
 			assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.app), "photo", datos)).as("%s", datos)
 					.isInstanceOfSatisfying(ApiException.class, ex -> {
 						assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);

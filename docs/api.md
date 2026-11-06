@@ -262,8 +262,7 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
 | Error | Cuándo | `message` |
 |---|---|---|
 | `400` | `datos` falta o es `null` | `Datos inválidos`, con `details: [{"field": "datos", "message": "es obligatorio"}]` |
-| `400` | `datos` no es un objeto (`true`, `[true]`, `"completada"`) | `JSON malformado o ilegible` |
-| `400` | `datos` no es un aviso válido para ese puzzle | `Datos inválidos`, con `details: [{"field": "datos", "message": "en photo debe ser exactamente {\"completada\": true} o {\"iniciado\": true}"}]` |
+| `400` | `datos` no es un aviso válido para ese puzzle, incluido un valor que no es objeto (`true`, `[true]`, `"completada"`, `123`) | `Datos inválidos`, con `details: [{"field": "datos", "message": "en photo debe ser exactamente {\"completada\": true} o {\"iniciado\": true}"}]` |
 | `400` | El id del puzzle no es `radio`, `photo`, `lookout` ni `observatory`, en minúsculas. Incluye los ids viejos `fotografia`, `mirador` y `observatorio` | `'fotografia' no es un puzzle válido. Usa uno de: radio, photo, lookout, observatory` |
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |

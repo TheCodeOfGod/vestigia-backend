@@ -254,7 +254,7 @@ class PuzzlesIT {
 	}
 
 	@Test
-	@DisplayName("Solo el booleano true: texto \"true\", 1, false, null, claves extra, objeto vacío o datos ausente dan 400 con details en datos y no cambian nada; iniciado en radio también")
+	@DisplayName("Solo el booleano true: texto \"true\", 1, false, null, claves extra, objeto vacío, datos que no es objeto o datos ausente dan 400 con details en datos y no cambian nada; iniciado en radio también")
 	void soloTrue() throws Exception {
 		String juego = api.tokenJuego("COCULA");
 		String app = api.tokenApp("COCULA");
@@ -264,7 +264,8 @@ class PuzzlesIT {
 
 		for (String datos : List.of("{\"completada\":\"true\"}", "{\"completada\":1}", "{\"completada\":false}",
 				"{\"completada\":null}", "{\"completada\":true,\"extra\":1}", "{\"completada\":true,\"iniciado\":true}",
-				"{}", "{\"sintonizada\":true}", "{\"completada\":\"si\"}")) {
+				"{}", "{\"sintonizada\":true}", "{\"completada\":\"si\"}", "true", "[true]", "[]", "\"completada\"",
+				"123")) {
 			HttpResponse<String> respuesta = reportar("COCULA", "photo", datos, app);
 			assertThat(respuesta.statusCode()).as(datos).isEqualTo(400);
 			JsonNode cuerpo = api.cuerpo(respuesta);

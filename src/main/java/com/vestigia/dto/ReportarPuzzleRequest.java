@@ -1,12 +1,11 @@
 package com.vestigia.dto;
 
-import java.util.Map;
-
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Cuerpo de PUT /salas/{codigo}/puzzles/{puzzle}. El servicio valida que {@code datos} sea un aviso que ese puzzle
- * acepta, como {@code {"completada": true}}.
+ * Cuerpo de PUT /salas/{codigo}/puzzles/{puzzle}. {@code datos} se lee con cualquier forma JSON para que el servicio
+ * responda con {@code details} también cuando no es un objeto, y valida que sea un aviso que ese puzzle acepta, como
+ * {@code {"completada": true}}.
  */
-public record ReportarPuzzleRequest(@NotNull(message = "es obligatorio") Map<String, Object> datos) {
+public record ReportarPuzzleRequest(@NotNull(message = "es obligatorio") Object datos) {
 }

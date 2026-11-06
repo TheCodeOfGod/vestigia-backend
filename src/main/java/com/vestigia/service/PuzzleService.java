@@ -100,7 +100,7 @@ public class PuzzleService {
 	 * simultáneos resuelven una sola vez.
 	 */
 	@Transactional
-	public Sala.Puzzle reportar(SalaService.Credencial credencial, String id, Map<String, Object> datos) {
+	public Sala.Puzzle reportar(SalaService.Credencial credencial, String id, Object datos) {
 		Puzzle puzzle = puzzle(id);
 		Aviso aviso = aviso(puzzle, datos);
 		SalaModel sala = actividad.bloquear(credencial.salaId());
@@ -136,14 +136,14 @@ public class PuzzleService {
 	}
 
 	/**
-	 * El aviso que trae {@code datos}: exactamente una clave que el puzzle acepta, con el booleano {@code true}.
-	 * Cualquier otra forma (texto "true", 1, false, null, claves extra u objeto vacío) da 400 con el detalle de lo
-	 * que se esperaba.
+	 * El aviso que trae {@code datos}: un objeto con exactamente una clave que el puzzle acepta, con el booleano
+	 * {@code true}. Cualquier otra forma (un valor que no es objeto, texto "true", 1, false, null, claves extra u
+	 * objeto vacío) da 400 con el detalle de lo que se esperaba.
 	 */
-	private static Aviso aviso(Puzzle puzzle, Map<String, Object> datos) {
+	private static Aviso aviso(Puzzle puzzle, Object datos) {
 		Set<Aviso> aceptados = AVISOS.get(puzzle);
-		if (datos.size() == 1) {
-			Map.Entry<String, Object> unico = datos.entrySet().iterator().next();
+		if (datos instanceof Map<?, ?> objeto && objeto.size() == 1) {
+			Map.Entry<?, ?> unico = objeto.entrySet().iterator().next();
 			for (Aviso aviso : aceptados) {
 				if (aviso.name().equals(unico.getKey()) && Boolean.TRUE.equals(unico.getValue())) {
 					return aviso;
