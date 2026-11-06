@@ -269,6 +269,77 @@ class EscriturasSalaIT {
 		assertThat(eventos("ORIZABA")).containsExactly("sala.creada:juego:{\"codigo\": \"ORIZABA\"}");
 	}
 
+	@Test
+	@DisplayName("El juego cierra la sala: 204, queda finalizada, guarda sala.finalizada y los dos tokens dan 401")
+	void cerrarInvalidaLosTokens() throws Exception {
+		String juego = api.tokenJuego("OTUMBA");
+		String app = api.tokenApp("OTUMBA");
+		UUID sala = salaViva("OTUMBA");
+
+		assertThat(api.enviar("DELETE", "/api/v1/salas/OTUMBA", null, juego).statusCode()).isEqualTo(204);
+
+		assertThat(jdbc.queryForObject("SELECT estado FROM salas WHERE id = ?", String.class, sala))
+				.isEqualTo("finalizada");
+		assertThat(jdbc.queryForObject("SELECT tipo || ':' || origen FROM eventos WHERE sala_id = ? ORDER BY id DESC LIMIT 1",
+				String.class, sala)).isEqualTo("sala.finalizada:juego");
+		for (String token : List.of(juego, app)) {
+			assertThat(api.enviar("GET", "/api/v1/salas/OTUMBA/estado", null, token).statusCode()).isEqualTo(401);
+			assertThat(descubrir("OTUMBA", "pieza_1", null, token).statusCode()).isEqualTo(401);
+			assertThat(escena("OTUMBA", "\"faro\"", token).statusCode()).isEqualTo(401);
+			assertThat(api.enviar("DELETE", "/api/v1/salas/OTUMBA", null, token).statusCode()).isEqualTo(401);
+		}
+	}
+
+	@Test
+	@DisplayName("Cerrar la sala libera el código: se puede crear otra sala con el mismo pueblo y la cerrada queda como historial")
+	void cerrarLiberaElCodigo() throws Exception {
+		String juego = api.tokenJuego("PAHUATLAN");
+		assertThat(api.enviar("DELETE", "/api/v1/salas/pahuatlan", null, juego).statusCode()).isEqualTo(204);
+
+		JsonNode libres = api.cuerpo(api.enviar("GET", "/api/v1/pueblos?disponibles=true", null, null));
+		assertThat(libres.valueStream().map(p -> p.get("codigo").asString())).contains("PAHUATLAN");
+		assertThat(api.crear("PAHUATLAN").statusCode()).isEqualTo(201);
+		assertThat(jdbc.queryForList("SELECT estado FROM salas WHERE codigo = 'PAHUATLAN' ORDER BY creada_en",
+				String.class)).containsExactly("finalizada", "esperando_app");
+	}
+
+	@Test
+	@DisplayName("La app recibe 403 al cerrar la sala y la sala sigue activa")
+	void appNoCierraLaSala() throws Exception {
+		String juego = api.tokenJuego("PALENQUE");
+		String app = api.tokenApp("PALENQUE");
+
+		assertThat(api.enviar("DELETE", "/api/v1/salas/PALENQUE", null, app).statusCode()).isEqualTo(403);
+		assertThat(api.enviar("GET", "/api/v1/salas/PALENQUE/estado", null, juego).statusCode()).isEqualTo(200);
+		assertThat(jdbc.queryForObject("SELECT estado FROM salas WHERE codigo = 'PALENQUE'", String.class))
+				.isEqualTo("activa");
+	}
+
+	@Test
+	@DisplayName("Una sala en esperando_app también se puede cerrar")
+	void cerrarSalaSinApp() throws Exception {
+		String juego = api.tokenJuego("PALIZADA");
+
+		assertThat(api.enviar("DELETE", "/api/v1/salas/PALIZADA", null, juego).statusCode()).isEqualTo(204);
+		assertThat(api.enviar("POST", "/api/v1/salas/PALIZADA/unirse", "", null).statusCode()).isEqualTo(404);
+	}
+
+	@Test
+	@DisplayName("Cada escritura deja su evento en orden: sala.creada, app.unida, descubrimiento.registrado, puzzle.habilitado, escena.cambiada y sala.finalizada")
+	void cadaEscrituraGuardaSuEvento() throws Exception {
+		String juego = api.tokenJuego("PAPANTLA");
+		api.tokenApp("PAPANTLA");
+		UUID sala = salaViva("PAPANTLA");
+		descubrir("PAPANTLA", "pescador_dialogo_completo", null, juego);
+		escena("PAPANTLA", "\"pueblo\"", juego);
+		api.enviar("DELETE", "/api/v1/salas/PAPANTLA", null, juego);
+
+		assertThat(jdbc.queryForList("SELECT tipo || ':' || origen FROM eventos WHERE sala_id = ? ORDER BY id",
+				String.class, sala)).containsExactly("sala.creada:juego", "app.unida:app",
+				"descubrimiento.registrado:juego", "puzzle.habilitado:servidor", "escena.cambiada:juego",
+				"sala.finalizada:juego");
+	}
+
 	private HttpResponse<String> escena(String codigo, String valorJson, String token) throws Exception {
 		return api.enviar("PUT", "/api/v1/salas/" + codigo + "/escena", "{\"escena\":" + valorJson + "}", token);
 	}

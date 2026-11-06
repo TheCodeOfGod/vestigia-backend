@@ -5,9 +5,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -171,6 +173,19 @@ class SalaControllerTest {
 		mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").contentType(MediaType.APPLICATION_JSON)
 				.content("{\"escena\":\"faro\"}")).andExpect(status().isUnauthorized());
 		verify(salaService, never()).cambiarEscena(any(), any());
+	}
+
+	@Test
+	@DisplayName("DELETE de la sala responde 204 sin cuerpo y sin token da 401")
+	void finalizarResponde204() throws Exception {
+		SalaService.Credencial credencial = credencial("ALAMOS");
+		when(salaService.autenticar("tok")).thenReturn(Optional.of(credencial));
+
+		mockMvc.perform(delete("/api/v1/salas/alamos").header("Authorization", "Bearer tok"))
+				.andExpect(status().isNoContent())
+				.andExpect(content().string(""));
+		verify(salaService).finalizar(credencial);
+		mockMvc.perform(delete("/api/v1/salas/ALAMOS")).andExpect(status().isUnauthorized());
 	}
 
 	@Test

@@ -324,6 +324,30 @@ class SalaServiceTest {
 	}
 
 	@Test
+	@DisplayName("La app no puede cerrar la sala: 403 sin tocarla")
+	void appNoCierraLaSala() {
+		assertThatThrownBy(() -> service.finalizar(credencial(SalaService.Rol.app)))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
+	@DisplayName("Cerrar la sala la pasa a finalizada y guarda sala.finalizada con origen juego")
+	void finalizarPasaAFinalizadaYRegistraEvento() {
+		SalaService.Credencial credencial = credencial(SalaService.Rol.juego);
+		SalaModel sala = new SalaModel();
+		sala.setEstado(SalaModel.Estado.activa);
+		when(actividad.bloquear(credencial.salaId())).thenReturn(sala);
+
+		service.finalizar(credencial);
+
+		assertThat(sala.getEstado()).isEqualTo(SalaModel.Estado.finalizada);
+		verify(actividad).registrar(sala, EventoModel.Tipo.sala_finalizada, DescubrimientoModel.Origen.juego,
+				Map.of());
+	}
+
+	@Test
 	void expirarVencidasUsaLaHoraDelReloj() {
 		service.expirarVencidas();
 

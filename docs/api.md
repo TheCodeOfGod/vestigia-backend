@@ -39,6 +39,8 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 2. El juego crea la sala y guarda su token. La sala queda en `esperando_app`.
 3. El jugador escribe el código en la app y la app se une. La app guarda su token. La sala pasa a `activa`.
 4. Los dos consultan el estado con su token. Al reconectar, piden el estado otra vez para ponerse al día.
+5. Durante la partida, el juego y la app registran descubrimientos y el juego cambia la escena.
+6. Al terminar, el juego cierra la sala. Los dos tokens dejan de servir.
 
 Una sala sin actividad durante 2 horas pasa a `expirada`. Su token deja de servir (`401`) y el pueblo vuelve a estar libre.
 
@@ -236,6 +238,28 @@ Escenas válidas, en orden: `introduccion`, `pueblo`, `faro`, `observatorio` y `
 | `403` | Token de la app | `Solo el juego puede cambiar la escena` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 
+## `DELETE /salas/{codigo}`
+
+**Solo el juego**, con el token de esa sala. Cierra la partida.
+
+```sh
+curl -X DELETE http://localhost:8080/api/v1/salas/BACALAR \
+	-H "Authorization: Bearer $TOKEN"
+```
+
+`204 No Content`, sin cuerpo.
+
+- La sala pasa a `finalizada` y se conserva como historial.
+- El código vuelve a quedar libre: otro juego puede crear una sala nueva con el mismo pueblo.
+- Los tokens del juego y de la app dejan de servir. Cualquier petición con ellos, incluido otro `DELETE`, responde `401`.
+- Se puede cerrar una sala en `esperando_app` o en `activa`.
+
+| Error | Cuándo | `message` |
+|---|---|---|
+| `401` | Sin token, token inválido o sala ya terminada | Igual que en `GET estado` |
+| `403` | Token de la app | `Solo el juego puede cerrar la sala` |
+| `403` | Token de otra sala | `El token no pertenece a esta sala` |
+
 ## Pendiente en pasos siguientes
 
-`PUT /salas/{codigo}/puzzles/{puzzle}` y `DELETE /salas/{codigo}` todavía no existen. Responden `404`.
+`PUT /salas/{codigo}/puzzles/{puzzle}` todavía no existe (entrega 3b). Responde `404`.

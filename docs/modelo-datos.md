@@ -97,13 +97,14 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 | `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
 | `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva | `juego` o `app` | `{"clave": "pieza_1", "datos": {...}}` |
 | `escena.cambiada` | `PUT /salas/{codigo}/escena` con una escena distinta de la actual | `juego` | `{"anterior": "introduccion", "escena": "faro"}` |
+| `sala.finalizada` | `DELETE /salas/{codigo}` | `juego` | `{}` |
 | `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo"}` |
 
 Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
 
 ## Mapeo en Java
 
-- Los valores cerrados (`estado`, `puzzle`, `origen`) son enums anidados en su entidad (`SalaModel.Estado`, `PuzzleEstadoModel.Puzzle`, …). Sus constantes se escriben en minúscula, igual que en la base y en el JSON, así que no hace falta ningún convertidor.
+- Los valores cerrados (`estado`, `escena_actual`, `puzzle`, `origen`) son enums anidados en su entidad (`SalaModel.Estado`, `SalaModel.Escena`, `PuzzleEstadoModel.Puzzle`, …). Sus constantes se escriben en minúscula, igual que en la base y en el JSON, así que no hace falta ningún convertidor. La excepción es `eventos.tipo`, que lleva un punto (`sala.creada`) y usa `EventoModel.TipoConverter`.
 - Las columnas `JSONB` se mapean como `Map<String, Object>` con `@JdbcTypeCode(SqlTypes.JSON)`. Hibernate 7.4 las serializa con Jackson 3. La prueba `ModeloIT` guarda y relee un JSON real.
 - Las columnas `CHAR(64)` llevan `@JdbcTypeCode(SqlTypes.CHAR)`. Sin esa anotación, la validación del esquema falla porque Hibernate espera `VARCHAR`.
 - Todas las fechas son `Instant` en UTC. El backend las toma de un `Clock` inyectado (bean en `TiempoConfig`), no de `now()` de Postgres.
@@ -114,19 +115,21 @@ Cada evento también se publica dentro de la transacción como evento de aplicac
             POST /salas               POST /salas/{codigo}/unirse
 (no existe) ───────────▶ esperando_app ──────────────────────────▶ activa
                               │                                     │
-                              │  job: expira_en < ahora             │  job: expira_en < ahora
+                              │                                     │
+                 job: expira_en < ahora                job: expira_en < ahora
+                 DELETE /salas/{codigo}                DELETE /salas/{codigo}
                               ▼                                     ▼
-                           expirada                              expirada
-
-Más adelante: DELETE /salas/{codigo} pasa una sala viva a finalizada.
+                   expirada o finalizada                 expirada o finalizada
 ```
 
 1. **Crear.** El juego reclama un código libre. La sala nace en `esperando_app` con sus cuatro puzzles bloqueados y `expira_en = ahora + 2 h`.
 2. **Unirse.** La app se enlaza con un solo `UPDATE … WHERE codigo = ? AND estado = 'esperando_app' AND token_app_hash IS NULL`. Si dos apps llegan a la vez, Postgres bloquea la fila, la segunda vuelve a evaluar el `WHERE`, ya no lo cumple y recibe `409`. La sala pasa a `activa` y se renuevan `ultima_actividad` y `expira_en`.
 3. **Expirar.** Un job programado (`SalaService.expirarVencidas`) corre cada `vestigia.salas.expiracion-revision` (por defecto 1 minuto) y pasa a `expirada` toda sala viva con `expira_en < ahora`. El código queda libre y la fila se conserva.
-4. **Finalizar.** `DELETE /salas/{codigo}` la pasará a `finalizada`. Todavía no está implementado.
+4. **Finalizar.** `DELETE /salas/{codigo}`, solo con el token del juego, la pasa a `finalizada`. El código queda libre, la fila se conserva y los dos tokens dejan de servir porque solo autentican salas vivas.
 
-Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Las lecturas (`GET estado`) no renuevan nada.
+Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Una escritura repetida (un descubrimiento que ya existía o la escena en la que ya está la sala) responde con éxito y renueva, pero no guarda otro evento. Las lecturas (`GET estado`) no renuevan nada.
+
+**Escrituras simultáneas.** Descubrimientos, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, y tres piezas que llegan a la vez habilitan `photo`. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. Salas distintas no se bloquean entre sí.
 
 Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue viva: su token todavía funciona y su código todavía está ocupado.
 

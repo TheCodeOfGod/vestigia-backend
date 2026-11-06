@@ -1,6 +1,7 @@
 package com.vestigia.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -100,6 +101,23 @@ public class SalaController {
 	public EscenaActual cambiarEscena(@Valid @RequestBody CambiarEscenaRequest request,
 			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL) SalaService.Credencial credencial) {
 		return salaService.cambiarEscena(credencial, request.escena());
+	}
+
+	@DeleteMapping("/{codigo}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@Operation(summary = "Cierra la sala (solo juego)", description = "La sala pasa a finalizada y se conserva como "
+			+ "historial. El código queda libre y los tokens del juego y de la app dejan de servir (401).",
+			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA))
+	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
+			schema = @Schema(type = "string"))
+	@ApiResponse(responseCode = "204", description = "Sala cerrada")
+	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@ApiResponse(responseCode = "403", description = "El token es de otra sala o es el de la app",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	public void finalizar(@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL)
+	SalaService.Credencial credencial) {
+		salaService.finalizar(credencial);
 	}
 
 }

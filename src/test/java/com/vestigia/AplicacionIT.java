@@ -47,7 +47,8 @@ class AplicacionIT {
 		String docs = get("/v3/api-docs").body();
 
 		assertThat(docs).contains("/api/v1/pueblos", "/api/v1/salas", "/api/v1/salas/{codigo}/unirse",
-				"/api/v1/salas/{codigo}/estado", "\"scheme\":\"bearer\"");
+				"/api/v1/salas/{codigo}/estado", "/api/v1/salas/{codigo}/descubrimientos",
+				"/api/v1/salas/{codigo}/escena", "\"/api/v1/salas/{codigo}\":{\"delete\"", "\"scheme\":\"bearer\"");
 	}
 
 	@Test

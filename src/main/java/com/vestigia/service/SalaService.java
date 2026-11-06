@@ -219,6 +219,18 @@ public class SalaService {
 		return new EscenaActual(escena);
 	}
 
+	/**
+	 * Cierra la sala: pasa a finalizada, su código queda libre y sus dos tokens dejan de servir (401). Solo el juego (403
+	 * para la app).
+	 */
+	@Transactional
+	public void finalizar(Credencial credencial) {
+		exigirJuego(credencial, "Solo el juego puede cerrar la sala");
+		SalaModel sala = actividad.bloquear(credencial.salaId());
+		sala.setEstado(SalaModel.Estado.finalizada);
+		actividad.registrar(sala, EventoModel.Tipo.sala_finalizada, Rol.juego.origen(), Map.of());
+	}
+
 	private static void exigirJuego(Credencial credencial, String mensaje) {
 		if (credencial.rol() != Rol.juego) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, mensaje);
