@@ -8,5 +8,5 @@ import com.vestigia.model.SalaModel;
 @Schema(description = "Respuesta de crear la sala")
 public record SalaCreada(@Schema(description = "Código de la sala, en mayúsculas", example = "BACALAR") String codigo,
 		@Schema(description = "Siempre esperando_app al crearla") SalaModel.Estado estado,
-		@Schema(description = "Token del juego. Se entrega una sola vez: guárdalo", example = "K8srOIYIL0jr89daDSmv9IkyzKT2L3mdJzQOSMmGGjk") String token) {
+		@Schema(description = "Token del juego. Se entrega una sola vez: guárdalo", example = "K8srOIYIL0jr…") String token) {
 }

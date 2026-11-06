@@ -223,7 +223,7 @@ Respuesta `201 Created`:
 
 <!-- respuesta: sala-creada -->
 ```json
-{"codigo": "BACALAR", "estado": "esperando_app", "token": "K8srOIYIL0jr89daDSmv9IkyzKT2L3mdJzQOSMmGGjk"}
+{"codigo": "BACALAR", "estado": "esperando_app", "token": "K8srOIYIL0jr…"}
 ```
 
 **Qué hacer:**
@@ -288,7 +288,7 @@ IEnumerator CrearSala(string codigo)
 
 	<!-- peticion -->
 	```json
-	{"type": "auth", "payload": {"token": "K8srOIYIL0jr89daDSmv9IkyzKT2L3mdJzQOSMmGGjk"}}
+	{"type": "auth", "payload": {"token": "<token>"}}
 	```
 
 3. El servidor responde:

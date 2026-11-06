@@ -242,7 +242,7 @@ Sin token y sin cuerpo. Respuesta `200 OK`:
 
 <!-- respuesta: app-unida -->
 ```json
-{"token": "MdKqZU8pVUJnZ7k8pIhUXFtFtrrvQImJy-_ipg4nAeo"}
+{"token": "MdKqZU8pVUJn…"}
 ```
 
 **Qué hacer:**
@@ -308,7 +308,7 @@ Future<void> alPulsarUnirme(BuildContext context, String texto) async {
 
 	<!-- peticion -->
 	```json
-	{"type": "auth", "payload": {"token": "MdKqZU8pVUJnZ7k8pIhUXFtFtrrvQImJy-_ipg4nAeo"}}
+	{"type": "auth", "payload": {"token": "<token>"}}
 	```
 
 3. El servidor responde:
