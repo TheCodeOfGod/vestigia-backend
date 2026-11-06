@@ -276,13 +276,17 @@ class EscriturasSalaIT {
 	}
 
 	@Test
-	@DisplayName("El juego cierra la sala: 204, queda finalizada, guarda sala.finalizada y los dos tokens dan 401")
+	@DisplayName("El juego cierra la sala: 204, queda finalizada sin renovar expira_en, guarda sala.finalizada y los dos tokens dan 401")
 	void cerrarInvalidaLosTokens() throws Exception {
 		String juego = api.tokenJuego("OTUMBA");
 		String app = api.tokenApp("OTUMBA");
 		UUID sala = salaViva("OTUMBA");
+		Instant expiraEn = expiraEn("OTUMBA");
+		reloj.avanzar(Duration.ofMinutes(30));
 
 		assertThat(api.enviar("DELETE", "/api/v1/salas/OTUMBA", null, juego).statusCode()).isEqualTo(204);
+		assertThat(jdbc.queryForObject("SELECT expira_en FROM salas WHERE id = ?", Instant.class, sala))
+				.as("el cierre no renueva expira_en").isEqualTo(expiraEn);
 
 		assertThat(jdbc.queryForObject("SELECT estado FROM salas WHERE id = ?", String.class, sala))
 				.isEqualTo("finalizada");

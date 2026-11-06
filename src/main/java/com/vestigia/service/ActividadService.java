@@ -66,14 +66,19 @@ public class ActividadService {
 						"Token inválido o de una sala que ya terminó"));
 	}
 
-	/** Renueva ultima_actividad y expira_en. La sala debe estar gestionada por la transacción en curso. */
+	/**
+	 * Pone ultima_actividad en ahora y, si la sala sigue viva, renueva expira_en. Una sala recién finalizada no tiene
+	 * expiración que renovar. La sala debe estar gestionada por la transacción en curso.
+	 */
 	public void renovar(SalaModel sala) {
 		Instant ahora = clock.instant();
 		sala.setUltimaActividad(ahora);
-		sala.setExpiraEn(ahora.plus(expiracion));
+		if (SalaModel.Estado.VIVOS.contains(sala.getEstado())) {
+			sala.setExpiraEn(ahora.plus(expiracion));
+		}
 	}
 
-	/** Renueva la sala, guarda el evento y lo publica. */
+	/** Renueva la sala (ver {@link #renovar}), guarda el evento y lo publica. */
 	public void registrar(SalaModel sala, EventoModel.Tipo tipo, DescubrimientoModel.Origen origen,
 			Map<String, Object> payload) {
 		renovar(sala);

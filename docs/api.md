@@ -255,7 +255,7 @@ curl -X DELETE http://localhost:8080/api/v1/salas/BACALAR \
 
 `204 No Content`, sin cuerpo.
 
-- La sala pasa a `finalizada` y se conserva como historial.
+- La sala pasa a `finalizada` y se conserva como historial. Es la única escritura que no renueva `expira_en`: una sala cerrada ya no expira.
 - El código vuelve a quedar libre: otro juego puede crear una sala nueva con el mismo pueblo.
 - Los tokens del juego y de la app dejan de servir. Cualquier petición con ellos, incluido otro `DELETE`, responde `401`.
 - Se puede cerrar una sala en `esperando_app` o en `activa`.

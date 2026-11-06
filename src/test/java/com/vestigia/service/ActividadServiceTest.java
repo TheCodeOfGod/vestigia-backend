@@ -104,6 +104,20 @@ class ActividadServiceTest {
 	}
 
 	@Test
+	@DisplayName("Registrar el cierre de una sala finalizada guarda el evento y ultima_actividad, pero no renueva expira_en")
+	void registrarSobreSalaFinalizadaNoRenuevaExpiraEn() {
+		SalaModel sala = sala(SalaModel.Estado.finalizada);
+		Instant expiraEn = sala.getExpiraEn();
+		when(eventos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		service.registrar(sala, EventoModel.Tipo.sala_finalizada, DescubrimientoModel.Origen.juego, Map.of());
+
+		assertThat(sala.getExpiraEn()).isEqualTo(expiraEn);
+		assertThat(sala.getUltimaActividad()).isEqualTo(AHORA);
+		verify(eventos).save(any());
+	}
+
+	@Test
 	@DisplayName("Registrar renueva la sala, guarda el evento y lo publica para el WebSocket del Paso 4")
 	void registrarRenuevaGuardaYPublica() {
 		SalaModel sala = sala(SalaModel.Estado.activa);
