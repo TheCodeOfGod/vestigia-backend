@@ -1,7 +1,9 @@
 package com.vestigia.ws;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.http.WebSocketHandshakeException;
 import java.time.Duration;
 import java.util.Map;
 
@@ -286,6 +288,23 @@ class WebSocketIT {
 					t -> assertThat(t.getIntervalDuration()).isEqualTo(Duration.ofSeconds(25)));
 		});
 		cliente.cerrar();
+	}
+
+	@Test
+	@DisplayName("Origin: un navegador de un origen de CORS_ALLOWED_ORIGINS se conecta; otro origen recibe 403 en el handshake; sin Origin se conecta")
+	void origenesPermitidos() throws Exception {
+		String juego = api.tokenJuego("TZINTZUNTZAN");
+
+		ClienteWs permitido = ClienteWs.abrir(port, json, "http://localhost:5173");
+		assertThat(permitido.autenticar(juego).get("type").asString()).isEqualTo("auth.ok");
+		permitido.cerrar();
+		assertThatThrownBy(() -> ClienteWs.abrir(port, json, "https://otro.example"))
+				.hasCauseInstanceOf(WebSocketHandshakeException.class)
+				.satisfies(ex -> assertThat(((WebSocketHandshakeException) ex.getCause()).getResponse().statusCode())
+						.isEqualTo(403));
+		ClienteWs nativo = ClienteWs.abrir(port, json);
+		assertThat(nativo.autenticar(juego).get("type").asString()).isEqualTo("auth.ok");
+		nativo.cerrar();
 	}
 
 	@Test

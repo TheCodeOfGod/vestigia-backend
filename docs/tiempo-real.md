@@ -141,6 +141,7 @@ La especificación (`/ws`, `{type, payload}`, `auth` en menos de 5 s, `auth.ok` 
 | Límite de tamaño | 4096 caracteres por mensaje de texto (4096 bytes si es binario), configurable. Más grande cierra con `1009` | Un `auth` mide menos de 100 caracteres |
 | Mensajes binarios | Antes de `auth` cierran con `4000`; después responden `error` con `json_invalido` | Mismo trato que cualquier mensaje inválido |
 | Ping | Ping del protocolo cada 25 s a las conexiones autenticadas. El servidor no cierra a quien no responde el pong | Algunas bibliotecas de Unity podrían no responder pongs; cerrar por eso provocaría reconexiones en bucle |
+| Origen del handshake | Mismo origen o uno de `CORS_ALLOWED_ORIGINS`; sin `Origin`, siempre | Unity WebGL o Flutter web mandan `Origin`; no se inventan orígenes nuevos (ronda 1 de revisión, H6) |
 | Cliente que no lee | Cada conexión tiene su cola de salida y un hilo virtual la escribe en orden. Un envío bloqueado se corta a los 5 s y una cola de más de 64 KB se descarta; en los dos casos se cierra solo esa conexión con `4500` | Un cliente atascado no debe frenar a las demás salas, a `GET estado` ni a las escrituras REST (ronda 1 de revisión, H1) |
 
 ## Limitaciones conocidas
@@ -149,5 +150,5 @@ La especificación (`/ws`, `{type, payload}`, `auth` en menos de 5 s, `auth.ok` 
 - **Caída sin aviso.** Si un teléfono pierde la red sin cerrar la conexión, el servidor tarda en notarlo, hasta que falle un envío. Mientras tanto `dispositivos` lo sigue mostrando conectado.
 - **Tareas programadas.** El cierre por falta de `auth`, los pings y el job de expiración comparten el programador de Spring, con dos hilos (`spring.task.scheduling.pool.size=2`). Ninguna de esas tareas escribe en la red: solo encolan, así que son breves.
 - **Cómo se ordenan los envíos.** Un candado en memoria decide el orden: registrar una conexión, encolar sus mensajes y cerrar una sala nunca se intercalan. Dentro del candado no hay red ni base de datos: el token se valida antes de tomarlo y los envíos los hace después un hilo virtual por conexión, en el orden de su cola. `dispositivos` se lee sin el candado. Un cliente que no lee solo retrasa sus propios mensajes, hasta que su conexión se cierra con `4500`.
-- **Navegadores.** El servidor solo acepta conexiones de navegador desde su mismo origen. Unity y Flutter no mandan el encabezado `Origin`, así que no les afecta.
+- **Navegadores.** Un navegador (Unity WebGL, Flutter web o la página de prueba) se conecta desde el mismo origen del backend o desde uno de `CORS_ALLOWED_ORIGINS`, la misma lista que usa REST. Desde otro origen, el handshake responde `403`. Unity y Flutter nativos no mandan el encabezado `Origin` y siempre se conectan.
 - **Sin `orientacion`.** El reenvío del giroscopio al juego (Paso 5) está diferido.

@@ -42,10 +42,17 @@ class ClienteWs implements WebSocket.Listener {
 	}
 
 	static ClienteWs abrir(int port, JsonMapper json) throws Exception {
+		return abrir(port, json, null);
+	}
+
+	/** Abre la conexión con el encabezado Origin, como un navegador, si {@code origin} no es nulo. */
+	static ClienteWs abrir(int port, JsonMapper json, String origin) throws Exception {
 		ClienteWs cliente = new ClienteWs(json);
-		cliente.ws = HTTP.newWebSocketBuilder()
-				.buildAsync(URI.create("ws://localhost:" + port + "/ws"), cliente)
-				.get(5, TimeUnit.SECONDS);
+		WebSocket.Builder builder = HTTP.newWebSocketBuilder();
+		if (origin != null) {
+			builder.header("Origin", origin);
+		}
+		cliente.ws = builder.buildAsync(URI.create("ws://localhost:" + port + "/ws"), cliente).get(5, TimeUnit.SECONDS);
 		return cliente;
 	}
 
