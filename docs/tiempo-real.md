@@ -37,6 +37,10 @@ Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWeb
 
 `auth.ok` siempre es el primer mensaje que recibe una conexión. El servidor la registra antes de mandarlo, así que un `GET estado` pedido después de `auth.ok` ya la cuenta en `dispositivos`.
 
+**Quién más está conectado.** Al conectarte no recibes la presencia del otro dispositivo por WebSocket: `dispositivo.conectado` solo avisa a quien ya estaba conectado. Léela en `dispositivos` de `GET estado` y, desde ahí, sigue los mensajes `dispositivo.conectado` y `dispositivo.desconectado`.
+
+**Un `401` por REST es una sala terminada.** Si una petición REST responde `401`, la sala terminó o venció aunque todavía no te haya llegado `sala.cerrada`: el job que la marca `expirada` corre cada minuto, y si tu WebSocket estaba caído el aviso no se repite. Trátalo igual que `sala.cerrada`: vuelve a elegir pueblo (juego) o a escribir el código (app).
+
 **Reconectar.** Si la conexión se cae, vuelve a conectarte con el mismo token, con espera creciente entre intentos (por ejemplo 1, 2, 4 y 8 s, sin pasar de 30 s), y pide `GET estado` en cuanto llegue `auth.ok`. Los mensajes que se emitieron mientras no estabas no se repiten: `GET estado` los trae todos.
 
 ## Mensajes del servidor
