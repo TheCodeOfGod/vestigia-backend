@@ -146,8 +146,8 @@ Si el origen está permitido, la respuesta trae `Access-Control-Allow-Origin: ht
 | `GET /api/v1/salas/{codigo}/estado` | `401` `Falta el token: envía el encabezado Authorization: Bearer <token>` |
 | `POST /api/v1/salas/{codigo}/descubrimientos`, `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}`, `PUT /api/v1/salas/{codigo}/escena`, `DELETE /api/v1/salas/{codigo}` | `401`: la PWA no tiene token |
 | `POST /api/v1/salas` | **No da error**: no pide token, a propósito, porque es como el juego obtiene el suyo. Crearía una sala de verdad y ocuparía un pueblo. Es solo del juego: la PWA no debe llamarlo |
-| `POST /api/v1/salas/{codigo}/unirse` | **No da error**: no pide token, a propósito, porque es como la app obtiene el suyo. Ocuparía el lugar del teléfono de una partida real. Es solo de la app: la PWA no debe llamarlo |
-| WebSocket `/ws` | Sin un token válido el servidor cierra la conexión. Lo indica con un **código de cierre del WebSocket**, no con un código HTTP: `4001` si el token es inválido y `4008` si no llega `auth` en 5 s. La PWA no necesita tiempo real |
+| `POST /api/v1/salas/{codigo}/unirse` | **No da error** si la sala existe y espera a su app: no pide token, a propósito, porque es como la app obtiene el suyo, y ocuparía el lugar del teléfono de una partida real. Si no hay sala en curso con ese código responde `404` `No hay una sala en curso con el código '…'`, lo normal al probarlo sin juego. Es solo de la app: la PWA no debe llamarlo |
+| WebSocket `/ws` | Sin un token válido el servidor cierra la conexión. Lo indica con un **código de cierre del WebSocket**, no con un código HTTP: `4001` si el token es inválido y `4008` si no llega `auth` en 5 s. Un `GET /ws` normal, sin el saludo de WebSocket (por ejemplo con `curl $BASE/ws`), responde `400` con el texto plano `Can "Upgrade" only to "WebSocket".`. La PWA no necesita tiempo real |
 | `/api/salas` (sin `/v1`) | `404`: era del laboratorio y ya no existe |
 
 ## 4. Recorrido paso a paso
@@ -197,7 +197,7 @@ En producción, `VITE_API_URL` es la URL pública del backend, que todavía est�
 curl $BASE/actuator/health
 ```
 
-Respuesta `200 OK`:
+Respuesta `200 OK`, con el encabezado `Content-Type: application/vnd.spring-boot.actuator.v3+json` (el formato de Actuator, que también es JSON). `curl` lo imprime en una sola línea, sin espacios (`{"groups":["liveness","readiness"],"status":"UP"}`); aquí está reformateado para leerlo mejor:
 
 <!-- respuesta: health -->
 ```json
@@ -337,7 +337,7 @@ Pon un límite de tiempo a cada petición (`AbortSignal.timeout(10000)`) para no
 
 El backend solo acepta peticiones del navegador desde los orígenes de su variable `CORS_ALLOWED_ORIGINS`. Los de desarrollo ya están; el de producción no.
 
-1. Averigua el origen exacto donde quedará la PWA: esquema, dominio y puerto. Por ejemplo `https://vestigia-pwa.example`. Así se escribe en `CORS_ALLOWED_ORIGINS`: **sin `/` al final**, porque `https://vestigia-pwa.example/` no coincidiría con lo que manda el navegador. Esa regla es para quien configura la variable; el navegador manda el encabezado `Origin` solo, siempre sin `/`, y tú no lo controlas. `http://…` (sin la `s`) es otro origen.
+1. Averigua el origen exacto donde quedará la PWA: esquema, dominio y puerto. Por ejemplo `https://vestigia-pwa.example`. Así se escribe en `CORS_ALLOWED_ORIGINS`: **siempre sin `/` al final**. El navegador manda el encabezado `Origin` solo y nunca le pone `/`. Hoy Spring quita la `/` final de los orígenes configurados (se comprobó: `https://vestigia-pwa.example/` en la variable deja pasar tanto `/api/**` como el WebSocket), pero esa tolerancia no forma parte del contrato y no conviene depender de ella: un origen con `/` puede dejar de coincidir con otra versión de Spring o con otro proxy. Esta regla es para quien configura la variable; tú no controlas lo que manda el navegador. `http://…` (sin la `s`) es otro origen.
 2. Mándaselo a Raúl, que lo agrega a `CORS_ALLOWED_ORIGINS` en el servidor de producción.
 3. Cuando lo confirme, compruébalo:
 
@@ -431,7 +431,7 @@ Los errores del backend traen este cuerpo JSON. `codigo` siempre viene; en las r
 | `401` | `null` | Llamaste una ruta de salas | No la uses (sección 3) |
 | `403` | — (texto `Invalid CORS request`, no JSON) | Tu origen no está en `CORS_ALLOWED_ORIGINS` | Paso 6 |
 | `404` | `null` | Ruta inexistente, por ejemplo `/api/salas` o una `/` al final | Usa `/api/v1/pueblos` exactamente |
-| `406` | `null` | Mandaste `Accept` con un formato que no es JSON | Usa `Accept: application/json` o no lo mandes |
+| `406` | `null` | Mandaste `Accept` con un formato que no es JSON. El `message` real viene en inglés porque lo genera Spring: `Acceptable representations: [application/json, application/*+json, application/yaml].` | Usa `Accept: application/json` o no lo mandes |
 | `500` | `null` | Error interno | "Algo salió mal. Inténtalo más tarde." Reintenta una vez |
 | Sin respuesta (`TypeError`) | | Sin red, backend apagado, `VITE_API_URL` mal, o CORS bloqueó la respuesta | "No hay conexión con el servidor". Revisa la pestaña Red del navegador |
 
@@ -468,6 +468,8 @@ Recomendación para `vite.config.ts` (la regla de caché que hoy apunta a `/api/
 ## 10. Cliente mínimo completo
 
 Un solo archivo, `src/vestigiaApi.ts`: los tipos de las respuestas, una función `get` que separa los errores del servidor de la falta de red, la llamada a pueblos y el hook de React.
+
+**Solo corre dentro de la PWA**, con `vite dev` o `vite build`: usa `import.meta.env`, que Vite rellena al compilar, y el paquete `react`. No se puede ejecutar suelto con `node` ni con `ts-node` en la terminal. Para probar el backend desde la terminal usa `curl` (sección 4). Si quieres una versión sin React, copia solo `API_URL`, los tipos, `BackendError`, `get` y `listarPueblos`, y cambia `import.meta.env.VITE_API_URL` por la URL escrita o por `process.env`.
 
 > Comprobado por quien escribió esta guía, el 6 de noviembre de 2026, con el `tsc` 6.0.3 de `node_modules` del repositorio de la PWA (`vestigia-pwa`) y sus tipos de React 19 y Vite: `tsc --noEmit` en modo estricto, con las opciones de `tsconfig.app.json` de la PWA, sobre este archivo como `src/vestigiaApi.ts`, el componente del paso 4 como `src/ListaPueblos.tsx` y la declaración del paso 1 en `src/vite-env.d.ts`. Sin errores.
 
