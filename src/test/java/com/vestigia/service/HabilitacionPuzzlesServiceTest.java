@@ -120,7 +120,7 @@ class HabilitacionPuzzlesServiceTest {
 	}
 
 	@Test
-	@DisplayName("Recalcular pasa a disponible los puzzles habilitados y guarda un evento puzzle.habilitado de origen servidor por cada uno")
+	@DisplayName("Recalcular pasa a disponible los puzzles habilitados y guarda un evento puzzle.habilitado de origen servidor con {puzzle, estado, datos} por cada uno")
 	void recalcularActualizaFilasYGuardaEventos() {
 		SalaModel sala = new SalaModel();
 		UUID id = sala.getId();
@@ -137,9 +137,9 @@ class HabilitacionPuzzlesServiceTest {
 		assertThat(filas.get(0).getActualizadoEn()).isEqualTo(AHORA);
 		assertThat(filas.get(2).getActualizadoEn()).isEqualTo(Instant.EPOCH);
 		verify(actividad).registrar(sala, EventoModel.Tipo.puzzle_habilitado, DescubrimientoModel.Origen.servidor,
-				Map.of("puzzle", "radio"));
+				Map.of("puzzle", "radio", "estado", "disponible", "datos", Map.of()));
 		verify(actividad).registrar(sala, EventoModel.Tipo.puzzle_habilitado, DescubrimientoModel.Origen.servidor,
-				Map.of("puzzle", "photo"));
+				Map.of("puzzle", "photo", "estado", "disponible", "datos", Map.of()));
 	}
 
 	@Test

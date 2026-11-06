@@ -130,7 +130,7 @@ class EscriturasSalaIT {
 		assertThat(codigos).filteredOn(c -> c == 200).hasSize(6);
 		assertThat(estadoPuzzle("MASCOTA", "photo")).isEqualTo("disponible");
 		assertThat(eventos("MASCOTA")).filteredOn(e -> e.startsWith("puzzle.habilitado"))
-				.containsExactly("puzzle.habilitado:servidor:{\"puzzle\": \"photo\"}");
+				.containsExactly("puzzle.habilitado:servidor:{\"datos\": {}, \"estado\": \"disponible\", \"puzzle\": \"photo\"}");
 	}
 
 	@Test
