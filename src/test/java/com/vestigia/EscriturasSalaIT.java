@@ -444,6 +444,33 @@ class EscriturasSalaIT {
 		assertThat(eventos("SAYULITA")).filteredOn(e -> e.startsWith("escena.cambiada")).hasSize(1);
 	}
 
+	@Test
+	@DisplayName("DELETE simultáneo con nueve descubrimientos: los que pierden reciben 401 y no dejan filas ni eventos después del cierre")
+	void cierreSimultaneoConDescubrimientos() throws Exception {
+		for (String codigo : List.of("TAPALPA", "TAPIJULAPA", "TEAPA")) {
+			String juego = api.tokenJuego(codigo);
+			UUID sala = salaViva(codigo);
+			AtomicInteger turno = new AtomicInteger();
+
+			List<String> resultados = ClienteApi.enParalelo(10, () -> {
+				int i = turno.getAndIncrement();
+				return i == 0 ? "cierre:" + api.enviar("DELETE", "/api/v1/salas/" + codigo, null, juego).statusCode()
+						: "descubrimiento:" + descubrir(codigo, "llave_" + i, null, juego).statusCode();
+			});
+
+			assertThat(resultados).as(codigo).contains("cierre:204")
+					.allMatch(r -> r.equals("cierre:204") || r.equals("descubrimiento:201")
+							|| r.equals("descubrimiento:401"));
+			long ganadores = resultados.stream().filter("descubrimiento:201"::equals).count();
+			assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ?", Long.class, sala))
+					.as(codigo).isEqualTo(ganadores);
+			List<String> tipos = jdbc.queryForList("SELECT tipo FROM eventos WHERE sala_id = ? ORDER BY id",
+					String.class, sala);
+			assertThat(tipos).as(codigo).last().isEqualTo("sala.finalizada");
+			assertThat(tipos).as(codigo).filteredOn("descubrimiento.registrado"::equals).hasSize((int) ganadores);
+		}
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);
