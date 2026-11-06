@@ -427,6 +427,23 @@ class EscriturasSalaIT {
 				.isEqualTo("esperando_app");
 	}
 
+	@Test
+	@DisplayName("Repetir la escena actual responde 200, renueva expira_en y no guarda otro escena.cambiada")
+	void repetirEscenaRenuevaSinEvento() throws Exception {
+		String juego = api.tokenJuego("SAYULITA");
+		assertThat(escena("SAYULITA", "\"faro\"", juego).statusCode()).isEqualTo(200);
+		reloj.avanzar(Duration.ofHours(1));
+		Instant antes = reloj.instant();
+
+		HttpResponse<String> repetida = escena("SAYULITA", "\"faro\"", juego);
+
+		assertThat(repetida.statusCode()).isEqualTo(200);
+		assertThat(api.cuerpo(repetida).get("escena_actual").asString()).isEqualTo("faro");
+		assertThat(expiraEn("SAYULITA")).isBetween(antes.plus(Duration.ofHours(2)),
+				antes.plus(Duration.ofHours(2)).plusSeconds(5));
+		assertThat(eventos("SAYULITA")).filteredOn(e -> e.startsWith("escena.cambiada")).hasSize(1);
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);
