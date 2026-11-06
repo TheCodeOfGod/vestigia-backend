@@ -48,7 +48,8 @@ class AplicacionIT {
 
 		assertThat(docs).contains("/api/v1/pueblos", "/api/v1/salas", "/api/v1/salas/{codigo}/unirse",
 				"/api/v1/salas/{codigo}/estado", "/api/v1/salas/{codigo}/descubrimientos",
-				"/api/v1/salas/{codigo}/escena", "\"/api/v1/salas/{codigo}\":{\"delete\"", "\"scheme\":\"bearer\"");
+				"/api/v1/salas/{codigo}/escena", "\"/api/v1/salas/{codigo}\":{\"delete\"",
+				"\"/api/v1/salas/{codigo}/puzzles/{puzzle}\":{\"put\"", "\"scheme\":\"bearer\"");
 	}
 
 	@Test

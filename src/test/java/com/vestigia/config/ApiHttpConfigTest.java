@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.vestigia.service.DescubrimientoService;
+import com.vestigia.service.PuzzleService;
 import com.vestigia.service.SalaService;
 
 @WebMvcTest
@@ -34,6 +35,9 @@ class ApiHttpConfigTest {
 
 	@MockitoBean
 	private DescubrimientoService descubrimientoService;
+
+	@MockitoBean
+	private PuzzleService puzzleService;
 
 	@Test
 	void registraUnaLineaPorPeticionSinTokens(CapturedOutput output) throws Exception {

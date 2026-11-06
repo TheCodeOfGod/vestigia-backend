@@ -31,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.vestigia.service.ApiException;
 import com.vestigia.service.DescubrimientoService;
+import com.vestigia.service.PuzzleService;
 import com.vestigia.service.SalaService;
 
 import jakarta.validation.Valid;
@@ -48,6 +49,9 @@ class ApiExceptionHandlerTest {
 
 	@MockitoBean
 	private DescubrimientoService descubrimientoService;
+
+	@MockitoBean
+	private PuzzleService puzzleService;
 
 	@Test
 	void jsonMalformadoDevuelve400ConCuerpoUniforme() throws Exception {

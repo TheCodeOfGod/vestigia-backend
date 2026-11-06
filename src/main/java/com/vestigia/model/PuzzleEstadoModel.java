@@ -26,6 +26,7 @@ public class PuzzleEstadoModel {
 
 	}
 
+	/** En el orden en que avanza un puzzle. Un aviso del cliente solo lo mueve hacia adelante. */
 	public enum Estado {
 
 		bloqueado, disponible, en_curso, resuelto

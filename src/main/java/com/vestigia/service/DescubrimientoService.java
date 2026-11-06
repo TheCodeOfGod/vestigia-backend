@@ -8,6 +8,7 @@ import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -61,17 +62,34 @@ public class DescubrimientoService {
 			actividad.renovar(sala);
 			return new Registro(dto(existente.get()), false);
 		}
+		return new Registro(dto(crear(sala, clave, datos == null ? new LinkedHashMap<>() : datos,
+				credencial.rol().origen())), true);
+	}
+
+	/**
+	 * Crea el resultado de un puzzle recién resuelto, con origen servidor. La sala debe venir bloqueada por
+	 * {@link ActividadService#bloquear}. La clave todavía no existe: un puzzle se resuelve una sola vez y los clientes
+	 * no pueden enviar las {@link #CLAVES_DEL_SERVIDOR}.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void registrarDelServidor(SalaModel sala, String clave, Map<String, Object> datos) {
+		crear(sala, clave, datos, DescubrimientoModel.Origen.servidor);
+	}
+
+	/** Guarda el descubrimiento nuevo y su evento, y recalcula qué puzzles pasan a disponible. */
+	private DescubrimientoModel crear(SalaModel sala, String clave, Map<String, Object> datos,
+			DescubrimientoModel.Origen origen) {
 		DescubrimientoModel descubrimiento = new DescubrimientoModel();
 		descubrimiento.setSalaId(sala.getId());
 		descubrimiento.setClave(clave);
-		descubrimiento.setDatos(datos == null ? new LinkedHashMap<>() : datos);
-		descubrimiento.setOrigen(credencial.rol().origen());
+		descubrimiento.setDatos(datos);
+		descubrimiento.setOrigen(origen);
 		descubrimiento.setCreadoEn(clock.instant());
 		descubrimiento = descubrimientos.save(descubrimiento);
-		actividad.registrar(sala, EventoModel.Tipo.descubrimiento_registrado, descubrimiento.getOrigen(),
+		actividad.registrar(sala, EventoModel.Tipo.descubrimiento_registrado, origen,
 				Map.of("clave", clave, "datos", descubrimiento.getDatos()));
 		habilitacion.recalcular(sala);
-		return new Registro(dto(descubrimiento), true);
+		return descubrimiento;
 	}
 
 	private static Sala.Descubrimiento dto(DescubrimientoModel d) {

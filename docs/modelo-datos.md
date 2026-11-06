@@ -53,12 +53,12 @@ Son nombres de Pueblos Mágicos de México de una sola palabra. La lista no camb
 | `sala_id` | `UUID` | PK compuesta con `puzzle`. FK a `salas` |
 | `puzzle` | `VARCHAR(20)` | `radio`, `photo`, `lookout` u `observatory` (`CHECK puzzles_estado_puzzle_check`). En inglés, como en la app. `V1` los creó en español y `V3` los renombró |
 | `estado` | `VARCHAR(20)` | `bloqueado`, `disponible`, `en_curso` o `resuelto` |
-| `datos` | `JSONB` | Lo último que reportó el cliente. `{}` al crear la sala |
+| `datos` | `JSONB` | El aviso del cliente que dejó el puzzle en su estado actual (`{"iniciado": true}`, `{"completada": true}` o `{"sintonizada": true}`). `{}` hasta el primer aviso |
 | `actualizado_en` | `TIMESTAMPTZ` | |
 
 Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` también empieza bloqueado porque su requisito, el descubrimiento `pescador_dialogo_completo`, todavía no puede existir.
 
-`HabilitacionPuzzlesService` pasa un puzzle de `bloqueado` a `disponible` cuando se cumplen sus requisitos. Se recalcula tras cada descubrimiento nuevo y, desde la entrega 3b, tras cada puzzle resuelto. Lee el estado completo de la sala, así que el orden en que llegan los requisitos no importa. Nunca baja un puzzle de estado.
+`HabilitacionPuzzlesService` pasa un puzzle de `bloqueado` a `disponible` cuando se cumplen sus requisitos. Se recalcula tras cada descubrimiento nuevo, incluido el resultado que crea el servidor al resolver un puzzle, así que también corre tras cada puzzle resuelto. Lee el estado completo de la sala, así que el orden en que llegan los requisitos no importa. Nunca baja un puzzle de estado.
 
 | Puzzle | Pasa a `disponible` cuando |
 |---|---|
@@ -66,6 +66,17 @@ Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` ta
 | `photo` | Existen `pieza_1`, `pieza_2` y `pieza_3` |
 | `lookout` | `photo` está `resuelto` y existe `lookout_enabled` |
 | `observatory` | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` y existe `observatory_enabled` |
+
+`PuzzleService` mueve el resto del ciclo con los avisos de `PUT /salas/{codigo}/puzzles/{puzzle}`. El enum `PuzzleEstadoModel.Estado` declara los estados en el orden en que avanza un puzzle, y un aviso solo lo mueve hacia adelante:
+
+```
+             requisitos                iniciado                 completada o sintonizada
+bloqueado ─────────────▶ disponible ─────────────▶ en_curso ──────────────────────────────▶ resuelto
+                              │                                                               ▲
+                              └──────────────────── completada o sintonizada ─────────────────┘
+```
+
+Un aviso sobre un puzzle `bloqueado` responde `409` sin tocar nada. Un aviso que ya no mueve el puzzle (`iniciado` en `en_curso`, cualquiera en `resuelto`) no lo cambia. Al pasar a `resuelto`, en la misma transacción, el servidor crea el descubrimiento resultado con origen `servidor`: `coordenada_a` (radio), `coordenada_b` (photo), `observatorio_visible` (lookout) o `magnetar_localizado` (observatory).
 
 ### `descubrimientos`
 
@@ -95,10 +106,14 @@ Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel
 |---|---|---|---|
 | `sala.creada` | `POST /salas` | `juego` | `{"codigo": "BACALAR"}` |
 | `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
-| `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva | `juego` o `app` | `{"clave": "pieza_1", "datos": {...}}` |
+| `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva, o el servidor crea el resultado de un puzzle resuelto | `juego` o `app`; `servidor` para los resultados | `{"clave": "pieza_1", "datos": {...}}`, `{"clave": "coordenada_b", "datos": {"tipo": "declinacion", "valor": "+042"}}` |
 | `escena.cambiada` | `PUT /salas/{codigo}/escena` con una escena distinta de la actual | `juego` | `{"anterior": "introduccion", "escena": "faro"}` |
 | `sala.finalizada` | `DELETE /salas/{codigo}` | `juego` | `{}` |
 | `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo", "estado": "disponible", "datos": {}}` |
+| `puzzle.iniciado` | `PUT /salas/{codigo}/puzzles/{puzzle}` con `iniciado` pasa el puzzle de `disponible` a `en_curso` | `juego` o `app` | `{"puzzle": "photo", "estado": "en_curso", "datos": {"iniciado": true}}` |
+| `puzzle.resuelto` | `PUT /salas/{codigo}/puzzles/{puzzle}` con `completada` o `sintonizada` pasa el puzzle a `resuelto` | `juego` o `app` | `{"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}` |
+
+Los tres eventos de puzzle guardan la misma forma, `{puzzle, estado, datos}`, que usará el mensaje `puzzle.actualizado` del Paso 4. Al resolver un puzzle se guardan en orden `puzzle.resuelto`, el `descubrimiento.registrado` del resultado y un `puzzle.habilitado` por cada puzzle que se habilita. Un aviso que no cambia el puzzle no guarda evento.
 
 Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
 
@@ -127,9 +142,9 @@ Cada evento también se publica dentro de la transacción como evento de aplicac
 3. **Expirar.** Un job programado (`SalaService.expirarVencidas`) corre cada `vestigia.salas.expiracion-revision` (por defecto 1 minuto) y pasa a `expirada` toda sala viva con `expira_en < ahora`. El código queda libre y la fila se conserva.
 4. **Finalizar.** `DELETE /salas/{codigo}`, solo con el token del juego, la pasa a `finalizada`. El código queda libre, la fila se conserva y los dos tokens dejan de servir porque solo autentican salas vivas.
 
-Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Una escritura repetida (un descubrimiento que ya existía o la escena en la que ya está la sala) responde con éxito y renueva, pero no guarda otro evento. El cierre guarda su evento y actualiza `ultima_actividad`, pero no renueva `expira_en`: una sala finalizada ya no expira. Las lecturas (`GET estado`) no renuevan nada.
+Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Una escritura repetida (un descubrimiento que ya existía, la escena en la que ya está la sala o un aviso que ya no mueve un puzzle) responde con éxito y renueva, pero no guarda otro evento. El cierre guarda su evento y actualiza `ultima_actividad`, pero no renueva `expira_en`: una sala finalizada ya no expira. Las lecturas (`GET estado`) no renuevan nada.
 
-**Escrituras simultáneas.** Descubrimientos, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, y tres piezas que llegan a la vez habilitan `photo`. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. También responde `401` si su `expira_en` ya pasó aunque el job todavía no la haya marcado: una escritura no puede revivir una sala vencida. Salas distintas no se bloquean entre sí.
+**Escrituras simultáneas.** Descubrimientos, puzzles, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, tres piezas que llegan a la vez habilitan `photo` y dos `completada` simultáneos resuelven el puzzle una sola vez, con un solo resultado. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. También responde `401` si su `expira_en` ya pasó aunque el job todavía no la haya marcado: una escritura no puede revivir una sala vencida. Salas distintas no se bloquean entre sí.
 
 **Sala vencida.** Una sala está vencida si `expira_en < ahora`, el mismo corte que usa el job. Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue en `esperando_app` o `activa`. En ese minuto ya cuenta como terminada: `autenticar` no acepta sus tokens (`401` en lecturas y escrituras), `unirApp` no la enlaza (`404`) y `bloquear` no la renueva. Lo único que sigue igual es que su código está ocupado (`GET /pueblos` lo marca ocupado y `POST /salas` da `409`) hasta que el job la marca `expirada`.
 

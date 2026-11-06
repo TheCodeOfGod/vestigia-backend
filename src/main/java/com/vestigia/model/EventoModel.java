@@ -27,8 +27,8 @@ public class EventoModel {
 	public enum Tipo {
 
 		sala_creada("sala.creada"), app_unida("app.unida"), descubrimiento_registrado("descubrimiento.registrado"),
-		puzzle_habilitado("puzzle.habilitado"), escena_cambiada("escena.cambiada"),
-		sala_finalizada("sala.finalizada");
+		puzzle_habilitado("puzzle.habilitado"), puzzle_iniciado("puzzle.iniciado"), puzzle_resuelto("puzzle.resuelto"),
+		escena_cambiada("escena.cambiada"), sala_finalizada("sala.finalizada");
 
 		private final String valor;
 
