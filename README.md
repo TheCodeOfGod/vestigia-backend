@@ -158,4 +158,4 @@ Imprime cada paso con ✓ y termina con `RESULTADO: ✅`. Si un paso falla, dice
 
 ## Despliegue
 
-El backend se despliega en Railway desde `main`. Los pasos y las variables están en [`docs/despliegue.md`](docs/despliegue.md).
+El backend se despliega en Railway desde `main`. [`docs/despliegue.md`](docs/despliegue.md) tiene las variables y su mapeo desde el Postgres de Railway, lo que se verificó con la imagen, las decisiones pendientes (Swagger y la página de prueba en producción, el proxy TLS) y la lista paso a paso del primer despliegue.
