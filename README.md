@@ -4,6 +4,9 @@ Backend de **Vestigia**, el proyecto integrador del grupo IDGS101N de la Univers
 
 | Documento | Qué tiene |
 |---|---|
+| [`docs/integracion-unity.md`](docs/integracion-unity.md) | Guía paso a paso para quien programa el juego en Unity: cada petición en orden, tiempo real, banderas y un cliente C# |
+| [`docs/integracion-flutter.md`](docs/integracion-flutter.md) | Guía paso a paso para quien programa la app en Flutter: unirse, libreta, burbuja, avisos de puzzle, tiempo real y un cliente Dart |
+| [`docs/integracion-pwa.md`](docs/integracion-pwa.md) | Guía para quien programa la PWA: `VITE_API_URL`, CORS, tipos de TypeScript, un hook de React y lo que todavía no existe |
 | [`docs/api.md`](docs/api.md) | Endpoints REST con ejemplos de `curl` y errores, para quien integra Unity o Flutter |
 | [`docs/tiempo-real.md`](docs/tiempo-real.md) | WebSocket de `/ws`: autenticación, mensajes con ejemplos, errores, cierres y limitaciones |
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | Tablas, ciclo de vida de una sala y qué se guarda de cada token |
@@ -27,14 +30,15 @@ Todo gira alrededor de la **sala**, que identifica una partida con el nombre de 
 
 **Tiempo real.** El juego y la app abren un WebSocket en `/ws` y se autentican con su token en el primer mensaje (`{"type":"auth","payload":{"token":"..."}}`), nunca en la URL. El backend les avisa quién está conectado y, después de confirmar cada escritura en la base, qué cambió: puzzles, descubrimientos, escena (solo a la app) y cierre de la sala. Los detalles están en [`docs/tiempo-real.md`](docs/tiempo-real.md). Las conexiones viven en memoria, así que el backend corre en una sola instancia.
 
-**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, puzzles, escena, cierre de sala, el WebSocket de `/ws` y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`.
+**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, puzzles, escena, cierre de sala, el WebSocket de `/ws` y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`. Swagger UI documenta cada endpoint con ejemplos reales y sus errores, y la página `/prueba-ws.html` muestra los mensajes del WebSocket sin Unity ni Flutter.
 
 ## Stack
 
 - Java 21 y Spring Boot 4.1.1, compilado con Maven a través del wrapper `./mvnw`.
 - PostgreSQL. Flyway crea el esquema al arrancar con las migraciones de `src/main/resources/db/migration/`.
 - WebSocket simple en `/ws`, sin STOMP ni SockJS.
-- Swagger UI con springdoc en `/swagger-ui/index.html`.
+- Swagger UI con springdoc en `/swagger-ui/index.html` y el documento OpenAPI en `/v3/api-docs`: descripciones en español, ejemplos de petición y respuesta, errores con `codigo` y el esquema `Bearer`.
+- Página de prueba del WebSocket en `/prueba-ws.html` (`src/main/resources/static/`).
 - Pruebas de integración contra un Postgres real con Testcontainers.
 
 ## Levantarlo en local
@@ -71,6 +75,8 @@ Necesitas Java 21 y Docker.
 	```
 
 	Swagger UI con todos los endpoints está en `http://localhost:8080/swagger-ui/index.html`. El detalle de cada respuesta y error está en [`docs/api.md`](docs/api.md).
+
+5. Para ver los mensajes del WebSocket, abre `http://localhost:8080/prueba-ws.html`, pega el token en el panel del juego y pulsa **Conectar**. El token viaja solo en el mensaje `auth`, nunca en la URL.
 
 Si el puerto 5432 ya está ocupado, publica Postgres en otro puerto (`-p 55432:5432`) y arranca con `DB_URL=jdbc:postgresql://localhost:55432/vestigia ./mvnw spring-boot:run`.
 
@@ -118,6 +124,7 @@ El servidor entrega dos coordenadas al resolver puzzles: la ascensión recta al 
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
 - `./mvnw verify` corre además las clases `*IT` con maven-failsafe. Esas pruebas arrancan un `postgres:17-alpine` con Testcontainers, así que Docker tiene que estar corriendo.
 - `python3 scripts/resumen-pruebas.py` lee los reportes de `target/surefire-reports` y `target/failsafe-reports` y escribe en Markdown el conteo y la lista de pruebas, con el `@DisplayName` de cada una. Córrelo después de `./mvnw clean verify`: sin `clean` pueden quedar reportes de una corrida anterior. Con `--solo-conteo` imprime una sola línea. Sale con código distinto de 0 si no hay reportes, si alguna prueba falló o si falta una de las dos carpetas (por ejemplo, tras `./mvnw test`); en ese último caso avisa y marca el conteo como incompleto.
+- `DocumentacionIT` compara las rutas de `/v3/api-docs` con las de los controladores, y `JsonDocumentadoIT` compara cada bloque JSON de respuesta de `docs/api.md`, `docs/tiempo-real.md` y las tres guías con una respuesta real del backend (campos y tipos). Por eso cada bloque ```` ```json ```` de esos documentos lleva justo antes `<!-- respuesta: tipo -->` o `<!-- peticion -->`; un bloque sin marca hace fallar la prueba.
 - La evidencia de pruebas de cada paso vive en [`docs/pruebas/`](docs/pruebas/README.md).
 
 ## Capturas de pruebas 

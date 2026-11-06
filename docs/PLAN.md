@@ -1,6 +1,6 @@
 # Vestigia: plan del backend (documento vivo)
 
-Última actualización: 6 de noviembre de 2026 (Paso 4: WebSocket).
+Última actualización: 6 de noviembre de 2026 (Paso 6: cierre).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
 **Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
@@ -16,7 +16,7 @@ Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `do
 | 3 | Puzzles y descubrimientos (REST) | ✅ Hecho (3.0, 3a y 3b) |
 | 4 | WebSocket: autenticación, eventos y presencia | ✅ Hecho |
 | 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
-| 6 | Cierre: Swagger, guías, página de prueba | ⬜ |
+| 6 | Cierre: Swagger, guías, página de prueba | ✅ Hecho |
 
 ---
 
@@ -63,6 +63,8 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada`; `4500` a un cliente que no lee (Paso 4) | 🟡 |
 | Cliente de WebSocket que no lee | Su envío se corta a los 5 s o al juntar 64 KB sin enviar y se cierra solo su conexión (`4500`); no frena a nadie más (Paso 4, ronda 1) | 🟡 |
 | Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4) | 🟡 |
+| Swagger UI y `/v3/api-docs` en producción | Hoy se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. Decide Raúl si se apagan en producción (`springdoc.api-docs.enabled=false`); el Paso 7 lo reporta | 🟡 |
+| Página de prueba `/prueba-ws.html` en producción | Hoy se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. Decide Raúl si se quita en producción | 🟡 |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
 ## 3. Salas
@@ -115,6 +117,8 @@ Cada dispositivo se conecta con su rol (`juego` o `app`) y su token, que manda e
 | `sala.cerrada` | servidor → todos | |
 
 Regla: si el WebSocket se cae, el cliente reconecta y pide `GET estado` para ponerse al día.
+
+La página `/prueba-ws.html` muestra los mensajes de `/ws` sin Unity ni Flutter (Paso 6).
 
 Los mensajes de las escrituras salen después del commit, así que un `GET estado` pedido al recibirlos ya ve el cambio. Las escrituras repetidas no emiten nada. Las conexiones viven en memoria: el backend corre en una sola instancia.
 
@@ -219,7 +223,12 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - Ya autenticado, JSON inválido, tipo desconocido u `orientacion` responden `error` y la conexión sigue. Más de 4096 caracteres cierra con `1009`. Ping cada 25 s.
   - Contrato en `docs/tiempo-real.md`, con las decisiones que tomaron los agentes. Evidencia en `docs/pruebas/paso-4-websocket.md`.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
-- [ ] **Paso 6: Cierre.** Swagger, una guía de integración por cliente (`docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`) y página HTML de prueba.
+- [x] **Paso 6: Cierre.** Swagger, una guía de integración por cliente y página HTML de prueba.
+  - Swagger: cada endpoint con descripción en español, esquemas, ejemplos reales de petición y respuesta, errores con `ErrorBody` (incluido `codigo`) y el esquema `Bearer`. `DocumentacionIT` compara `/v3/api-docs` con las rutas reales.
+  - Guías independientes para cada cliente: `docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`, con la misma estructura de 12 secciones. Los fragmentos de C# y Dart no se compilaron; los de TypeScript se comprobaron con `tsc`.
+  - `docs/tiempo-real.md` gana la tabla de quién envía cada mensaje y los ejemplos que faltaban.
+  - Página de prueba `/prueba-ws.html`: un panel para el juego y otro para la app; el token viaja solo en `auth`.
+  - `JsonDocumentadoIT` compara cada bloque JSON de respuesta de `docs/api.md`, `docs/tiempo-real.md` y las guías con una respuesta real. Evidencia en `docs/pruebas/paso-6-cierre.md`.
 
 ## 11. Pendientes
 
@@ -235,7 +244,8 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Con quién | Qué |
 |---|---|---|
 | C1 | Unity | Que las pistas del juego apunten a `137` y `+042` |
-| C2 | Unity | Que registre `lookout_enabled` y `observatory_enabled` al llegar al lugar (nombres aprobados por Raúl), y la bandera del pescador. Si necesita reaccionar a `lente_limpio` u `obs_encontrado` dentro del mirador, la app puede registrarlas con `POST /descubrimientos` |
+| C2 | Unity | Que registre `lookout_enabled` y `observatory_enabled` al llegar al lugar (nombres aprobados por Raúl), y la bandera del pescador. Qué hacer con `lente_limpio` y `obs_encontrado` de `GameProgress.cs`: `docs/integracion-unity.md` (sección 7.4) deja tres opciones sin decidir |
+| C6 | PWA | El origen de producción de la PWA, para agregarlo a `CORS_ALLOWED_ORIGINS`, y si necesita leer `/actuator/health` desde el navegador (hoy no tiene CORS) |
 | C3 | App | Que implemente el flujo de la sección 8 y los avisos de completado |
 | C4 | App | Dónde guardar el token para reconectar sin volver a escribir el código |
 | C5 | Aldo | Los valores adaptados de las secciones 7 y 13 |
@@ -246,10 +256,8 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 |---|---|
 | O1 | Primer despliegue en Railway y URL de producción |
 | O2 | Job de CI posterior al despliegue en `main` (necesita la URL de Railway) |
-| O3 | Confirmar que la PWA ya no consume `/api/salas`, que el Paso 1 retiró |
-| O4 | ✅ Resuelto en el Paso 4: las escrituras emiten sus mensajes por WebSocket después del commit. Crear y unirse no emiten mensaje (nadie está conectado antes; el juego se entera de la app por `dispositivo.conectado`) |
+| O3 | La PWA todavía llama a `/api/salas` (CRUD del laboratorio que el Paso 1 retiró; responde `404`), según su código del 6 de noviembre. `docs/integracion-pwa.md` le indica cambiar a `GET /api/v1/pueblos`. Falta que el equipo de la PWA lo cambie |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
-| O6 | Escribir una guía por cliente (Unity, Flutter y PWA), en español sencillo y con cada paso explicado. Entra con el Paso 6 |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
 | O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |
 | O9 | Valores definitivos del canon (AR, DEC, umbrales y rangos del mirador), que dependen de pruebas |
