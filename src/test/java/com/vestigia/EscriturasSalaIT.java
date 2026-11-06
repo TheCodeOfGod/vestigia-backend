@@ -410,6 +410,23 @@ class EscriturasSalaIT {
 				.isEqualTo(201);
 	}
 
+	@Test
+	@DisplayName("El token del juego de otra sala recibe 403 en PUT escena y DELETE, y la sala no cambia")
+	void tokenDeOtraSalaEnEscenaYCierre() throws Exception {
+		api.tokenJuego("SANTIAGO");
+		String otraSala = api.tokenJuego("SAYULA");
+
+		assertThat(escena("SANTIAGO", "\"faro\"", otraSala).statusCode()).isEqualTo(403);
+		HttpResponse<String> cierre = api.enviar("DELETE", "/api/v1/salas/SANTIAGO", null, otraSala);
+		assertThat(cierre.statusCode()).isEqualTo(403);
+		assertThat(api.cuerpo(cierre).get("message").asString()).isEqualTo("El token no pertenece a esta sala");
+
+		assertThat(jdbc.queryForObject("SELECT estado || ':' || escena_actual FROM salas WHERE codigo = 'SANTIAGO'",
+				String.class)).isEqualTo("esperando_app:introduccion");
+		assertThat(jdbc.queryForObject("SELECT estado FROM salas WHERE codigo = 'SAYULA'", String.class))
+				.isEqualTo("esperando_app");
+	}
+
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {
 		String cuerpo = "{\"clave\":\"" + clave + "\"" + (datos == null ? "" : ",\"datos\":" + datos) + "}";
 		return api.enviar("POST", "/api/v1/salas/" + codigo + "/descubrimientos", cuerpo, token);

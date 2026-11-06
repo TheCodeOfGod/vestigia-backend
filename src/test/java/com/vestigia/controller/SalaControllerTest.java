@@ -187,6 +187,22 @@ class SalaControllerTest {
 	}
 
 	@Test
+	@DisplayName("El token de otra sala recibe 403 en PUT escena y DELETE, sin llamar al servicio")
+	void tokenDeOtraSalaEnEscenaYCierreDa403() throws Exception {
+		when(salaService.autenticar("tok")).thenReturn(Optional.of(credencial("BERNAL")));
+
+		mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").header("Authorization", "Bearer tok")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"escena\":\"faro\"}"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.message").value("El token no pertenece a esta sala"));
+		mockMvc.perform(delete("/api/v1/salas/ALAMOS").header("Authorization", "Bearer tok"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.message").value("El token no pertenece a esta sala"));
+		verify(salaService, never()).cambiarEscena(any(), any());
+		verify(salaService, never()).finalizar(any());
+	}
+
+	@Test
 	@DisplayName("PUT escena sin token da 401")
 	void cambiarEscenaSinTokenDa401() throws Exception {
 		mockMvc.perform(put("/api/v1/salas/ALAMOS/escena").contentType(MediaType.APPLICATION_JSON)
