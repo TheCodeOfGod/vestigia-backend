@@ -27,7 +27,7 @@ Sin `DB_URL`, `DB_USER` y `DB_PASSWORD` el backend usa los valores de desarrollo
 
 ### Mapeo desde el Postgres de Railway
 
-La plantilla de Postgres de Railway publica sus datos como variables del servicio, y el backend las toma con variables de referencia. Los nombres de esta tabla son los habituales de Railway y están **(por verificar en Railway)**, igual que la sintaxis `${{…}}` y el nombre del servicio (`Postgres`):
+La plantilla de Postgres de Railway publica sus datos como variables del servicio, y el backend las toma con variables de referencia. La documentación de Railway confirma que la plantilla publica `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `DATABASE_URL` y `DATABASE_PUBLIC_URL`. Quedan **(por verificar en Railway)** la sintaxis de referencia `${{…}}` y el nombre del servicio (`Postgres` por defecto):
 
 | Variable del backend | Valor sugerido |
 |---|---|
@@ -35,7 +35,7 @@ La plantilla de Postgres de Railway publica sus datos como variables del servici
 | `DB_USER` | `${{Postgres.PGUSER}}` |
 | `DB_PASSWORD` | `${{Postgres.PGPASSWORD}}` |
 
-- `DATABASE_URL` (si Railway la publica) tiene la forma `postgresql://usuario:contraseña@host:puerto/base` y **no sirve** como `DB_URL`: el driver JDBC necesita `jdbc:postgresql://host:puerto/base`, con el usuario y la contraseña aparte.
+- `DATABASE_URL` y `DATABASE_PUBLIC_URL` tienen la forma `postgresql://usuario:contraseña@host:puerto/base` y **no sirve** como `DB_URL`: el driver JDBC necesita `jdbc:postgresql://host:puerto/base`, con el usuario y la contraseña aparte.
 - Usa el host de la red privada de Railway, no el proxy público de la base **(por verificar en Railway)**. Si solo funcionara el público y pidiera SSL, agrega `?sslmode=require` al final de `DB_URL`.
 - No copies la contraseña a mano en el panel ni la pegues en un chat o en el repo: la variable de referencia la toma del servicio de Postgres.
 
@@ -89,6 +89,44 @@ Ninguna opción cambia el comportamiento local. Las tres opciones, de menos a m�
 3. **`SERVER_FORWARD_HEADERS_STRATEGY=framework`.** Spring toma las cabeceras `X-Forwarded-*` de cualquier cliente. Arregla todo, sin depender de la IP del proxy. A cambio, un cliente que no es navegador puede falsificar el esquema y el host; eso no le da nada nuevo, porque un cliente así ya puede omitir `Origin`, y un navegador no puede poner esas cabeceras en el handshake de `/ws`.
 
 Recomendación: si solo vas a usar `/prueba-ws.html`, la opción 1. Si quieres "Try it out" de Swagger en producción, prueba la 2 y, si no surte efecto, la 3. Si apagas Swagger y la página de prueba (D-Swagger y D-Prueba), no hace falta ninguna.
+
+## Probar la imagen en local, igual que en Railway
+
+Esta receta construye la imagen y la corre como en Railway: un Postgres vacío en una red propia, el backend solo con las cinco variables y el nombre del contenedor de Postgres como host. Se copia completa desde la raíz del repo, con Docker, `curl` y `jq`. La contraseña es solo de este Postgres de prueba, no la de Railway.
+
+```sh
+# 1. Nombres de la prueba. Cámbialos si chocan con algo que ya tengas.
+RED=vestigia-red-local
+PG=vestigia-pg-local
+APP=vestigia-app-local
+IMAGEN=vestigia-backend:local
+CLAVE=clave-solo-local
+PUERTO=18080
+
+# 2. Imagen, red y Postgres vacío. pg_isready por TCP espera a que termine la inicialización.
+docker build -t "$IMAGEN" .
+docker network create "$RED"
+docker run -d --name "$PG" --network "$RED" \
+	-e POSTGRES_DB=vestigia -e POSTGRES_USER=vestigia -e POSTGRES_PASSWORD="$CLAVE" postgres:17-alpine
+until docker exec "$PG" pg_isready -h 127.0.0.1 -U vestigia -d vestigia >/dev/null 2>&1; do sleep 1; done
+
+# 3. El backend, solo con las cinco variables, como en Railway.
+docker run -d --name "$APP" --network "$RED" -p "$PUERTO:9090" \
+	-e DB_URL="jdbc:postgresql://$PG:5432/vestigia" -e DB_USER=vestigia -e DB_PASSWORD="$CLAVE" \
+	-e PORT=9090 -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+	"$IMAGEN"
+
+# 4. Health, usuario del proceso y prueba de humo.
+for i in $(seq 1 60); do curl -fsS "http://localhost:$PUERTO/actuator/health" 2>/dev/null && break; sleep 1; done; echo
+docker exec "$APP" id
+docker logs "$APP" 2>&1 | grep -E "Migrating|Successfully applied|Tomcat started"
+scripts/smoke-test.sh "http://localhost:$PUERTO"
+
+# 5. Limpieza.
+docker rm -f "$APP" "$PG" && docker network rm "$RED" && docker image rm "$IMAGEN"
+```
+
+Lo esperado: `{"groups":["liveness","readiness"],"status":"UP"}`, `uid=999(vestigia) gid=999(vestigia) groups=999(vestigia)`, las tres migraciones, `Tomcat started on port 9090 (http)` y `RESULTADO: ✅`. `PORT=9090` es distinto de 8080 a propósito: así se ve que el backend escucha en el puerto que recibe, como en Railway.
 
 ## Qué se verificó antes del primer despliegue (Paso 7)
 
@@ -181,7 +219,7 @@ scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR  # o uno en c
 
 - Sale con `0` si toda la cadena pasó y con `1` si falló un paso, que nombra junto con la respuesta del backend. `2` es uso incorrecto, `3` que falta `curl` o `jq`, y `129`, `130` o `143` que se interrumpió (`HUP`, `Ctrl+C` o `TERM`). Si la respuesta no es JSON, como la página HTML de un `502` del proxy, la muestra igual.
 - Al salir, también tras un fallo o una interrupción, cierra la sala que creó con `DELETE`. Guarda el token del juego en cuanto `POST /salas` responde `201`, antes de revisar el cuerpo, así que también la cierra si esa revisión falla. El pueblo vuelve a quedar libre.
-- La sala queda en la base como historial (`finalizada`), con sus eventos. Sus descubrimientos llevan `{"origen_prueba": "smoke-test"}` en `datos`, para distinguirla en las métricas.
+- La sala queda en la base como historial (`finalizada`), con sus eventos. Los descubrimientos que manda el script como juego llevan `{"origen_prueba": "smoke-test"}` en `datos`; los resultados del servidor (`coordenada_a`…) y los eventos no lo llevan. Para sacar esas salas de las métricas, toma los `sala_id` de esos descubrimientos y filtra por ellos `eventos`, `descubrimientos` y `puzzles_estado`.
 - No imprime los tokens.
 - No prueba el WebSocket: `curl` no lo habla. Para verlo, usa `/prueba-ws.html` (ver O10).
 - `SMOKE_TIEMPO_MAX` cambia el tiempo máximo de cada petición, en segundos (por defecto 20).
