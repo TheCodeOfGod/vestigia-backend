@@ -52,7 +52,7 @@ class ModeloIT {
 		DescubrimientoModel descubrimiento = new DescubrimientoModel();
 		descubrimiento.setSalaId(sala.getId());
 		descubrimiento.setClave("coordenada_a");
-		descubrimiento.setDatos(Map.of("tipo", "azimut", "valor", 60));
+		descubrimiento.setDatos(Map.of("tipo", "ascension_recta", "valor", "137"));
 		descubrimiento.setOrigen(DescubrimientoModel.Origen.servidor);
 		descubrimiento.setCreadoEn(ahora);
 		descubrimientos.save(descubrimiento);
@@ -68,9 +68,12 @@ class ModeloIT {
 			assertThat(p.getDatos()).isEmpty();
 		});
 		assertThat(descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(sala.getId())).singleElement()
-				.satisfies(d -> assertThat(d.getDatos()).containsEntry("tipo", "azimut").containsEntry("valor", 60));
+				.satisfies(d -> assertThat(d.getDatos()).containsEntry("tipo", "ascension_recta")
+						.containsEntry("valor", "137"));
 		assertThat(jdbc.queryForObject("SELECT datos ->> 'tipo' FROM descubrimientos WHERE sala_id = ?", String.class,
-				sala.getId())).isEqualTo("azimut");
+				sala.getId())).isEqualTo("ascension_recta");
+		assertThat(jdbc.queryForObject("SELECT jsonb_typeof(datos -> 'valor') FROM descubrimientos WHERE sala_id = ?",
+				String.class, sala.getId())).isEqualTo("string");
 	}
 
 }

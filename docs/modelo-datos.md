@@ -65,7 +65,7 @@ Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` ta
 | `id` | `BIGSERIAL` PK | |
 | `sala_id` | `UUID` | FK a `salas`. `UNIQUE (sala_id, clave)` |
 | `clave` | `VARCHAR(40)` | Por ejemplo `coordenada_a` |
-| `datos` | `JSONB` | Por ejemplo `{"tipo": "azimut", "valor": 60}` |
+| `datos` | `JSONB` | Por ejemplo `{"tipo": "ascension_recta", "valor": "137"}`. `valor` va en texto para conservar el signo y los ceros (`"+042"`) |
 | `origen` | `VARCHAR(10)` | `juego`, `app` o `servidor` |
 | `creado_en` | `TIMESTAMPTZ` | |
 
