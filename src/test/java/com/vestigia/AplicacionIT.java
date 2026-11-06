@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.config.FixedDelayTask;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.config.ScheduledTaskHolder;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -26,6 +27,9 @@ class AplicacionIT {
 
 	@Autowired
 	private ScheduledTaskHolder tareas;
+
+	@Autowired
+	private ThreadPoolTaskScheduler programador;
 
 	private final HttpClient http = HttpClient.newHttpClient();
 
@@ -79,6 +83,12 @@ class AplicacionIT {
 			assertThat(tarea.getTask()).isInstanceOfSatisfying(FixedDelayTask.class,
 					t -> assertThat(t.getIntervalDuration()).isEqualTo(Duration.ofMinutes(1)));
 		});
+	}
+
+	@Test
+	@DisplayName("El programador que comparten el plazo de auth, los pings y el job de expiración tiene dos hilos")
+	void elProgramadorTieneDosHilos() {
+		assertThat(programador.getScheduledThreadPoolExecutor().getCorePoolSize()).isEqualTo(2);
 	}
 
 	private HttpResponse<String> get(String ruta) throws Exception {
