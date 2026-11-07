@@ -8,6 +8,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,7 +49,22 @@ class AplicacionIT {
 
 		assertThat(docs).contains("/api/v1/pueblos", "/api/v1/salas", "/api/v1/salas/{codigo}/unirse",
 				"/api/v1/salas/{codigo}/estado", "/api/v1/salas/{codigo}/descubrimientos",
-				"/api/v1/salas/{codigo}/escena", "\"/api/v1/salas/{codigo}\":{\"delete\"", "\"scheme\":\"bearer\"");
+				"/api/v1/salas/{codigo}/escena", "\"/api/v1/salas/{codigo}\":{\"delete\"",
+				"\"/api/v1/salas/{codigo}/puzzles/{puzzle}\":{\"put\"", "\"scheme\":\"bearer\"");
+	}
+
+	@Test
+	@DisplayName("GET /pueblos con Accept: application/xml responde 406 con el error uniforme en JSON, no con un cuerpo vacío")
+	void errorEnJsonAunquePidanXml() throws Exception {
+		HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/pueblos"))
+				.header("Accept", "application/xml")
+				.build();
+		HttpResponse<String> respuesta = http.send(request, HttpResponse.BodyHandlers.ofString());
+
+		assertThat(respuesta.statusCode()).isEqualTo(406);
+		assertThat(respuesta.headers().firstValue("Content-Type")).hasValueSatisfying(
+				tipo -> assertThat(tipo).startsWith("application/json"));
+		assertThat(respuesta.body()).contains("\"status\":406", "\"codigo\":null", "\"path\":\"/api/v1/pueblos\"");
 	}
 
 	@Test

@@ -7,6 +7,8 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 ## Convenciones
 
 - JSON en `snake_case`. Fechas en UTC con formato ISO-8601 (`2026-10-26T23:33:18.706842Z`).
+- **Claves sin repetir.** Un JSON con la misma clave dos veces en el mismo objeto, en cualquier nivel (`{"codigo": "BACALAR", "codigo": "BACALAR"}` o `{"datos": {"completada": true, "completada": true}}`), responde `400 JSON malformado o ilegible`, aunque los dos valores coincidan. El backend no elige uno de los dos.
+- **Campos desconocidos.** Un campo que el endpoint no usa, en la raíz del cuerpo, se ignora en todos los endpoints (`{"clave": "pieza_1", "origen": "servidor"}` guarda `pieza_1` con el origen del token). Dentro de `datos` de `PUT puzzles` no: ahí una clave de más da `400`.
 - **Tipos estrictos.** Cada campo se manda con su tipo JSON. Un número o un booleano donde va texto (`{"clave": 123}`, `{"codigo": true}`) responde `400 JSON malformado o ilegible`, y lo mismo un texto donde va un número o un booleano (`"true"` no es `true`). El backend no convierte tipos.
 - **Código de sala.** Es el nombre del pueblo. El backend lo recorta y lo pasa a mayúsculas antes de usarlo, tanto en el cuerpo como en la ruta. `" bacalar "`, `"Bacalar"` y `"BACALAR"` son la misma sala. Las respuestas siempre lo devuelven en mayúsculas.
 - **Token.** `POST /salas` le entrega un token al juego y `POST /salas/{codigo}/unirse` le entrega otro a la app. Cada token se entrega **una sola vez**: guárdalo en el dispositivo para reconectar. Se manda en el encabezado `Authorization: Bearer <token>`. El token decide la sala y el rol (`juego` o `app`), y solo sirve mientras la sala esté viva (`esperando_app` o `activa`).
@@ -17,21 +19,24 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 	  "timestamp": "2026-10-26T23:33:18.786573Z",
 	  "status": 409,
 	  "error": "Conflict",
+	  "codigo": null,
 	  "message": "'BACALAR' ya tiene una sala en curso",
 	  "path": "/api/v1/salas",
 	  "details": []
 	}
 	```
 
-	`message` está en español y se puede mostrar al jugador o al log. `details` solo trae elementos en errores de validación, uno por campo.
+	Los errores siempre llegan en JSON (`Content-Type: application/json`), aunque el cliente pida otro formato en `Accept`. Por ejemplo, `GET /pueblos` con `Accept: application/xml` responde `406` con este mismo cuerpo.
+
+	`message` está en español y se puede mostrar al jugador o al log. `details` solo trae elementos en errores de validación, uno por campo. `codigo` es un identificador estable para que el cliente decida qué hacer sin leer `message`. **Siempre viene**: vale `null` salvo en los errores que definen uno. Hoy el único es `puzzle_bloqueado` (`409` en `PUT /salas/{codigo}/puzzles/{puzzle}`).
 
 | Código | Cuándo |
 |---|---|
-| `400` | JSON malformado, campo obligatorio vacío o código fuera del catálogo |
+| `400` | JSON malformado, campo obligatorio vacío, código fuera del catálogo, id de puzzle desconocido o aviso de puzzle inválido |
 | `401` | Falta el token, el token no existe o su sala ya terminó |
 | `403` | El token es válido pero de otra sala, la clave de descubrimiento la genera el servidor o el rol no puede hacer esa operación |
 | `404` | No hay sala en curso con ese código |
-| `409` | Conflicto de estado: pueblo ocupado o sala con app ya enlazada |
+| `409` | Conflicto de estado: pueblo ocupado, sala con app ya enlazada o puzzle bloqueado (`codigo: "puzzle_bloqueado"`) |
 | `500` | Error interno. El cuerpo no trae detalles |
 
 ## Flujo
@@ -40,7 +45,7 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 2. El juego crea la sala y guarda su token. La sala queda en `esperando_app`.
 3. El jugador escribe el código en la app y la app se une. La app guarda su token. La sala pasa a `activa`.
 4. Los dos consultan el estado con su token. Al reconectar, piden el estado otra vez para ponerse al día.
-5. Durante la partida, el juego y la app registran descubrimientos y el juego cambia la escena.
+5. Durante la partida, el juego y la app registran descubrimientos y avisan cuando un puzzle empieza o se completa. El juego cambia la escena.
 6. Al terminar, el juego cierra la sala. Los dos tokens dejan de servir.
 
 Una sala sin actividad durante 2 horas está vencida. Desde ese momento sus tokens dejan de servir (`401`) y ninguna app se puede unir (`404`). Un job la marca `expirada` en el minuto siguiente y entonces el pueblo vuelve a estar libre.
@@ -212,9 +217,88 @@ El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `o
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 | `403` | La clave es `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `La clave 'coordenada_a' la genera el servidor al resolver un puzzle; los clientes no pueden enviarla` |
 
-Esas cuatro claves son los resultados de los puzzles y solo las crea el servidor (Paso 3b).
+Esas cuatro claves son los resultados de los puzzles y solo las crea el servidor, al resolver cada uno con `PUT /salas/{codigo}/puzzles/{puzzle}`.
 
 El límite de `datos` lo fijaron los agentes que construyeron el paso, a raíz de una revisión: la especificación no ponía ninguno y un cliente podía guardar un JSON de cualquier tamaño. Se cambia con la propiedad `vestigia.descubrimientos.datos-max-bytes` (por defecto `4096`).
+
+## `PUT /salas/{codigo}/puzzles/{puzzle}`
+
+Juego o app, con el token de esa sala. Avisa que un puzzle empezó o se completó. Quien juega el puzzle decide cuándo se completó: el servidor solo revisa que el aviso tenga la forma correcta y que el puzzle no esté bloqueado. No mide ni valida números.
+
+```sh
+curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
+	-H "Authorization: Bearer $TOKEN" \
+	-H 'Content-Type: application/json' \
+	-d '{"datos": {"completada": true}}'
+```
+
+`200 OK` con el estado del puzzle:
+
+```json
+{"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}
+```
+
+| Puzzle | Lo juega | `datos` válidos | Resultado al resolverse (origen `servidor`) |
+|---|---|---|---|
+| `radio` | El juego | `{"sintonizada": true}` | `coordenada_a` con `{"tipo": "ascension_recta", "valor": "137"}` |
+| `photo` | La app | `{"iniciado": true}` o `{"completada": true}` | `coordenada_b` con `{"tipo": "declinacion", "valor": "+042"}` |
+| `lookout` | La app | `{"iniciado": true}` o `{"completada": true}` | `observatorio_visible` con `{}` |
+| `observatory` | La app | `{"iniciado": true}` o `{"completada": true}` | `magnetar_localizado` con `{}` |
+
+- **Solo `true`.** `datos` debe tener exactamente una de esas claves y su valor debe ser el booleano `true`. El texto `"true"`, `1`, `false`, `null`, una clave de más, un objeto vacío o `datos` ausente responden `400`. `iniciado` no existe en `radio`.
+- **`iniciado`.** La app lo manda al abrir `photo`, `lookout` u `observatory`. El puzzle pasa de `disponible` a `en_curso` y las métricas pueden medir cuánto tardó. No es obligatorio: `completada` también resuelve un puzzle `disponible`.
+- **Coordenadas.** `valor` es texto para conservar el signo y los ceros (`"+042"`, no `42`). Los valores salen de las propiedades `vestigia.puzzles.coordenadas.ar` y `vestigia.puzzles.coordenadas.dec`. La app los muestra desde `GET estado`, no los lleva escritos.
+- Cualquier rol puede reportar cualquier puzzle. La tabla dice quién lo juega en el diseño, pero el servidor no lo exige.
+
+**Cómo cambia el estado.** Un aviso solo mueve el puzzle hacia adelante:
+
+| Estado actual | `iniciado` | `completada` o `sintonizada` |
+|---|---|---|
+| `bloqueado` | `409` | `409` |
+| `disponible` | pasa a `en_curso` | pasa a `resuelto` |
+| `en_curso` | `200` sin cambios | pasa a `resuelto` |
+| `resuelto` | `200` sin cambios | `200` sin cambios |
+
+`200` sin cambios responde el estado actual con los `datos` que lo dejaron así y no guarda otro evento ni otro descubrimiento, pero sí renueva la expiración de la sala, igual que un descubrimiento repetido. Si dos avisos llegan a la vez, el puzzle se resuelve una sola vez y los dos reciben `200`.
+
+**Al resolver**, en la misma transacción, el servidor guarda el aviso en `datos`, crea el descubrimiento resultado con origen `servidor`, pasa a `disponible` los puzzles que ya cumplen sus requisitos (ver la tabla de `POST /descubrimientos`), guarda los eventos y renueva la expiración. Por ejemplo, si `lookout_enabled` llegó antes, resolver `photo` deja `lookout` en `disponible` en la misma petición. Pide `GET /salas/{codigo}/estado` para ver los resultados; desde el Paso 4 también llegarán por WebSocket.
+
+| Error | Cuándo | `message` |
+|---|---|---|
+| `400` | `datos` falta o es `null` | `Datos inválidos`, con `details: [{"field": "datos", "message": "es obligatorio"}]` |
+| `400` | `datos` no es un aviso válido para ese puzzle, incluido un valor que no es objeto (`true`, `[true]`, `"completada"`, `123`) | `Datos inválidos`, con `details: [{"field": "datos", "message": "en photo debe ser exactamente {\"completada\": true} o {\"iniciado\": true}"}]` |
+| `400` | El id del puzzle no es `radio`, `photo`, `lookout` ni `observatory`, en minúsculas. Incluye los ids viejos `fotografia`, `mirador` y `observatorio` | `'fotografia' no es un puzzle válido. Usa uno de: radio, photo, lookout, observatory` |
+| `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
+| `403` | Token de otra sala | `El token no pertenece a esta sala` |
+| `409` | El puzzle está `bloqueado` | `El puzzle 'radio' está bloqueado: todavía no se cumplen sus requisitos`, con `"codigo": "puzzle_bloqueado"` |
+
+Un id de puzzle desconocido responde `400` y no `404`, igual que una escena desconocida: la ruta existe y lo que está mal es un valor que manda el cliente.
+
+**Qué error gana.** Si una petición tiene varios problemas, responde el primero de esta lista:
+
+1. Falta el token, es inválido o es de otra sala (`401` o `403`).
+2. El cuerpo no es un objeto JSON válido o repite una clave (`400 JSON malformado o ilegible`).
+3. `datos` falta o es `null` (`400`, `details` con `es obligatorio`).
+4. El id del puzzle no existe (`400` con la lista de ids).
+5. `datos` no es un aviso válido para ese puzzle, incluido un valor que no es objeto (`400`, `details` con la forma esperada).
+6. La sala terminó entre el token y la escritura (`401`).
+7. El puzzle está `bloqueado` (`409`).
+
+Por eso `PUT /puzzles/fotografia` con `{}` responde el `400` de `datos`, y con `{"datos": {"completada": true}}` el del id. Un aviso mal formado da `400` aunque el puzzle esté bloqueado.
+
+Respuesta real de un `409`:
+
+```json
+{
+  "timestamp": "2026-11-06T06:25:51.900917Z",
+  "status": 409,
+  "error": "Conflict",
+  "codigo": "puzzle_bloqueado",
+  "message": "El puzzle 'radio' está bloqueado: todavía no se cumplen sus requisitos",
+  "path": "/api/v1/salas/BACALAR/puzzles/radio",
+  "details": []
+}
+```
 
 ## `PUT /salas/{codigo}/escena`
 
@@ -266,6 +350,8 @@ curl -X DELETE http://localhost:8080/api/v1/salas/BACALAR \
 | `403` | Token de la app | `Solo el juego puede cerrar la sala` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 
-## Pendiente en pasos siguientes
+## Limitaciones conocidas
 
-`PUT /salas/{codigo}/puzzles/{puzzle}` todavía no existe (entrega 3b). Responde `404`.
+- **URLs que rechaza el servidor HTTP.** Tomcat, el servidor que lleva el backend, rechaza algunas URLs antes de que lleguen a la aplicación: una barra codificada (`%2F`), un byte nulo (`%00`), un escape inválido (`%zz`) o una URL demasiado larga. Responde `400` con una página HTML de Tomcat, no con el cuerpo de error en JSON. Ningún cliente de Vestigia necesita esos caracteres: los códigos de sala son solo letras y los ids de puzzle son fijos.
+- **Barra final.** Las rutas no aceptan una barra al final. `PUT /salas/BACALAR/puzzles/` o `.../puzzles/photo/` responden `404` con el cuerpo uniforme y un `message` del tipo `No static resource …`. Escribe las rutas sin la barra final.
+- **Punto y coma en la ruta.** Spring descarta lo que va después de `;` en un tramo de la ruta, así que `.../puzzles/photo;x` se atiende como `.../puzzles/photo`.

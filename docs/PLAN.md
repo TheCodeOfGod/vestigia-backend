@@ -1,6 +1,6 @@
 # Vestigia: plan del backend (documento vivo)
 
-Última actualización: 5 de noviembre de 2026 (puzzles adaptados a la app móvil).
+Última actualización: 6 de noviembre de 2026 (entrega 3b: los cuatro puzzles).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
 **Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
@@ -13,7 +13,7 @@ Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `do
 |---|---|:-:|
 | 1 | Base: Flyway, Dockerfile, configuración, CI, README | ✅ Hecho |
 | 2 | Salas: catálogo de pueblos, crear, unirse, estado, expiración, token | ✅ Hecho |
-| 3 | Puzzles y descubrimientos (REST) | 🟡 3.0 y 3a hechos; falta 3b |
+| 3 | Puzzles y descubrimientos (REST) | ✅ Hecho (3.0, 3a y 3b) |
 | 4 | WebSocket: autenticación, eventos y presencia | ⬜ |
 | 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
 | 6 | Cierre: Swagger, guías, página de prueba | ⬜ |
@@ -56,6 +56,8 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Habilitar un puzzle | El servidor lo hace por requisitos; el mirador y el observatorio además esperan una bandera del juego: `lookout_enabled` y `observatory_enabled` | ✅ (falta confirmarlo con Unity) |
 | `en_curso` | La app avisa `{iniciado: true}` al abrir `photo`, `lookout` u `observatory` | ✅ |
 | Código del error `puzzle_bloqueado` | Campo `codigo` en el cuerpo de error (nulo si no aplica) | ✅ |
+| `codigo` en los errores que no lo definen | Siempre viaja como `"codigo": null`, no se omite, para que los clientes lean siempre la misma forma (entrega 3b) | 🟡 |
+| Id de puzzle desconocido en la ruta | `400` con la lista de ids, igual que una escena desconocida. También para los ids viejos `fotografia`, `mirador` y `observatorio` (entrega 3b) | 🟡 |
 | Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
@@ -91,7 +93,7 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 | `POST /salas` | Juego | Reclama un pueblo; devuelve sala y token | ✅ 2 |
 | `POST /salas/{codigo}/unirse` | App | Enlaza el teléfono | ✅ 2 |
 | `GET /salas/{codigo}/estado` | Todos | Estado completo (sirve para reconectar) | ✅ 2 |
-| `PUT /salas/{codigo}/puzzles/{puzzle}` | App o juego | Reporta que un puzzle se completó | ⬜ 3 |
+| `PUT /salas/{codigo}/puzzles/{puzzle}` | App o juego | Reporta que un puzzle empezó o se completó | ✅ 3b |
 | `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. | ✅ 3a |
 | `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ✅ 3a |
 | `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
@@ -201,10 +203,10 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - Tokens de 32 bytes en base64url. La base guarda solo su SHA-256. Un `HandlerInterceptor` protege `/api/v1/salas/**` salvo crear y unirse.
   - Job de expiración cada minuto (`vestigia.salas.expiracion=PT2H`, `vestigia.salas.expiracion-revision=PT1M`).
   - `dispositivos` en el estado devuelve `{"juego": false, "app": false}` hasta el Paso 4.
-- [ ] **Paso 3: Puzzles y descubrimientos.** Se parte en entregas pequeñas, cada una con su rama, PR y pruebas:
+- [x] **Paso 3: Puzzles y descubrimientos.** Se parte en entregas pequeñas, cada una con su rama, PR y pruebas:
   - [x] 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`. Evidencia en `docs/pruebas/paso-3.0-ids.md`.
   - [x] 3a. `POST /descubrimientos` (idempotente, también bajo concurrencia), `PUT /escena` (solo juego) y `DELETE /salas/{codigo}` (solo juego). Cada escritura renueva `ultima_actividad` y `expira_en` y guarda un evento; crear y unirse también. `HabilitacionPuzzlesService` recalcula `radio` y `photo` tras cada descubrimiento y ya tiene las reglas de `lookout` y `observatory` para el 3b. Evidencia en `docs/pruebas/paso-3a-descubrimientos.md`.
-  - 3b. `PUT` de los cuatro puzzles (`{sintonizada: true}`, `{completada: true}` o `{iniciado: true}`), habilitación de dependientes, creación de los descubrimientos resultado y el campo `codigo` en los errores.
+  - [x] 3b. `PUT /salas/{codigo}/puzzles/{puzzle}` para los cuatro puzzles (`{sintonizada: true}` en `radio`; `{iniciado: true}` o `{completada: true}` en `photo`, `lookout` y `observatory`; solo el booleano `true`). `PuzzleService` valida la forma, responde `409` con `codigo: "puzzle_bloqueado"` y mueve el puzzle solo hacia adelante; un aviso que ya no lo mueve responde `200` sin cambios. Al resolver crea el resultado con origen `servidor` (las coordenadas salen de `vestigia.puzzles.coordenadas.ar` y `.dec` como texto), recalcula los dependientes y guarda `puzzle.resuelto`, todo en una transacción. El cuerpo de error gana `codigo`. Evidencia en `docs/pruebas/paso-3b-puzzles.md`.
 - [ ] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
 - [ ] **Paso 6: Cierre.** Swagger, `docs/tiempo-real.md`, una guía de integración por cliente (`docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`) y página HTML de prueba.
@@ -216,7 +218,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Pendiente | Quién decide | Bloquea | Mi recomendación |
 |---|---|---|---|---|
 | P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
-| P8 | Qué rol puede mandar cada clave de descubrimiento. Hoy la app también puede registrar `pieza_*`, `pescador_dialogo_completo`, `lookout_enabled` y `observatory_enabled`, que en el diseño manda el juego, y así habilitar puzzles sin pasar por él. El contrato vigente dice "juego o app" (hallazgo B3 de la revisión del 3a) | Raúl | No bloquea; conviene decidirlo antes del 3b | Restringir esas claves al rol `juego` (`403` para la app) si Unity confirma que las manda todas (C2) |
+| P8 | Qué rol puede mandar cada clave de descubrimiento. Hoy la app también puede registrar `pieza_*`, `pescador_dialogo_completo`, `lookout_enabled` y `observatory_enabled`, que en el diseño manda el juego, y así habilitar puzzles sin pasar por él. El contrato vigente dice "juego o app" (hallazgo B3 de la revisión del 3a). Lo mismo pasa con `PUT puzzles`: cualquier rol puede reportar cualquier puzzle, aunque en el diseño la radio la manda el juego y los demás la app | Raúl | No bloquea. Sigue abierto tras el 3b | Restringir esas claves al rol `juego` (`403` para la app) si Unity confirma que las manda todas (C2) |
 
 ### Por confirmar con otros equipos
 

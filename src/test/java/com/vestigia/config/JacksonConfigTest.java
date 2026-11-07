@@ -3,6 +3,7 @@ package com.vestigia.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
@@ -54,9 +55,30 @@ class JacksonConfigTest {
 				.containsEntry("completada", "true").containsEntry("n", 1);
 	}
 
+	@Test
+	@DisplayName("Una clave repetida en el mismo objeto falla en la raíz, anidada, en un Map o en un objeto libre, aunque los dos valores coincidan")
+	void claveRepetidaFalla() {
+		for (String json : new String[] { "{\"texto\":\"a\",\"texto\":\"a\"}", "{\"texto\":\"a\",\"texto\":\"b\"}" }) {
+			assertThatThrownBy(() -> mapper.readValue(json, Campos.class)).as(json).isInstanceOf(JacksonException.class);
+		}
+		for (String json : new String[] { "{\"completada\":true,\"completada\":true}",
+				"{\"completada\":true,\"completada\":false}", "{\"datos\":{\"a\":1,\"a\":1}}",
+				"[{\"a\":1},{\"b\":2,\"b\":2}]" }) {
+			assertThatThrownBy(() -> mapper.readValue(json, Object.class)).as(json).isInstanceOf(JacksonException.class);
+		}
+	}
+
+	@Test
+	@DisplayName("La misma clave en objetos distintos, hermanos o anidados, se sigue leyendo")
+	void mismaClaveEnObjetosDistintosSeLee() {
+		assertThat(mapper.readValue("{\"a\":{\"a\":1},\"b\":[{\"a\":1},{\"a\":2}]}", Map.class))
+				.containsEntry("a", Map.of("a", 1))
+				.containsEntry("b", List.of(Map.of("a", 1), Map.of("a", 2)));
+	}
+
 	private static JsonMapper mapper() {
 		JsonMapper.Builder builder = JsonMapper.builder();
-		JacksonConfig.tiposEstrictos(builder);
+		JacksonConfig.entradaEstricta(builder);
 		return builder.build();
 	}
 

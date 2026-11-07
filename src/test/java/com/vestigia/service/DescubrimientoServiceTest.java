@@ -161,6 +161,27 @@ class DescubrimientoServiceTest {
 		assertThat(guardado.getValue().getClave()).isEqualTo("pescador_dialogo_completo");
 	}
 
+	@Test
+	@DisplayName("Un resultado del servidor se guarda con origen servidor y sus datos, guarda su evento y luego recalcula los puzzles")
+	void resultadoDelServidorGuardaEventoYRecalcula() {
+		when(descubrimientos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+		Map<String, Object> datos = Map.of("tipo", "declinacion", "valor", "+042");
+
+		service.registrarDelServidor(sala, "coordenada_b", datos);
+
+		ArgumentCaptor<DescubrimientoModel> guardado = ArgumentCaptor.forClass(DescubrimientoModel.class);
+		InOrder orden = inOrder(descubrimientos, actividad, habilitacion);
+		orden.verify(descubrimientos).save(guardado.capture());
+		orden.verify(actividad).registrar(sala, EventoModel.Tipo.descubrimiento_registrado,
+				DescubrimientoModel.Origen.servidor, Map.of("clave", "coordenada_b", "datos", datos));
+		orden.verify(habilitacion).recalcular(sala);
+		assertThat(guardado.getValue().getSalaId()).isEqualTo(sala.getId());
+		assertThat(guardado.getValue().getOrigen()).isEqualTo(DescubrimientoModel.Origen.servidor);
+		assertThat(guardado.getValue().getDatos()).isEqualTo(datos);
+		assertThat(guardado.getValue().getCreadoEn()).isEqualTo(AHORA);
+		verify(actividad, never()).bloquear(any());
+	}
+
 	private SalaService.Credencial credencial(SalaService.Rol rol) {
 		return new SalaService.Credencial(salaId, "ALAMOS", rol);
 	}

@@ -65,7 +65,8 @@ public class HabilitacionPuzzlesService {
 
 	/**
 	 * Pasa a disponible cada puzzle bloqueado cuyos requisitos ya se cumplen y guarda un evento puzzle.habilitado por
-	 * cada uno. La sala debe venir bloqueada por {@link ActividadService#bloquear}. Devuelve los puzzles que cambiaron.
+	 * cada uno, con {@link #payload}. La sala debe venir bloqueada por {@link ActividadService#bloquear}. Devuelve los
+	 * puzzles que cambiaron.
 	 */
 	public List<Puzzle> recalcular(SalaModel sala) {
 		List<PuzzleEstadoModel> filas = puzzles.findByClaveSalaId(sala.getId());
@@ -78,10 +79,18 @@ public class HabilitacionPuzzlesService {
 				fila.setEstado(Estado.disponible);
 				fila.setActualizadoEn(ahora);
 				actividad.registrar(sala, EventoModel.Tipo.puzzle_habilitado, DescubrimientoModel.Origen.servidor,
-						Map.of("puzzle", fila.getPuzzle().name()));
+						payload(fila));
 			}
 		}
 		return List.copyOf(nuevos);
+	}
+
+	/**
+	 * Lo que guarda cada evento de cambio de estado de un puzzle: {@code {puzzle, estado, datos}}, la misma forma que
+	 * {@code puzzle.actualizado} del Paso 4.
+	 */
+	static Map<String, Object> payload(PuzzleEstadoModel fila) {
+		return Map.of("puzzle", fila.getPuzzle().name(), "estado", fila.getEstado().name(), "datos", fila.getDatos());
 	}
 
 	/**
