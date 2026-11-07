@@ -196,8 +196,8 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 |---|---|---|
 | C4 | Dónde guardar el token | Esta guía recomienda almacenamiento seguro (sección 5). Falta que el equipo de la app lo confirme |
 | C5 | Valores de la app | Los umbrales del mirador y del observatorio (sección 4, paso 8) son del prototipo |
-| 🟡 | Segunda conexión de la app | Si la app abre otro WebSocket con el mismo token, el nuevo reemplaza al viejo y el viejo se cierra con `4009` |
-| 🟡 | Códigos de cierre del WebSocket | `4000`, `4001`, `4008`, `4009`, `4500`, `1000` y `1009`, explicados en la sección 7 |
+| ✅ | Segunda conexión de la app | Si la app abre otro WebSocket con el mismo token, el nuevo reemplaza al viejo y el viejo se cierra con `4009` |
+| ✅ | Códigos de cierre del WebSocket | `4000`, `4001`, `4008`, `4009`, `4500`, `1000` y `1009`, explicados en la sección 7 |
 | 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` salvo en `puzzle_bloqueado` y `clave_solo_juego` |
 | 🟡 | Id de puzzle desconocido | Responde `400`, no `404` |
 

@@ -160,7 +160,7 @@ Quien hizo la escritura también recibe sus mensajes. Un cliente puede usarlos p
 
 ## Decisiones tomadas por los agentes
 
-La especificación (`/ws`, `{type, payload}`, `auth` en menos de 5 s, `auth.ok` con `{rol, sala}`, presencia, pings, límite bajo de tamaño y los mensajes `puzzle.actualizado`, `descubrimiento.nuevo`, `escena.cambiada` y `sala.cerrada`) no fijaba estos detalles. Los decidieron los agentes que construyeron el Paso 4; Raúl puede cambiarlos.
+La especificación (`/ws`, `{type, payload}`, `auth` en menos de 5 s, `auth.ok` con `{rol, sala}`, presencia, pings, límite bajo de tamaño y los mensajes `puzzle.actualizado`, `descubrimiento.nuevo`, `escena.cambiada` y `sala.cerrada`) no fijaba estos detalles. Los decidieron los agentes que construyeron el Paso 4 y Raúl los aprobó el 2026-11-06.
 
 | Tema | Decisión | Por qué |
 |---|---|---|

@@ -142,8 +142,8 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | # | Tema | Cómo funciona hoy |
 |---|---|---|
 | C2 | Banderas `lookout_enabled` y `observatory_enabled` | Nombres aprobados por Raúl. Falta que Unity confirme el momento exacto en que las manda |
-| 🟡 | Segunda conexión del juego | Si el juego abre otro WebSocket con el mismo token, el nuevo reemplaza al viejo y el viejo se cierra con `4009` |
-| 🟡 | Códigos de cierre del WebSocket | `4000`, `4001`, `4008`, `4009`, `4500`, `1000` y `1009`, explicados en la sección 7 |
+| ✅ | Segunda conexión del juego | Si el juego abre otro WebSocket con el mismo token, el nuevo reemplaza al viejo y el viejo se cierra con `4009` |
+| ✅ | Códigos de cierre del WebSocket | `4000`, `4001`, `4008`, `4009`, `4500`, `1000` y `1009`, explicados en la sección 7 |
 | 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` salvo en `puzzle_bloqueado` y `clave_solo_juego` |
 | 🟡 | Id de puzzle desconocido | Responde `400`, no `404` |
 
