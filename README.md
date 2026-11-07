@@ -145,6 +145,17 @@ docker run --rm -p 8080:8080 \
 
 `host.docker.internal` apunta a tu máquina en Docker Desktop. En Linux, pon el contenedor del backend y el de Postgres en la misma red de Docker y usa el nombre del contenedor de Postgres como host.
 
+## Prueba de humo
+
+`scripts/smoke-test.sh` recorre una partida completa con `curl` y `jq` contra un backend que ya esté corriendo: health, crear sala, unirse, escenas, banderas del juego, los cuatro puzzles, estado y cierre. Recibe la URL base y, opcionalmente, el pueblo; sin pueblo, toma uno libre.
+
+```sh
+scripts/smoke-test.sh http://localhost:8080
+scripts/smoke-test.sh http://localhost:8080 BACALAR
+```
+
+Imprime cada paso con ✓ y termina con `RESULTADO: ✅`. Si un paso falla, dice cuál, muestra la respuesta y sale con código `1` (`2` si falta la URL, `3` si falta `curl` o `jq`, y `129`, `130` o `143` si se interrumpe). Pase lo que pase, al salir cierra la sala que creó, para no dejar el pueblo ocupado. Nunca imprime los tokens. Cómo correrlo contra Railway está en [`docs/despliegue.md`](docs/despliegue.md). `SmokeTestIT` y `SmokeTestFalloIT` lo corren en `./mvnw verify` contra el backend real y `SmokeTestServidorFalsoIT` contra un servidor falso, así que esas pruebas necesitan `bash`, `curl` y `jq`.
+
 ## Despliegue
 
-El backend se despliega en Railway desde `main`. Los pasos y las variables están en [`docs/despliegue.md`](docs/despliegue.md).
+El backend se despliega en Railway desde `main`. [`docs/despliegue.md`](docs/despliegue.md) tiene las variables y su mapeo desde el Postgres de Railway, lo que se verificó con la imagen, las decisiones pendientes (Swagger y la página de prueba en producción, el proxy TLS) y la lista paso a paso del primer despliegue.

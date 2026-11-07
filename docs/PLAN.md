@@ -1,6 +1,6 @@
 # Vestigia: plan del backend (documento vivo)
 
-Última actualización: 6 de noviembre de 2026 (Paso 6: cierre).
+Última actualización: 6 de noviembre de 2026 (Paso 7: listo para Railway).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
 **Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
@@ -17,6 +17,7 @@ Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `do
 | 4 | WebSocket: autenticación, eventos y presencia | ✅ Hecho |
 | 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
 | 6 | Cierre: Swagger, guías, página de prueba | ✅ Hecho |
+| 7 | Listo para Railway: imagen, prueba de humo, configuración y pasos del primer despliegue | ✅ Hecho (el despliegue lo hace Raúl) |
 
 ---
 
@@ -63,8 +64,8 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada`; `4500` a un cliente que no lee (Paso 4) | 🟡 |
 | Cliente de WebSocket que no lee | Su envío se corta a los 5 s o al juntar 64 KB sin enviar y se cierra solo su conexión (`4500`); no frena a nadie más (Paso 4, ronda 1) | 🟡 |
 | Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4) | 🟡 |
-| Swagger UI y `/v3/api-docs` en producción | Hoy se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. Decide Raúl si se apagan en producción (`springdoc.api-docs.enabled=false`); el Paso 7 lo reporta | 🟡 |
-| Página de prueba `/prueba-ws.html` en producción | Hoy se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. Decide Raúl si se quita en producción | 🟡 |
+| Swagger UI y `/v3/api-docs` en producción | Hoy se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. Decide Raúl si se apagan en producción. El Paso 7 comprobó en la imagen que se apagan sin cambiar código, con `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` (D-Swagger en `docs/despliegue.md`) | 🟡 |
+| Página de prueba `/prueba-ws.html` en producción | Hoy se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. Decide Raúl si se quita en producción. El Paso 7 comprobó que se quita sin cambiar código con `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`, que no afecta a Swagger UI (D-Prueba) | 🟡 |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
 ## 3. Salas
@@ -205,8 +206,8 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 
 - [ ] **Paso 0:** decidir repo separado, copiar el backend (con historial), configurar acceso y secretos.
 - [x] **Paso 1: Base.** Limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
-  - Pendiente de Raúl: el primer despliegue en Railway y el job de CI que revisa `/actuator/health` después del despliegue (ver `docs/despliegue.md`).
-  - El workflow `ci.yml` se validó con actionlint, pero todavía no ha corrido en GitHub.
+  - Pendiente de Raúl: el primer despliegue en Railway y la variable `RAILWAY_PUBLIC_URL` del workflow que revisa `/actuator/health` después del despliegue (el workflow lo agregó el Paso 7; ver `docs/despliegue.md`).
+  - El workflow `ci.yml` se validó con actionlint. Corrió bien en GitHub el 26 de octubre; desde el 5 de noviembre no arranca (O11).
 - [x] **Paso 2: Salas.** Catálogo de pueblos (seed aprobado), crear, unirse, estado, expiración, autenticación por token.
   - `V2__seed_pueblos.sql` carga los 101 códigos aprobados por Raúl.
   - Endpoints `GET /pueblos`, `POST /salas`, `POST /salas/{codigo}/unirse` y `GET /salas/{codigo}/estado`. Contrato con ejemplos en `docs/api.md`.
@@ -229,6 +230,13 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `docs/tiempo-real.md` gana la tabla de quién envía cada mensaje y los ejemplos que faltaban.
   - Página de prueba `/prueba-ws.html`: un panel para el juego y otro para la app; el token viaja solo en `auth`.
   - `JsonDocumentadoIT` compara cada bloque JSON de respuesta de `docs/api.md`, `docs/tiempo-real.md` y las guías con una respuesta real. Evidencia en `docs/pruebas/paso-6-cierre.md`.
+- [x] **Paso 7: Listo para Railway.** Revisar y corregir lo que haría fallar o exponer el primer despliegue, sin desplegar.
+  - La imagen del `Dockerfile` se construyó y corrió contra un Postgres vacío solo con `DB_URL`, `DB_USER`, `DB_PASSWORD`, `PORT` y `CORS_ALLOWED_ORIGINS`: Flyway aplicó `V1` a `V3`, `/actuator/health` respondió `UP` y el proceso corre como `vestigia` (uid 999). No hizo falta cambiar el `Dockerfile` ni `application.properties`.
+  - `scripts/smoke-test.sh <url> [pueblo]` juega la partida completa con `curl` y `jq`, sale con código distinto de 0 si algo falla y cierra la sala al salir. `SmokeTestIT` y `SmokeTestFalloIT` lo corren en `./mvnw verify`.
+  - Revisado contra la imagen: logs sin tokens ni `Authorization`, actuator solo con `health`, errores sin stacktrace, `ddl-auto=validate`, sin secretos en el repo. `ConfiguracionDespliegueIT` fija lo que se puede probar en Maven.
+  - `docs/despliegue.md` gana el mapeo de variables desde el Postgres de Railway, las decisiones pendientes (Swagger, página de prueba, O10, P9) y la lista "Primer despliegue: pasos para Raúl". Los nombres de Railway quedan marcados por verificar.
+  - `ci.yml` corre también en `push` a `main`, que es lo que espera Railway con "Wait for CI". El workflow nuevo `salud-produccion.yml` revisa `/actuator/health` de la URL real tras cada despliegue (O2), con `scripts/esperar-health.sh`.
+  - Evidencia en `docs/pruebas/paso-7-railway.md`.
 
 ## 11. Pendientes
 
@@ -256,13 +264,14 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Pendiente |
 |---|---|
 | O1 | Primer despliegue en Railway y URL de producción |
-| O2 | Job de CI posterior al despliegue en `main` (necesita la URL de Railway) |
+| O2 | El workflow "Health de producción" (`salud-produccion.yml`, Paso 7) ya existe: corre tras cada despliegue exitoso (`deployment_status`) o a mano. Falta que Raúl cree la variable del repositorio `RAILWAY_PUBLIC_URL` y compruebe que Railway publica sus despliegues en GitHub |
 | O3 | La PWA todavía llama a `/api/salas` (CRUD del laboratorio que el Paso 1 retiró; responde `404`), según su código del 6 de noviembre. `docs/integracion-pwa.md` le indica cambiar a `GET /api/v1/pueblos`. Falta que el equipo de la PWA lo cambie |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
 | O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |
 | O9 | Valores definitivos del canon (AR, DEC, umbrales y rangos del mirador), que dependen de pruebas |
-| O10 | Verificar al desplegar en Railway (revisión del Paso 6, B6; lo retoma el Paso 7). Detrás del proxy TLS de Railway, Tomcat ve la petición como `http` aunque el navegador use `https`. Una página servida por el backend (`/prueba-ws.html`, Swagger UI) manda `Origin: https://…`, que no coincide con el origen `http://…` que ve el servidor: el handshake de `/ws` y `POST /salas` podrían responder `403`. Dos salidas: `server.forward-headers-strategy=framework` (Spring toma el esquema de `X-Forwarded-Proto`) o agregar la URL pública del backend a `CORS_ALLOWED_ORIGINS`. Unity y Flutter nativos no mandan `Origin` y no se ven afectados |
+| O10 | Verificar al desplegar en Railway (revisión del Paso 6, B6; lo retoma el Paso 7). Detrás del proxy TLS de Railway, Tomcat ve la petición como `http` aunque el navegador use `https`. Una página servida por el backend (`/prueba-ws.html`, Swagger UI) manda `Origin: https://…`, que no coincide con el origen `http://…` que ve el servidor: el handshake de `/ws` y `POST /salas` responden `403`, y Swagger anuncia `servers` con `http://`. El Paso 7 lo reprodujo con cabeceras simuladas y comparó tres salidas, ninguna activada y ninguna cambia el comportamiento local: la URL pública en `CORS_ALLOWED_ORIGINS` (arregla la página de prueba), `SERVER_FORWARD_HEADERS_STRATEGY=native` (arregla todo si el proxy llega desde una IP interna, por verificar) o `framework` (arregla todo y acepta cabeceras de cualquier cliente). Decide Raúl; detalle en `docs/despliegue.md`. Unity y Flutter nativos no mandan `Origin` y no se ven afectados |
+| O11 | Desde el 5 de noviembre, todas las ejecuciones del workflow `CI` en GitHub terminan en `startup_failure` sin jobs (`path: BuildFailed`). `ci.yml` no cambió desde la última ejecución buena (26 de octubre) y `actionlint` no le encuentra errores. Apunta a la cuenta o al repositorio (probablemente minutos o facturación de Actions de un repo privado). Paso manual de Raúl en `docs/despliegue.md`, sección CI |
 
 ## 12. Descartado
 
