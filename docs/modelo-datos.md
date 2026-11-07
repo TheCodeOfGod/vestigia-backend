@@ -18,7 +18,7 @@ Una migración que ya se aplicó no se edita. Cualquier cambio va en una migraci
 | `salas` | `SalaModel` | Una partida: un juego y, como máximo, una app |
 | `puzzles_estado` | `PuzzleEstadoModel` | Una fila por sala y puzzle |
 | `descubrimientos` | `DescubrimientoModel` | Lo que aparece en la libreta |
-| `eventos` | (todavía sin entidad) | Bitácora para las métricas del plan de pruebas. Se usa a partir del Paso 3 |
+| `eventos` | `EventoModel` | Bitácora para las métricas del plan de pruebas. Una fila por escritura exitosa |
 
 Las entidades no declaran relaciones JPA entre sí. `puzzles_estado` y `descubrimientos` guardan `sala_id` y se consultan por esa columna.
 
@@ -37,7 +37,7 @@ Son nombres de Pueblos Mágicos de México de una sola palabra. La lista no camb
 | `id` | `UUID` PK | Lo genera el backend |
 | `codigo` | `VARCHAR(30)` | FK a `codigos_pueblo` |
 | `estado` | `VARCHAR(20)` | `esperando_app`, `activa`, `finalizada` o `expirada` |
-| `escena_actual` | `VARCHAR(20)` | Empieza en `introduccion` |
+| `escena_actual` | `VARCHAR(20)` | Empieza en `introduccion`. Valores: `introduccion`, `pueblo`, `faro`, `observatorio`, `desenlace`. La base no los restringe (son provisionales); los valida el enum `SalaModel.Escena` |
 | `token_juego_hash` | `CHAR(64)` | SHA-256 del token del juego, en hexadecimal minúscula |
 | `token_app_hash` | `CHAR(64)` | SHA-256 del token de la app. `NULL` hasta que la app se une |
 | `creada_en` | `TIMESTAMPTZ` | |
@@ -56,7 +56,16 @@ Son nombres de Pueblos Mágicos de México de una sola palabra. La lista no camb
 | `datos` | `JSONB` | Lo último que reportó el cliente. `{}` al crear la sala |
 | `actualizado_en` | `TIMESTAMPTZ` | |
 
-Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` también empieza bloqueado porque su requisito, el descubrimiento `pescador_dialogo_completo`, todavía no puede existir. Las transiciones y los requisitos llegan en el Paso 3.
+Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` también empieza bloqueado porque su requisito, el descubrimiento `pescador_dialogo_completo`, todavía no puede existir.
+
+`HabilitacionPuzzlesService` pasa un puzzle de `bloqueado` a `disponible` cuando se cumplen sus requisitos. Se recalcula tras cada descubrimiento nuevo y, desde la entrega 3b, tras cada puzzle resuelto. Lee el estado completo de la sala, así que el orden en que llegan los requisitos no importa. Nunca baja un puzzle de estado.
+
+| Puzzle | Pasa a `disponible` cuando |
+|---|---|
+| `radio` | Existe `pescador_dialogo_completo` |
+| `photo` | Existen `pieza_1`, `pieza_2` y `pieza_3` |
+| `lookout` | `photo` está `resuelto` y existe `lookout_enabled` |
+| `observatory` | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` y existe `observatory_enabled` |
 
 ### `descubrimientos`
 
@@ -65,7 +74,7 @@ Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` ta
 | `id` | `BIGSERIAL` PK | |
 | `sala_id` | `UUID` | FK a `salas`. `UNIQUE (sala_id, clave)` |
 | `clave` | `VARCHAR(40)` | Por ejemplo `coordenada_a` |
-| `datos` | `JSONB` | Por ejemplo `{"tipo": "ascension_recta", "valor": "137"}`. `valor` va en texto para conservar el signo y los ceros (`"+042"`) |
+| `datos` | `JSONB` | Por ejemplo `{"tipo": "ascension_recta", "valor": "137"}`. `valor` va en texto para conservar el signo y los ceros (`"+042"`). Lo que mandan los clientes se limita a `vestigia.descubrimientos.datos-max-bytes` (4096 bytes de JSON) |
 | `origen` | `VARCHAR(10)` | `juego`, `app` o `servidor` |
 | `creado_en` | `TIMESTAMPTZ` | |
 
@@ -76,13 +85,26 @@ Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` ta
 | `id` | `BIGSERIAL` PK | |
 | `sala_id` | `UUID` | FK a `salas`. Índice `eventos_sala_tiempo (sala_id, creado_en)` |
 | `tipo` | `VARCHAR(40)` | |
-| `payload` | `JSONB` | |
-| `origen` | `VARCHAR(10)` | |
+| `payload` | `JSONB` | Datos del evento (ver la tabla de tipos) |
+| `origen` | `VARCHAR(10)` | `juego`, `app` o `servidor`, igual que en `descubrimientos` |
 | `creado_en` | `TIMESTAMPTZ` | |
+
+Tipos de evento. El tipo se guarda con su punto. En Java es el enum `EventoModel.Tipo` y un convertidor JPA pasa `sala_creada` a `sala.creada`.
+
+| `tipo` | Cuándo | `origen` | `payload` |
+|---|---|---|---|
+| `sala.creada` | `POST /salas` | `juego` | `{"codigo": "BACALAR"}` |
+| `app.unida` | `POST /salas/{codigo}/unirse` | `app` | `{}` |
+| `descubrimiento.registrado` | `POST /salas/{codigo}/descubrimientos` con una clave nueva | `juego` o `app` | `{"clave": "pieza_1", "datos": {...}}` |
+| `escena.cambiada` | `PUT /salas/{codigo}/escena` con una escena distinta de la actual | `juego` | `{"anterior": "introduccion", "escena": "faro"}` |
+| `sala.finalizada` | `DELETE /salas/{codigo}` | `juego` | `{}` |
+| `puzzle.habilitado` | Un puzzle pasa de `bloqueado` a `disponible` | `servidor` | `{"puzzle": "photo"}` |
+
+Cada evento también se publica dentro de la transacción como evento de aplicación de Spring (`ActividadService.SalaEvento`). El WebSocket del Paso 4 lo emitirá después del commit con `@TransactionalEventListener`. `eventos` no guarda lecturas (`GET estado`).
 
 ## Mapeo en Java
 
-- Los valores cerrados (`estado`, `puzzle`, `origen`) son enums anidados en su entidad (`SalaModel.Estado`, `PuzzleEstadoModel.Puzzle`, …). Sus constantes se escriben en minúscula, igual que en la base y en el JSON, así que no hace falta ningún convertidor.
+- Los valores cerrados (`estado`, `escena_actual`, `puzzle`, `origen`) son enums anidados en su entidad (`SalaModel.Estado`, `SalaModel.Escena`, `PuzzleEstadoModel.Puzzle`, …). Sus constantes se escriben en minúscula, igual que en la base y en el JSON, así que no hace falta ningún convertidor. La excepción es `eventos.tipo`, que lleva un punto (`sala.creada`) y usa `EventoModel.TipoConverter`.
 - Las columnas `JSONB` se mapean como `Map<String, Object>` con `@JdbcTypeCode(SqlTypes.JSON)`. Hibernate 7.4 las serializa con Jackson 3. La prueba `ModeloIT` guarda y relee un JSON real.
 - Las columnas `CHAR(64)` llevan `@JdbcTypeCode(SqlTypes.CHAR)`. Sin esa anotación, la validación del esquema falla porque Hibernate espera `VARCHAR`.
 - Todas las fechas son `Instant` en UTC. El backend las toma de un `Clock` inyectado (bean en `TiempoConfig`), no de `now()` de Postgres.
@@ -93,21 +115,23 @@ Al crear una sala se insertan sus cuatro filas, todas en `bloqueado`. `radio` ta
             POST /salas               POST /salas/{codigo}/unirse
 (no existe) ───────────▶ esperando_app ──────────────────────────▶ activa
                               │                                     │
-                              │  job: expira_en < ahora             │  job: expira_en < ahora
+                              │                                     │
+                 job: expira_en < ahora                job: expira_en < ahora
+                 DELETE /salas/{codigo}                DELETE /salas/{codigo}
                               ▼                                     ▼
-                           expirada                              expirada
-
-Más adelante: DELETE /salas/{codigo} pasa una sala viva a finalizada.
+                   expirada o finalizada                 expirada o finalizada
 ```
 
 1. **Crear.** El juego reclama un código libre. La sala nace en `esperando_app` con sus cuatro puzzles bloqueados y `expira_en = ahora + 2 h`.
 2. **Unirse.** La app se enlaza con un solo `UPDATE … WHERE codigo = ? AND estado = 'esperando_app' AND token_app_hash IS NULL`. Si dos apps llegan a la vez, Postgres bloquea la fila, la segunda vuelve a evaluar el `WHERE`, ya no lo cumple y recibe `409`. La sala pasa a `activa` y se renuevan `ultima_actividad` y `expira_en`.
 3. **Expirar.** Un job programado (`SalaService.expirarVencidas`) corre cada `vestigia.salas.expiracion-revision` (por defecto 1 minuto) y pasa a `expirada` toda sala viva con `expira_en < ahora`. El código queda libre y la fila se conserva.
-4. **Finalizar.** `DELETE /salas/{codigo}` la pasará a `finalizada`. Todavía no está implementado.
+4. **Finalizar.** `DELETE /salas/{codigo}`, solo con el token del juego, la pasa a `finalizada`. El código queda libre, la fila se conserva y los dos tokens dejan de servir porque solo autentican salas vivas.
 
-Cada escritura exitosa renueva `ultima_actividad` y `expira_en`. En el Paso 2 las únicas escrituras son crear y unirse. Las lecturas (`GET estado`) no renuevan nada.
+Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma duración (`vestigia.salas.expiracion`) y guarda un evento. `ActividadService` concentra esas dos cosas. Una escritura repetida (un descubrimiento que ya existía o la escena en la que ya está la sala) responde con éxito y renueva, pero no guarda otro evento. El cierre guarda su evento y actualiza `ultima_actividad`, pero no renueva `expira_en`: una sala finalizada ya no expira. Las lecturas (`GET estado`) no renuevan nada.
 
-Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue viva: su token todavía funciona y su código todavía está ocupado.
+**Escrituras simultáneas.** Descubrimientos, escena y cierre empiezan con `SalaRepository.bloquear`, un `SELECT … FOR UPDATE` sobre la fila de la sala. Las escrituras de una misma sala se ejecutan así una tras otra, y cada una ve lo que la anterior confirmó. Por eso dos peticiones con la misma clave dan un `201` y un `200` en lugar de chocar contra `UNIQUE (sala_id, clave)`, y tres piezas que llegan a la vez habilitan `photo`. Si la sala dejó de estar viva entre la autenticación y el bloqueo (otra petición la cerró o el job la expiró), la escritura responde `401`. También responde `401` si su `expira_en` ya pasó aunque el job todavía no la haya marcado: una escritura no puede revivir una sala vencida. Salas distintas no se bloquean entre sí.
+
+**Sala vencida.** Una sala está vencida si `expira_en < ahora`, el mismo corte que usa el job. Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que la sala sigue en `esperando_app` o `activa`. En ese minuto ya cuenta como terminada: `autenticar` no acepta sus tokens (`401` en lecturas y escrituras), `unirApp` no la enlaza (`404`) y `bloquear` no la renueva. Lo único que sigue igual es que su código está ocupado (`GET /pueblos` lo marca ocupado y `POST /salas` da `409`) hasta que el job la marca `expirada`.
 
 ## Tokens
 
@@ -119,5 +143,5 @@ Entre que `expira_en` pasa y el job corre puede haber hasta un minuto en el que 
 - Cada token son 32 bytes de `SecureRandom` codificados en base64url sin relleno (43 caracteres).
 - La base guarda **solo** el SHA-256 del token en hexadecimal minúscula (64 caracteres). El token en claro viaja una sola vez, en la respuesta que lo crea. Si el cliente lo pierde, no hay forma de recuperarlo.
 - El token determina la sala y el rol: si su hash coincide con `token_juego_hash`, el rol es `juego`; si coincide con `token_app_hash`, es `app`.
-- Un token deja de servir cuando su sala deja de estar viva.
+- Un token deja de servir cuando su sala deja de estar viva o cuando su `expira_en` ya pasó, aunque el job todavía no la haya marcado.
 - Ni el token ni el encabezado `Authorization` se escriben en los logs.

@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.SalaService;
 
 import jakarta.validation.Valid;
@@ -37,6 +38,9 @@ class ApiExceptionHandlerTest {
 
 	@MockitoBean
 	private SalaService salaService;
+
+	@MockitoBean
+	private DescubrimientoService descubrimientoService;
 
 	@Test
 	void jsonMalformadoDevuelve400ConCuerpoUniforme() throws Exception {

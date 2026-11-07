@@ -29,6 +29,13 @@ public class SalaModel {
 
 	}
 
+	/** Escenas del juego, en orden. Provisionales: la base no las restringe, solo este enum. */
+	public enum Escena {
+
+		introduccion, pueblo, faro, observatorio, desenlace
+
+	}
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
@@ -38,7 +45,8 @@ public class SalaModel {
 	@Enumerated(EnumType.STRING)
 	private Estado estado;
 
-	private String escenaActual;
+	@Enumerated(EnumType.STRING)
+	private Escena escenaActual;
 
 	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(length = 64)
@@ -74,11 +82,11 @@ public class SalaModel {
 		this.estado = estado;
 	}
 
-	public String getEscenaActual() {
+	public Escena getEscenaActual() {
 		return escenaActual;
 	}
 
-	public void setEscenaActual(String escenaActual) {
+	public void setEscenaActual(Escena escenaActual) {
 		this.escenaActual = escenaActual;
 	}
 

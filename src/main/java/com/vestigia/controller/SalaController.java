@@ -1,9 +1,11 @@
 package com.vestigia.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,10 +13,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.vestigia.config.SeguridadConfig;
+import com.vestigia.config.SoloJuego;
 import com.vestigia.config.TokenInterceptor;
 import com.vestigia.controller.ApiExceptionHandler.ErrorBody;
 import com.vestigia.dto.AppUnida;
+import com.vestigia.dto.CambiarEscenaRequest;
 import com.vestigia.dto.CrearSalaRequest;
+import com.vestigia.dto.EscenaActual;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
 import com.vestigia.service.SalaService;
@@ -31,7 +36,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/salas")
-@Tag(name = "Salas", description = "Crear, unirse y consultar una sala")
+@Tag(name = "Salas", description = "Crear, unirse, consultar, cambiar de escena y cerrar una sala")
 public class SalaController {
 
 	private final SalaService salaService;
@@ -79,6 +84,43 @@ public class SalaController {
 	public Sala estado(@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL)
 	SalaService.Credencial credencial) {
 		return salaService.estado(credencial.salaId());
+	}
+
+	@PutMapping("/{codigo}/escena")
+	@Operation(summary = "Cambia la escena actual (solo juego)", description = "Escenas: introduccion, pueblo, faro, "
+			+ "observatorio, desenlace. Repetir la escena actual responde 200 sin cambios.",
+			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA))
+	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
+			schema = @Schema(type = "string"))
+	@ApiResponse(responseCode = "200", description = "Escena actual")
+	@ApiResponse(responseCode = "400", description = "Falta la escena o no es una de las válidas",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@ApiResponse(responseCode = "403", description = "El token es de otra sala o es el de la app",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@SoloJuego(SalaService.SOLO_JUEGO_ESCENA)
+	public EscenaActual cambiarEscena(@Valid @RequestBody CambiarEscenaRequest request,
+			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL) SalaService.Credencial credencial) {
+		return salaService.cambiarEscena(credencial, request.escena());
+	}
+
+	@DeleteMapping("/{codigo}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@Operation(summary = "Cierra la sala (solo juego)", description = "La sala pasa a finalizada y se conserva como "
+			+ "historial. El código queda libre y los tokens del juego y de la app dejan de servir (401).",
+			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA))
+	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
+			schema = @Schema(type = "string"))
+	@ApiResponse(responseCode = "204", description = "Sala cerrada")
+	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@ApiResponse(responseCode = "403", description = "El token es de otra sala o es el de la app",
+			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+	@SoloJuego(SalaService.SOLO_JUEGO_CIERRE)
+	public void finalizar(@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL)
+	SalaService.Credencial credencial) {
+		salaService.finalizar(credencial);
 	}
 
 }

@@ -15,7 +15,8 @@ Todo gira alrededor de la **sala**, que identifica una partida con el nombre de 
 1. **El juego crea la sala.** Cuando la jugadora elige un pueblo, el juego llama a `POST /api/v1/salas`. La sala nace en `esperando_app` con sus cuatro puzzles (`radio`, `photo`, `lookout`, `observatory`) bloqueados, y el juego recibe su token.
 2. **La app se une.** La app móvil llama a `POST /api/v1/salas/{codigo}/unirse` y recibe su propio token. Cada sala admite una sola app. La sala pasa a `activa`.
 3. **Los dos consultan el estado.** Con su token, el juego y la app llaman a `GET /api/v1/salas/{codigo}/estado` para ver la escena, los puzzles, los descubrimientos y qué dispositivos están conectados.
-4. **La sala termina.** Si pasa tiempo sin actividad (2 horas por defecto), un job la marca `expirada` y el código vuelve a quedar libre. Las salas terminadas se conservan como historial.
+4. **Durante la partida.** El juego y la app registran descubrimientos (`POST /api/v1/salas/{codigo}/descubrimientos`) y el juego cambia la escena (`PUT /api/v1/salas/{codigo}/escena`). Con cada descubrimiento nuevo, el backend revisa qué puzzles ya cumplen sus requisitos y los pasa a `disponible`.
+5. **La sala termina.** El juego la cierra con `DELETE /api/v1/salas/{codigo}` y queda `finalizada`. Si pasa tiempo sin ninguna escritura (2 horas por defecto), un job la marca `expirada`. En los dos casos el código vuelve a quedar libre, los tokens dejan de servir y la sala se conserva como historial.
 
 **Tokens y roles.** Cada dispositivo recibe un token aleatorio y opaco que se envía como `Authorization: Bearer <token>`. El backend guarda solo su hash SHA-256. El token determina la sala y el rol (`juego` o `app`), y solo funciona con el código de su propia sala.
 
@@ -23,7 +24,7 @@ Todo gira alrededor de la **sala**, que identifica una partida con el nombre de 
 
 **Errores.** Todos tienen el mismo cuerpo JSON (`timestamp`, `status`, `error`, `message`, `path`, `details`). Los campos del JSON van en `snake_case` y las fechas en UTC con formato ISO-8601.
 
-**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado y `/actuator/health`. Los endpoints de puzzles, descubrimientos, escena y cierre de sala no existen todavía y responden `404`. El WebSocket de `/ws` rechaza las conexiones hasta que se implemente el tiempo real.
+**Qué hay disponible hoy.** Pueblos, crear sala, unirse, estado, descubrimientos, escena, cierre de sala y `/actuator/health`. Cada escritura renueva la expiración de la sala y deja un evento en la tabla `eventos`. El endpoint para reportar puzzles (`PUT /api/v1/salas/{codigo}/puzzles/{puzzle}`) todavía no existe y responde `404`. El WebSocket de `/ws` rechaza las conexiones hasta que se implemente el tiempo real.
 
 ## Stack
 
@@ -94,6 +95,7 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 |---|---|---|
 | `vestigia.salas.expiracion` | Tiempo sin actividad tras el cual una sala viva expira, en formato ISO-8601 | `PT2H` |
 | `vestigia.salas.expiracion-revision` | Cada cuánto corre el job que marca las salas vencidas | `PT1M` |
+| `vestigia.descubrimientos.datos-max-bytes` | Tamaño máximo de los `datos` de un descubrimiento, en bytes de JSON | `4096` |
 
 ## Correr las pruebas
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
