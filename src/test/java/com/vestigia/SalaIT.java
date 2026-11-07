@@ -83,8 +83,8 @@ class SalaIT {
 				SELECT p.puzzle || ':' || p.estado || ':' || p.datos::text FROM puzzles_estado p
 				JOIN salas s ON s.id = p.sala_id WHERE s.codigo = 'ALAMOS' ORDER BY p.puzzle
 				""", String.class);
-		assertThat(puzzles).containsExactly("fotografia:bloqueado:{}", "mirador:bloqueado:{}",
-				"observatorio:bloqueado:{}", "radio:bloqueado:{}");
+		assertThat(puzzles).containsExactly("lookout:bloqueado:{}", "observatory:bloqueado:{}",
+				"photo:bloqueado:{}", "radio:bloqueado:{}");
 	}
 
 	@Test
@@ -143,7 +143,7 @@ class SalaIT {
 			assertThat(estado.get("estado").asString()).isEqualTo("activa");
 			assertThat(estado.get("escena_actual").asString()).isEqualTo("introduccion");
 			assertThat(estado.get("puzzles").valueStream().map(p -> p.get("puzzle").asString()))
-					.containsExactly("radio", "fotografia", "mirador", "observatorio");
+					.containsExactly("radio", "photo", "lookout", "observatory");
 			assertThat(estado.get("puzzles").valueStream().map(p -> p.get("estado").asString()))
 					.containsOnly("bloqueado");
 			assertThat(estado.get("puzzles").valueStream().map(p -> p.get("datos").isEmpty())).containsOnly(true);

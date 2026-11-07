@@ -68,6 +68,7 @@ ALTER TABLE puzzles_estado
   CHECK (puzzle IN ('radio', 'photo', 'lookout', 'observatory'));
 ```
 
+- **La versión vigente es el archivo `src/main/resources/db/migration/V3__ids_puzzles_en_ingles.sql`**, no este bloque. El archivo agrega `WHERE puzzle IN ('fotografia', 'mirador', 'observatorio')` al `UPDATE` para tocar solo las filas que cambian; el resultado es el mismo.
 - **No se edita `V1`**: ya está aplicada. Se crea una migración nueva.
 - El nombre `puzzles_estado_puzzle_check` es el que Postgres asigna por defecto. Lo compruebo contra un Postgres real con Testcontainers antes de dar la migración por buena.
 - Es el momento barato: no hay nada desplegado en Railway, así que no hay filas reales que mover.

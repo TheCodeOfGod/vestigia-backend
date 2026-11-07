@@ -12,7 +12,7 @@ Backend de **Vestigia**, el proyecto integrador del grupo IDGS101N de la Univers
 
 Todo gira alrededor de la **sala**, que identifica una partida con el nombre de un Pueblo Mágico en mayúsculas, sin acentos y de una sola palabra (por ejemplo `BACALAR`). El catálogo de pueblos es fijo y vive en la base de datos.
 
-1. **El juego crea la sala.** Cuando la jugadora elige un pueblo, el juego llama a `POST /api/v1/salas`. La sala nace en `esperando_app` con sus cuatro puzzles (`radio`, `fotografia`, `mirador`, `observatorio`) bloqueados, y el juego recibe su token.
+1. **El juego crea la sala.** Cuando la jugadora elige un pueblo, el juego llama a `POST /api/v1/salas`. La sala nace en `esperando_app` con sus cuatro puzzles (`radio`, `photo`, `lookout`, `observatory`) bloqueados, y el juego recibe su token.
 2. **La app se une.** La app móvil llama a `POST /api/v1/salas/{codigo}/unirse` y recibe su propio token. Cada sala admite una sola app. La sala pasa a `activa`.
 3. **Los dos consultan el estado.** Con su token, el juego y la app llaman a `GET /api/v1/salas/{codigo}/estado` para ver la escena, los puzzles, los descubrimientos y qué dispositivos están conectados.
 4. **La sala termina.** Si pasa tiempo sin actividad (2 horas por defecto), un job la marca `expirada` y el código vuelve a quedar libre. Las salas terminadas se conservan como historial.
@@ -98,6 +98,8 @@ Una sala viva sin actividad pasa a `expirada` y su código vuelve a quedar libre
 ## Correr las pruebas
 - `./mvnw test` corre las pruebas unitarias y las de `@WebMvcTest`. No necesita Docker.
 - `./mvnw verify` corre además las clases `*IT` con maven-failsafe. Esas pruebas arrancan un `postgres:17-alpine` con Testcontainers, así que Docker tiene que estar corriendo.
+- `python3 scripts/resumen-pruebas.py` lee los reportes de `target/surefire-reports` y `target/failsafe-reports` y escribe en Markdown el conteo y la lista de pruebas, con el `@DisplayName` de cada una. Córrelo después de `./mvnw clean verify`: sin `clean` pueden quedar reportes de una corrida anterior. Con `--solo-conteo` imprime una sola línea. Sale con código distinto de 0 si no hay reportes, si alguna prueba falló o si falta una de las dos carpetas (por ejemplo, tras `./mvnw test`); en ese último caso avisa y marca el conteo como incompleto.
+- La evidencia de pruebas de cada paso vive en [`docs/pruebas/`](docs/pruebas/README.md).
 
 ## Capturas de pruebas 
 ### Test de Salas corriendo:
