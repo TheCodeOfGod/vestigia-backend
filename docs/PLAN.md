@@ -1,15 +1,29 @@
-# Vestigia — Plan del backend (documento vivo)
+# Vestigia: plan del backend (documento vivo)
 
-Última actualización: 26 de octubre de 2026.
-Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API.
+Última actualización: 7 de noviembre de 2026 (P8: las claves del juego solo las manda el juego).
+Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
-**Estados:** `Acordado` = confirmado por Raúl. `Propuesto` = pendiente de su visto bueno. `Provisional` = valor de prototipo que puede cambiar sin migrar la base.
+**Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
+
+---
+
+## 0. Dónde estamos
+
+| Paso | Qué es | Estado |
+|---|---|:-:|
+| 1 | Base: Flyway, Dockerfile, configuración, CI, README | ✅ Hecho |
+| 2 | Salas: catálogo de pueblos, crear, unirse, estado, expiración, token | ✅ Hecho |
+| 3 | Puzzles y descubrimientos (REST) | ✅ Hecho (3.0, 3a y 3b) |
+| 4 | WebSocket: autenticación, eventos y presencia | ✅ Hecho |
+| 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
+| 6 | Cierre: Swagger, guías, página de prueba | ✅ Hecho |
+| 7 | Listo para Railway: imagen, prueba de humo, configuración y pasos del primer despliegue | ✅ Hecho (el despliegue lo hace Raúl) |
 
 ---
 
 ## 1. Qué resuelve el backend
 
-Enlaza el videojuego (Unity) con la app móvil (Flutter) para que los puzzles jugados en el teléfono se reflejen en el juego. Los clientes **no se hablan entre sí**: todo pasa por el backend, que guarda el estado de cada **sala**.
+Enlaza el videojuego (Unity) con la app móvil (Flutter) para que lo que ocurre en un dispositivo se refleje en el otro. Los clientes **no se hablan entre sí**: todo pasa por el backend, que guarda el estado de cada **sala**.
 
 ```
 Unity (PC) ──┐                       ┌── PostgreSQL
@@ -22,29 +36,49 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 ## 2. Decisiones
 
 | Tema | Decisión | Estado |
-|---|---|---|
-| Plataforma de datos | Spring Boot + PostgreSQL. Firebase queda fuera | Acordado |
-| Hosting | Railway (backend + Postgres), con Dockerfile | Acordado |
-| Sincronización app ↔ juego | Automática por salas. Sin respaldo de código manual por ahora | Acordado |
-| Código de sala | Nombre de Pueblo Mágico de una palabra, sin acentos ni ñ, elegido de una lista que muestra el juego | Acordado |
-| Datos | Separados por sala | Acordado |
-| Escritura y consulta | REST bajo `/api/v1` | Acordado |
-| Tiempo real | WebSocket simple en `/ws`, mensajes JSON `type` + `payload` | Acordado |
-| Migraciones | Flyway (el esquema se crea solo al arrancar) | Acordado |
-| Orientación del teléfono | `azimut` y `altitud` en grados, no cuaternión | Acordado |
-| Repositorio | Backend en repo separado | Acordado |
-| CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | Acordado (definición propuesta) |
-| Valores de puzzles | Ver sección 7 | Acordado (provisional; se pueden ajustar) |
+|---|---|:-:|
+| Plataforma de datos | Spring Boot + PostgreSQL. Firebase queda fuera | ✅ |
+| Hosting | Railway (backend + Postgres), con Dockerfile | ✅ |
+| Código de sala | Nombre de Pueblo Mágico de una palabra, sin acentos ni ñ. El jugador lo elige en el juego y lo escribe en la app | ✅ |
+| Datos | Separados por sala | ✅ |
+| Escritura y consulta | REST bajo `/api/v1` | ✅ |
+| Tiempo real | WebSocket simple en `/ws`, mensajes JSON `type` + `payload` | ✅ |
+| Migraciones | Flyway | ✅ |
+| Orientación del teléfono | `azimut` y `altitud` en grados, no cuaternión. Solo aplica si se reactiva el reenvío (ver sección 14) | ⏸️ |
+| Quién resuelve la radio | El **juego**. Avisa al backend cuando se completó | ✅ |
+| Coordenadas del misterio | **Ascensión recta (AR) y declinación (DEC)**, como el canon narrativo y la app | ✅ |
+| Mirador y observatorio | **La app indica cuándo se completó.** El servidor no mide ni valida números por ahora | ✅ |
+| Observatorio | Se juega **por completo en el teléfono**. El juego solo se entera de que terminó, por la bandera | ✅ |
+| Telescopio de la PC moviéndose en tiempo real con el teléfono | No se hace por ahora | ⏸️ |
+| Valores del mirador y del observatorio | Viven en la app (ver sección 13) | ✅ |
+| Ids de puzzle | En inglés, como en la app: `radio`, `photo`, `lookout`, `observatory` (solo estos cuatro) | ✅ |
+| Códigos del misterio en la app | La app los muestra desde lo que entrega el servidor, no los lleva escritos | ✅ |
+| Feedback de cercanía del observatorio (frío, tibio, caliente) | No se hace por ahora | ⏸️ |
+| Habilitar un puzzle | El servidor lo hace por requisitos; el mirador y el observatorio además esperan una bandera del juego: `lookout_enabled` y `observatory_enabled` | ✅ (falta confirmarlo con Unity) |
+| `en_curso` | La app avisa `{iniciado: true}` al abrir `photo`, `lookout` u `observatory` | ✅ |
+| Código del error `puzzle_bloqueado` | Campo `codigo` en el cuerpo de error (nulo si no aplica) | ✅ |
+| `codigo` en los errores que no lo definen | Siempre viaja como `"codigo": null`, no se omite, para que los clientes lean siempre la misma forma (entrega 3b) | 🟡 |
+| Id de puzzle desconocido en la ruta | `400` con la lista de ids, igual que una escena desconocida. También para los ids viejos `fotografia`, `mirador` y `observatorio` (entrega 3b) | 🟡 |
+| Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
+| Segunda conexión de WebSocket del mismo rol | Reemplaza a la anterior, que cierra con `4009`; el otro rol no recibe `desconectado` (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada`; `4500` a un cliente que no lee (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Cliente de WebSocket que no lee | Su envío se corta a los 5 s o al juntar 64 KB sin enviar y se cierra solo su conexión (`4500`); no frena a nadie más (Paso 4, ronda 1). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Swagger UI y `/v3/api-docs` en producción | Raúl decidió el 2026-11-06 dejarlos públicos en producción por ahora. Se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. El Paso 7 comprobó en la imagen que se apagan sin cambiar código, con `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` (D-Swagger en `docs/despliegue.md`) | ✅ |
+| Página de prueba `/prueba-ws.html` en producción | Raúl decidió el 2026-11-06 dejarla pública en producción por ahora. Se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. El Paso 7 comprobó que se quita sin cambiar código con `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`, que no afecta a Swagger UI (D-Prueba) | ✅ |
+| Quién manda cada clave de descubrimiento (P8) | `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` y `observatory_enabled` las manda solo el juego. Con el token de la app, `POST /descubrimientos` responde `403` con `codigo: "clave_solo_juego"`, aunque la clave ya exista, sin tocar la sala. Decidido por Raúl e implementado el 2026-11-07 (`DescubrimientoService.CLAVES_DEL_JUEGO`). No cubre `PUT puzzles` (ver P8b) | ✅ |
+| `POST /salas` y `unirse` sin token (P9) | Por diseño: así obtienen su token el juego y la app. Aceptado por Raúl | ✅ |
+| CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
 ## 3. Salas
 
-- Existe un **catálogo** fijo de nombres (`codigos_pueblo`). Las salas **no** se crean por adelantado: se crean cuando el jugador elige un pueblo.
+- Existe un **catálogo** fijo de nombres (`codigos_pueblo`). Las salas **no** se crean por adelantado: se crean cuando el jugador elige un pueblo en el juego.
 - El juego pide los pueblos libres (`GET /pueblos?disponibles=true`), el jugador elige uno y el juego lo reclama (`POST /salas`). Si otro lo tomó antes, responde `409` y el juego refresca la lista.
-- Una sala es **única mientras está viva**: un índice único parcial sobre `codigo` para los estados `esperando_app` y `activa` evita carreras. Las salas terminadas se conservan como historial (útil para métricas y evidencias) y el nombre vuelve a estar libre.
+- Una sala es **única mientras está viva**: un índice único parcial sobre `codigo` evita carreras. Las salas terminadas se conservan como historial y el nombre vuelve a quedar libre.
 - Estados: `esperando_app` → `activa` → `finalizada` | `expirada`.
-- Solo cabe **una app** por sala. Una vez enlazada, otro intento de unirse recibe `409`.
+- Solo cabe **una app** por sala. Otro intento de unirse recibe `409`. Si no hay sala viva con ese código, recibe `404`.
 - Expira tras unas 2 horas sin actividad.
-- Al crear y al unirse se entrega un `token` por dispositivo. El juego lo guarda localmente para poder reconectar.
+- Al crear y al unirse se entrega un `token` por dispositivo.
 
 ## 4. Modelo de datos
 
@@ -58,85 +92,227 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 
 Estados de puzzle: `bloqueado` → `disponible` → `en_curso` → `resuelto`. El servidor valida las transiciones y los requisitos.
 
+La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observatory` (entrega 3.0). No hay tablas ni columnas nuevas.
+
 ## 5. API REST (`/api/v1`)
 
-| Ruta | Quién | Para qué |
-|---|---|---|
-| `GET /pueblos?disponibles=true` | Juego | Lista de pueblos libres |
-| `POST /salas` | Juego | Reclama un pueblo; devuelve sala y token |
-| `POST /salas/{codigo}/unirse` | App | Enlaza el teléfono |
-| `GET /salas/{codigo}/estado` | Todos | Estado completo (sirve para reconectar) |
-| `PUT /salas/{codigo}/puzzles/{puzzle}` | App o juego | Reporta intento o resultado |
-| `POST /salas/{codigo}/descubrimientos` | App o juego | Registra un fragmento, coordenada, etc. |
-| `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual |
-| `DELETE /salas/{codigo}` | Juego | Cierra la sala |
+| Ruta | Quién | Para qué | Paso |
+|---|---|---|:-:|
+| `GET /pueblos?disponibles=true` | Juego | Lista de pueblos libres | ✅ 2 |
+| `POST /salas` | Juego | Reclama un pueblo; devuelve sala y token | ✅ 2 |
+| `POST /salas/{codigo}/unirse` | App | Enlaza el teléfono | ✅ 2 |
+| `GET /salas/{codigo}/estado` | Todos | Estado completo (sirve para reconectar) | ✅ 2 |
+| `PUT /salas/{codigo}/puzzles/{puzzle}` | App o juego | Reporta que un puzzle empezó o se completó | ✅ 3b |
+| `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. Las claves del juego solo con el token del juego (P8) | ✅ 3a |
+| `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ✅ 3a |
+| `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
 
 ## 6. Tiempo real (`/ws`)
 
-Cada dispositivo se conecta con su rol (`juego` o `app`) y su token.
+Cada dispositivo se conecta con su rol (`juego` o `app`) y su token, que manda en el primer mensaje (`auth`), nunca en la URL. El contrato completo, con ejemplos, errores y cierres, está en [`docs/tiempo-real.md`](tiempo-real.md).
 
 | Mensaje | Dirección | Notas |
 |---|---|---|
-| `puzzle.actualizado` | servidor → todos | Tras cada escritura REST |
+| `puzzle.actualizado` | servidor → todos | Tras cada cambio de estado de un puzzle |
 | `descubrimiento.nuevo` | servidor → todos | Idem |
 | `escena.cambiada` | servidor → app | |
 | `dispositivo.conectado` / `desconectado` | servidor → todos | Presencia |
-| `orientacion` | app → servidor → juego | Solo en memoria, ~20 por segundo; solo se envía si cambió más de 0.5° |
-| `observatorio.proximidad` | servidor → todos | Solo cuando cambia de nivel |
 | `sala.cerrada` | servidor → todos | |
 
 Regla: si el WebSocket se cae, el cliente reconecta y pide `GET estado` para ponerse al día.
 
-## 7. Puzzles (valores provisionales)
+La página `/prueba-ws.html` muestra los mensajes de `/ws` sin Unity ni Flutter (Paso 6).
 
-Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizaciones, con retroalimentación inmediata. El **cliente da el feedback inmediato; el servidor decide si está resuelto**. Los valores objetivo viven solo en el servidor y en la guía de integración, nunca como secreto en el APK.
+Los mensajes de las escrituras salen después del commit, así que un `GET estado` pedido al recibirlos ya ve el cambio. Las escrituras repetidas no emiten nada. Las conexiones viven en memoria: el backend corre en una sola instancia.
 
-| # | Puzzle | Dónde se juega | Requiere | Datos que reporta | Condición de resolución (servidor) | Resultado |
-|---|---|---|---|---|---|---|
-| 1 | Radio | App | `pescador_dialogo_completo` (lo reporta el juego) | `{posicion, intentos}` | Dial discreto 0–20; objetivo **13**; acepta 12–14 | Coordenada A |
-| 2 | Fotografía | App | `fragmento_1`, `fragmento_2`, `fragmento_3` (juego, uno por nivel del faro) | `{colocacion:[{fragmento, slot, rot}]}` | Cada fragmento en su slot con `rot` 0; `rot` ∈ {0, 90, 180, 270} | Coordenada B |
-| 3 | Mirador | App | Fotografía resuelta | Fase 1: `{limpieza_pct}`. Fase 2: `{x, y}` | Fase 1: `limpieza_pct` ≥ 80. Fase 2: X e Y enteros 0–20; objetivo **X=7, Y=14**, tolerancia ±1 sostenida 1 s | Descubrimiento `observatorio_visible` |
-| 4 | Observatorio | App + juego | Coordenadas A y B, mirador resuelto | Flujo `orientacion` | Ver abajo | Magnetar localizado |
+⏸️ Quedan fuera por ahora `orientacion` (reenvío del giroscopio al juego) y `observatorio.proximidad` (niveles de cercanía).
 
-**Coordenadas** (posición astronómica en coordenadas horizontales):
+## 7. Puzzles
 
-- **A = azimut: 60°**. Valores posibles: múltiplos de 15 (0–345).
-- **B = altitud: 35°**. Valores posibles: múltiplos de 5 (10–80).
-- Ninguna sola revela el magnetar. El servidor las entrega como descubrimientos `coordenada_a` y `coordenada_b` cuando se resuelve cada puzzle.
-- Presentación opcional en la libreta con claves de catalogación (`PUE-060`, `FAR-035`).
+Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizaciones, con retroalimentación inmediata. **Quien juega el puzzle dice cuándo se completó.** El servidor valida el orden (que el puzzle no esté bloqueado) y la forma del aviso, lo guarda y crea el resultado.
 
-**Observatorio:**
+| # | Puzzle | Quién lo juega | Requiere | Aviso de que se completó | Resultado |
+|---|---|---|---|---|---|
+| 1 | `radio` | **El juego** | `pescador_dialogo_completo` (lo reporta el juego) | `{sintonizada: true}`, lo manda el juego | `coordenada_a` = AR `"137"` |
+| 2 | `photo` | Piezas: el juego. Unir las imágenes: la app | `pieza_1`, `pieza_2` y `pieza_3` (las reporta el juego al recogerlas) | `{completada: true}`, lo manda la app | `coordenada_b` = DEC `"+042"` |
+| 3 | `lookout` | La app | `photo` resuelto y la bandera `lookout_enabled` del juego | `{completada: true}`, lo manda la app | `observatorio_visible` |
+| 4 | `observatory` | **La app** (el juego solo se entera) | `coordenada_a`, `coordenada_b`, `lookout` resuelto y la bandera `observatory_enabled` del juego | `{completada: true}`, lo manda la app | `magnetar_localizado` |
 
-- El teléfono calibra al inicio ("apunta a la pantalla y toca"): fija el azimut 0. La altitud sale de la gravedad y no necesita calibrar.
-- Error normalizado = máximo entre `|Δazimut| / 10` y `|Δaltitud| / 8`.
-- Niveles: ≤ 1 enfocado (se sostiene 1.5 s para resolver), ≤ 3 caliente, ≤ 6 tibio, > 6 frío.
-- Un altitud máxima de trabajo de 85° evita el problema de bloqueo de ejes (gimbal lock).
+**Reglas comunes:** solo `true` es válido en `sintonizada`, `completada` e `iniciado` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409` con `codigo: "puzzle_bloqueado"`. Al abrir `photo`, `lookout` u `observatory` la app avisa `{iniciado: true}` y el puzzle pasa a `en_curso`. Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`). La app no puede enviar las del juego: `pescador_dialogo_completo`, `pieza_1..3`, `lookout_enabled` y `observatory_enabled` (`403` con `codigo: "clave_solo_juego"`, P8).
 
-## 8. CI/CD (GitHub Actions)
+**Coordenadas:** se entregan como descubrimientos con `valor` en **texto**, para conservar el signo y los ceros. Son los únicos valores del misterio que viven en el servidor (configurables).
+
+| Clave | `datos` | Valor del prototipo |
+|---|---|---|
+| `coordenada_a` | `{tipo: "ascension_recta", valor: "137"}` | 🧪 Definitivo pendiente |
+| `coordenada_b` | `{tipo: "declinacion", valor: "+042"}` | 🧪 Definitivo pendiente |
+
+**Observatorio:** se juega entero en el teléfono, con su giroscopio. Cuando el jugador apunta bien, la app avisa `{completada: true}`. El juego se entera por el cambio de estado (`puzzle.actualizado`) y por el descubrimiento `magnetar_localizado`, que es la bandera que usa. La orientación no pasa por el servidor.
+
+### Cómo se habilita un puzzle
+
+El servidor recalcula cada vez que llega un descubrimiento o se resuelve un puzzle. Una bandera del juego puede llegar antes o después de los requisitos; el puzzle se habilita cuando están todos.
+
+| Puzzle | Pasa a `disponible` cuando |
+|---|---|
+| `radio` | Existe `pescador_dialogo_completo` |
+| `photo` | Existen `pieza_1`, `pieza_2` y `pieza_3` |
+| `lookout` | `photo` está `resuelto` **y** existe `lookout_enabled` |
+| `observatory` | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` **y** existe `observatory_enabled` |
+
+`lookout_enabled` y `observatory_enabled` son banderas que el juego registra con `POST /descubrimientos` cuando el jugador llega al lugar (la cima del faro, el observatorio). Evitan que la burbuja de la app pulse antes de tiempo. Los nombres los aprobó Raúl; falta confirmarlos con Unity.
+
+## 8. App móvil: flujo y libreta
+
+### Flujo acordado
+
+```
+Inicio ─▶ [Unirme a una sala] ─▶ Escribir código de sala ─▶ LIBRETA ─▶ burbuja que pulsa ─▶ Puzzle
+                                  (el jugador lo ve y lo elige en Unity)
+```
+
+| Pantalla | Qué hace | Servicio del backend |
+|---|---|---|
+| Inicio | Un botón que lleva a escribir el código | Ninguno |
+| Código de sala | El jugador escribe el pueblo que eligió en Unity | `POST /salas/{codigo}/unirse` (`404` si no existe, `409` si ya hay un teléfono) |
+| Libreta | Primera pantalla tras unirse. Muestra el progreso del juego | `GET /salas/{codigo}/estado` y, en el Paso 4, `puzzle.actualizado` y `descubrimiento.nuevo` |
+| Burbuja flotante | Aparece y **pulsa** cuando un puzzle del teléfono está `disponible`. Al tocarla se abre el puzzle | `puzzle.actualizado` con estado `disponible` |
+| Puzzle | Se juega y avisa cuando se completó | `PUT /salas/{codigo}/puzzles/{puzzle}` |
+
+La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos en un menú. La burbuja aplica a `photo`, `lookout` y `observatory`; la radio la juega el juego, así que en la libreta solo se ve su estado.
+
+### Qué progreso puede mostrar la libreta
+
+| Qué se muestra | De dónde sale | Ejemplo de texto | Paso |
+|---|---|---|:-:|
+| Escena actual | `escena_actual` | "Estás en el Faro" | 3 |
+| Pescador | Descubrimiento `pescador_dialogo_completo` | "Hablaste con el pescador" | 3 |
+| Radio | Estado de `radio` y `coordenada_a` | "Radio sintonizada. AR 137°" | 3 |
+| Piezas de la foto | Cuántos descubrimientos `pieza_1..3` existen | "Piezas de foto encontradas 1/3" | 3 |
+| Fotografía | Estado de `photo` y `coordenada_b` | "Foto reconstruida. DEC +042°" | 3 |
+| Coordenadas | `coordenada_a` y `coordenada_b` | "Coordenadas obtenidas 2/2" | 3 |
+| Mirador | Estado de `lookout` y `observatorio_visible` | "Mirador resuelto" | 3 |
+| Observatorio | Estado de `observatory` y `magnetar_localizado` | "Magnetar localizado" | 3 |
+| Dispositivos conectados | `dispositivos` de `GET estado` y los mensajes `dispositivo.conectado` y `dispositivo.desconectado` | "PC conectada" | ✅ 4 |
+
+**Lo que no hay hoy:** progreso *dentro* de un puzzle (por ejemplo "señal 2 de 3" en la radio o "lente limpio" en el mirador), el nivel del faro por separado (la cuenta de piezas lo aproxima), pistas o tiempos. Se puede agregar cualquier elemento nuevo: basta que alguien registre un descubrimiento con otra clave y la libreta lo lea.
+
+## 9. CI/CD (GitHub Actions)
 
 - **PR a `develop` o `main`:** `./mvnw verify` con Java 21; pruebas de integración contra un Postgres real (Testcontainers) que además valida las migraciones de Flyway; build de la imagen Docker.
 - **Push a `main`:** Railway despliega; un job espera el despliegue y verifica `/actuator/health`.
 - **Flujo de ramas:** `feature/*` → PR a `develop` → PR a `main`. Commits con prefijo `New:`, `Refactor:`, `Fix:` o `Merge:`.
 - Empezar con un solo entorno desplegado (producción) y agregar `staging` cuando el juego y la app ya integren.
 
-## 9. Plan por pasos
+## 10. Plan por pasos
 
 - [ ] **Paso 0:** decidir repo separado, copiar el backend (con historial), configurar acceso y secretos.
-- [x] **Paso 1 — Base:** limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
-  - Pendiente de Raúl: el primer despliegue en Railway y el job de CI que revisa `/actuator/health` después del despliegue (ver `docs/despliegue.md`).
-  - El workflow `ci.yml` se validó con actionlint, pero todavía no ha corrido en GitHub.
-- [ ] **Paso 2 — Salas:** catálogo de pueblos, crear, unirse, estado.
-- [ ] **Paso 3 — Puzzles y descubrimientos:** REST completo con validación de transiciones y requisitos.
-- [ ] **Paso 4 — WebSocket:** eventos y presencia.
-- [ ] **Paso 5 — Orientación:** flujo del giroscopio y niveles de proximidad.
-- [ ] **Paso 6 — Cierre:** Swagger, `docs/tiempo-real.md`, guías para Unity y Flutter, página HTML de prueba.
+- [x] **Paso 1: Base.** Limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
+  - Pendiente de Raúl: el primer despliegue en Railway y la variable `RAILWAY_PUBLIC_URL` del workflow que revisa `/actuator/health` después del despliegue (el workflow lo agregó el Paso 7; ver `docs/despliegue.md`).
+  - El workflow `ci.yml` se validó con actionlint. Corrió bien en GitHub el 26 de octubre; desde el 5 de noviembre no arranca (O11).
+- [x] **Paso 2: Salas.** Catálogo de pueblos (seed aprobado), crear, unirse, estado, expiración, autenticación por token.
+  - `V2__seed_pueblos.sql` carga los 101 códigos aprobados por Raúl.
+  - Endpoints `GET /pueblos`, `POST /salas`, `POST /salas/{codigo}/unirse` y `GET /salas/{codigo}/estado`. Contrato con ejemplos en `docs/api.md`.
+  - Tokens de 32 bytes en base64url. La base guarda solo su SHA-256. Un `HandlerInterceptor` protege `/api/v1/salas/**` salvo crear y unirse.
+  - Job de expiración cada minuto (`vestigia.salas.expiracion=PT2H`, `vestigia.salas.expiracion-revision=PT1M`).
+  - `dispositivos` en el estado devuelve `{"juego": false, "app": false}` hasta el Paso 4.
+- [x] **Paso 3: Puzzles y descubrimientos.** Se parte en entregas pequeñas, cada una con su rama, PR y pruebas:
+  - [x] 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`. Evidencia en `docs/pruebas/paso-3.0-ids.md`.
+  - [x] 3a. `POST /descubrimientos` (idempotente, también bajo concurrencia), `PUT /escena` (solo juego) y `DELETE /salas/{codigo}` (solo juego). Cada escritura renueva `ultima_actividad` y `expira_en` y guarda un evento; crear y unirse también. `HabilitacionPuzzlesService` recalcula `radio` y `photo` tras cada descubrimiento y ya tiene las reglas de `lookout` y `observatory` para el 3b. Evidencia en `docs/pruebas/paso-3a-descubrimientos.md`.
+  - [x] 3b. `PUT /salas/{codigo}/puzzles/{puzzle}` para los cuatro puzzles (`{sintonizada: true}` en `radio`; `{iniciado: true}` o `{completada: true}` en `photo`, `lookout` y `observatory`; solo el booleano `true`). `PuzzleService` valida la forma, responde `409` con `codigo: "puzzle_bloqueado"` y mueve el puzzle solo hacia adelante; un aviso que ya no lo mueve responde `200` sin cambios. Al resolver crea el resultado con origen `servidor` (las coordenadas salen de `vestigia.puzzles.coordenadas.ar` y `.dec` como texto), recalcula los dependientes y guarda `puzzle.resuelto`, todo en una transacción. El cuerpo de error gana `codigo`. Evidencia en `docs/pruebas/paso-3b-puzzles.md`.
+- [x] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
+  - `/ws` reemplaza a `PendienteWebSocketHandler`. El primer mensaje es `auth` con el token, dentro de 5 s (`vestigia.ws.auth-plazo`); si no, cierra con `4000`, `4001` o `4008`. `auth.ok` trae `{rol, sala}` y el otro rol recibe `dispositivo.conectado`; al cerrarse, `dispositivo.desconectado`. `GET estado` reporta los `dispositivos` reales.
+  - `EmisorEventos` emite después del commit `puzzle.actualizado` en cada cambio de estado, `descubrimiento.nuevo`, `escena.cambiada` (solo a la app) y `sala.cerrada` (al cerrar o expirar, y luego cierra las conexiones). El job de expiración guarda y publica `sala.expirada`.
+  - Ya autenticado, JSON inválido, tipo desconocido u `orientacion` responden `error` y la conexión sigue. Más de 4096 caracteres cierra con `1009`. Ping cada 25 s.
+  - Contrato en `docs/tiempo-real.md`, con las decisiones que tomaron los agentes. Evidencia en `docs/pruebas/paso-4-websocket.md`.
+- [x] **P8: claves del juego.** `DescubrimientoService.CLAVES_DEL_JUEGO` con las seis claves; la app recibe `403` con `codigo: "clave_solo_juego"` antes de bloquear la sala, así que el `403` no guarda nada, no emite ni renueva la expiración. Una prueba fija que cada requisito de `HabilitacionPuzzlesService` es una clave del juego o del servidor. Evidencia en `docs/pruebas/paso-p8-claves.md`.
+- [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
+- [x] **Paso 6: Cierre.** Swagger, una guía de integración por cliente y página HTML de prueba.
+  - Swagger: cada endpoint con descripción en español, esquemas, ejemplos reales de petición y respuesta, errores con `ErrorBody` (incluido `codigo`) y el esquema `Bearer`. `DocumentacionIT` compara `/v3/api-docs` con las rutas reales.
+  - Guías independientes para cada cliente: `docs/integracion-unity.md`, `docs/integracion-flutter.md` y `docs/integracion-pwa.md`, con la misma estructura de 12 secciones. Los fragmentos de C# y Dart no se compilaron; los de TypeScript se comprobaron con `tsc`.
+  - `docs/tiempo-real.md` gana la tabla de quién envía cada mensaje y los ejemplos que faltaban.
+  - Página de prueba `/prueba-ws.html`: un panel para el juego y otro para la app; el token viaja solo en `auth`.
+  - `JsonDocumentadoIT` compara cada bloque JSON de respuesta de `docs/api.md`, `docs/tiempo-real.md` y las guías con una respuesta real. Evidencia en `docs/pruebas/paso-6-cierre.md`.
+- [x] **Paso 7: Listo para Railway.** Revisar y corregir lo que haría fallar o exponer el primer despliegue, sin desplegar.
+  - La imagen del `Dockerfile` se construyó y corrió contra un Postgres vacío solo con `DB_URL`, `DB_USER`, `DB_PASSWORD`, `PORT` y `CORS_ALLOWED_ORIGINS`: Flyway aplicó `V1` a `V3`, `/actuator/health` respondió `UP` y el proceso corre como `vestigia` (uid 999). No hizo falta cambiar el `Dockerfile` ni `application.properties`.
+  - `scripts/smoke-test.sh <url> [pueblo]` juega la partida completa con `curl` y `jq`, sale con código distinto de 0 si algo falla y cierra la sala al salir. `SmokeTestIT` y `SmokeTestFalloIT` lo corren en `./mvnw verify`.
+  - Revisado contra la imagen: logs sin tokens ni `Authorization`, actuator solo con `health`, errores sin stacktrace, `ddl-auto=validate`, sin secretos en el repo. `ConfiguracionDespliegueIT` fija lo que se puede probar en Maven.
+  - `docs/despliegue.md` gana el mapeo de variables desde el Postgres de Railway, las decisiones pendientes (Swagger, página de prueba, O10, P9) y la lista "Primer despliegue: pasos para Raúl". Los nombres de Railway quedan marcados por verificar.
+  - `ci.yml` corre también en `push` a `main`, que es lo que espera Railway con "Wait for CI". El workflow nuevo `salud-produccion.yml` revisa `/actuator/health` de la URL real tras cada despliegue (O2), con `scripts/esperar-health.sh`.
+  - Evidencia en `docs/pruebas/paso-7-railway.md`.
 
-## 10. Pendientes
+## 11. Pendientes
 
-- Confirmar los valores de la sección 7 con quien hace la app y con Aldo (ya tienen visto bueno de Raúl).
-- El Paso 1 retiró el CRUD de `salas` del laboratorio (`/api/salas`). Confirmar que la PWA ya no lo consume antes del primer despliegue.
-- Job de CI posterior al despliegue en `main`: revisar `/actuator/health` de la URL real con reintentos. Necesita la URL de Railway.
-- Escribir `docs/modelo-datos.md`.
-- `CLAUDE.md` nombra `docs/PLAN.md`. Este archivo antes vivía en `PLAN-BACKEND.md`, en la raíz del repo. Actualizar los enlaces que apunten a la ruta anterior.
-- Convención de nombres de ramas (el equipo no la ha decidido).
-- Objetivo visual del mirador y condición exacta de apertura de la compuerta del observatorio (diseño, no backend).
+### Por decidir
+
+| # | Pendiente | Quién decide | Bloquea | Mi recomendación |
+|---|---|---|---|---|
+| P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
+| P8b | Si `PUT puzzles` también se restringe por rol. Hoy cualquier rol puede reportar cualquier puzzle, aunque en el diseño la radio la manda el juego y los demás la app. P8 (claves de descubrimiento) ya está decidido e implementado | Raúl | No bloquea | Restringir `radio` al juego y `photo`, `lookout` y `observatory` a la app con `403`, si Unity y la app confirman que nadie más los avisa |
+
+### Por confirmar con otros equipos
+
+| # | Con quién | Qué |
+|---|---|---|
+| C1 | Unity | Que las pistas del juego apunten a `137` y `+042` |
+| C2 | Unity | Que registre `lookout_enabled` y `observatory_enabled` al llegar al lugar (nombres aprobados por Raúl), y la bandera del pescador. Qué hacer con `lente_limpio` y `obs_encontrado` de `GameProgress.cs`: `docs/integracion-unity.md` (sección 7.4) deja tres opciones sin decidir |
+| C6 | PWA | El origen de producción de la PWA, para agregarlo a `CORS_ALLOWED_ORIGINS`, y si necesita leer `/actuator/health` desde el navegador (hoy no tiene CORS) |
+| C3 | App | Que implemente el flujo de la sección 8 y los avisos de completado |
+| C4 | App | Dónde guardar el token para reconectar sin volver a escribir el código |
+| C5 | Aldo | Los valores adaptados de las secciones 7 y 13 |
+
+### Operativos y de documentación
+
+| # | Pendiente |
+|---|---|
+| O1 | Primer despliegue en Railway y URL de producción |
+| O2 | El workflow "Health de producción" (`salud-produccion.yml`, Paso 7) ya existe: corre tras cada despliegue exitoso (`deployment_status`) o a mano. Falta que Raúl cree la variable del repositorio `RAILWAY_PUBLIC_URL` y compruebe que Railway publica sus despliegues en GitHub |
+| O3 | La PWA todavía llama a `/api/salas` (CRUD del laboratorio que el Paso 1 retiró; responde `404`), según su código del 6 de noviembre. `docs/integracion-pwa.md` le indica cambiar a `GET /api/v1/pueblos`. Falta que el equipo de la PWA lo cambie |
+| O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
+| O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
+| O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |
+| O9 | Valores definitivos del canon (AR, DEC, umbrales y rangos del mirador), que dependen de pruebas |
+| O10 | Verificar al desplegar en Railway (revisión del Paso 6, B6; lo retoma el Paso 7). Detrás del proxy TLS de Railway, Tomcat ve la petición como `http` aunque el navegador use `https`. Una página servida por el backend (`/prueba-ws.html`, Swagger UI) manda `Origin: https://…`, que no coincide con el origen `http://…` que ve el servidor: el handshake de `/ws` y `POST /salas` responden `403`, y Swagger anuncia `servers` con `http://`. El Paso 7 lo reprodujo con cabeceras simuladas y comparó tres salidas, ninguna activada y ninguna cambia el comportamiento local: la URL pública en `CORS_ALLOWED_ORIGINS` (arregla la página de prueba), `SERVER_FORWARD_HEADERS_STRATEGY=native` (arregla todo si el proxy llega desde una IP interna, por verificar) o `framework` (arregla todo y acepta cabeceras de cualquier cliente). Decide Raúl; detalle en `docs/despliegue.md`. Unity y Flutter nativos no mandan `Origin` y no se ven afectados |
+| O11 | Desde el 5 de noviembre, todas las ejecuciones del workflow `CI` en GitHub terminan en `startup_failure` sin jobs (`path: BuildFailed`). `ci.yml` no cambió desde la última ejecución buena (26 de octubre) y `actionlint` no le encuentra errores. Apunta a la cuenta o al repositorio (probablemente minutos o facturación de Actions de un repo privado). Paso manual de Raúl en `docs/despliegue.md`, sección CI |
+
+## 12. Descartado
+
+Lo que se decidió **no** usar. Se deja aquí para no volver a proponerlo.
+
+| Descartado | Por qué |
+|---|---|
+| Radio con dial 0 a 20, posición, intentos y rango 12 a 14 | La radio la resuelve el juego con una bandera |
+| Minijuego de radio dentro de la app | Idem |
+| `fragmento_1..3` | Pasan a `pieza_1..3` |
+| Fotografía con `slot`, `rot` y `colocacion` | Basta con que la app avise que se completó |
+| Coordenadas de azimut 60° y altitud 35° | El canon usa AR y DEC |
+| Claves de catalogación `PUE-060` y `FAR-035` | Dependían de las coordenadas anteriores |
+| Fórmula de error `max(\|Δaz\|/10, \|Δalt\|/8)` y 1.5 s | El observatorio lo decide la app |
+| Reenvío de `orientacion` al juego | El observatorio se juega solo en el teléfono (diferido, ver sección 14) |
+| `sostenido_ms` y valores `X=7`, `Y=14` del mirador | Los valores del mirador son los de la app |
+| Niveles frío, tibio, caliente y `observatorio.proximidad` | Diferido |
+| Menú con los cuatro puzzles siempre abiertos | Lo reemplaza la libreta con la burbuja |
+| Firebase | Se mantiene PostgreSQL |
+
+## 13. Valores de la app (referencia)
+
+Los usa la app para decidir que un puzzle se completó. Son del prototipo, así que pueden cambiar con las pruebas y el arte final sin tocar el backend.
+
+| Puzzle | Valor | |
+|---|---|---|
+| Mirador, fase 1 | Lente limpio al 85 % | 🧪 |
+| Mirador, fase 2 | Ejes de −100 a 100, tolerancia ±14, objetivo `(0.82, 0.40)` sobre la imagen (equivale a X≈88.89, Y=37.5) | 🧪 imagen provisional |
+| Mirador, final | Animación de 4 s tras alinear | 🧪 |
+| Observatorio | Objetivo azimut 0°, altitud 68° | 🧪 |
+| Observatorio | Distancia angular de 6° o menos durante 2 s, con lecturas de no más de 500 ms de antigüedad | 🧪 |
+
+## 14. Mejoras futuras (si hay tiempo)
+
+Ideas diferidas. Los valores de la sección 13 ya sirven como base para cada una.
+
+| Mejora | Qué cambiaría |
+|---|---|
+| El servidor valida el mirador | La app avisa tres momentos (lente limpio, vista alineada, animación terminada) y el servidor comprueba los números. Permite que el juego reaccione a cada paso |
+| El servidor decide el observatorio | El servidor calcula la distancia angular con cada `orientacion` y resuelve a los 2 s. La app deja de llevar el objetivo |
+| Niveles de cercanía | El servidor emite `observatorio.proximidad` (frío, tibio, caliente, enfocado) |
+| Telescopio de la PC en tiempo real | La app manda `orientacion` por WebSocket (~20 por segundo, solo si cambió más de 0.5°) y el servidor la reenvía al juego, con un límite de ~40 por segundo y sin guardarla. Es el Paso 5 original |
