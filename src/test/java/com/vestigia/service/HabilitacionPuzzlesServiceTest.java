@@ -57,6 +57,18 @@ class HabilitacionPuzzlesServiceTest {
 	}
 
 	@Test
+	@DisplayName("Cada descubrimiento que piden los requisitos es una clave del juego o del servidor, y cada clave del juego es requisito de algún puzzle")
+	void requisitosSincronizadosConLasClavesReservadas() {
+		Set<String> requeridos = new HashSet<>();
+		HabilitacionPuzzlesService.REQUISITOS.values().forEach(r -> requeridos.addAll(r.descubrimientos()));
+		Set<String> reservadas = new HashSet<>(DescubrimientoService.CLAVES_DEL_JUEGO);
+		reservadas.addAll(DescubrimientoService.CLAVES_DEL_SERVIDOR);
+
+		assertThat(reservadas).containsAll(requeridos);
+		assertThat(requeridos).containsAll(DescubrimientoService.CLAVES_DEL_JUEGO);
+	}
+
+	@Test
 	@DisplayName("radio se habilita con pescador_dialogo_completo y no antes")
 	void radioPideElDialogoDelPescador() {
 		assertThat(HabilitacionPuzzlesService.habilitables(Set.of(), todosBloqueados())).isEmpty();

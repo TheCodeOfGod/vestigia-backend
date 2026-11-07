@@ -132,7 +132,7 @@ Cambia `photo` por `lookout` u `observatory` para los otros dos. El aviso `inici
 | Rol | Quién eres para el backend: `juego` o `app`. Lo decide el token |
 | Puzzle | Uno de los cuatro retos: `radio`, `photo` (fotografía), `lookout` (mirador) y `observatory` (observatorio). Los ids van en inglés |
 | Estado | En qué punto está un puzzle: `bloqueado`, `disponible`, `en_curso` o `resuelto`. También la sala tiene estado: `esperando_app`, `activa`, `finalizada` o `expirada` |
-| Descubrimiento | Algo que pasó y queda anotado en la libreta, con una clave (`pieza_1`) y datos opcionales. Lo registra el juego, la app o el servidor |
+| Descubrimiento | Algo que pasó y queda anotado en la libreta, con una clave (`pieza_1`) y datos opcionales. El pescador, las piezas y las banderas los registra solo el juego; los resultados de los puzzles, el servidor |
 | Bandera | Un descubrimiento que el juego registra solo para avisar que llegó a un lugar: `lookout_enabled` (cima del faro) y `observatory_enabled` (observatorio) |
 
 ### 2.5 Lo que todavía no es definitivo
@@ -141,11 +141,10 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 
 | # | Tema | Cómo funciona hoy |
 |---|---|---|
-| P8 | Quién puede mandar cada clave | El backend acepta `pieza_*`, `pescador_dialogo_completo`, `lookout_enabled` y `observatory_enabled` tanto del juego como de la app. En el diseño las manda **solo el juego**. Mándalas siempre desde Unity |
 | C2 | Banderas `lookout_enabled` y `observatory_enabled` | Nombres aprobados por Raúl. Falta que Unity confirme el momento exacto en que las manda |
 | 🟡 | Segunda conexión del juego | Si el juego abre otro WebSocket con el mismo token, el nuevo reemplaza al viejo y el viejo se cierra con `4009` |
 | 🟡 | Códigos de cierre del WebSocket | `4000`, `4001`, `4008`, `4009`, `4500`, `1000` y `1009`, explicados en la sección 7 |
-| 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` salvo en `puzzle_bloqueado` |
+| 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` salvo en `puzzle_bloqueado` y `clave_solo_juego` |
 | 🟡 | Id de puzzle desconocido | Responde `400`, no `404` |
 
 ## 3. Qué sí y qué no hace tu aplicación
@@ -158,7 +157,7 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | Crear la sala | `POST /api/v1/salas` | La jugadora elige un pueblo |
 | Ver el estado | `GET /api/v1/salas/{codigo}/estado` | Al arrancar, tras cada reconexión y cuando dudes |
 | Cambiar de escena | `PUT /api/v1/salas/{codigo}/escena` | Cada vez que cambia la escena |
-| Registrar descubrimientos y banderas | `POST /api/v1/salas/{codigo}/descubrimientos` | Pescador, piezas, cima del faro, observatorio |
+| Registrar descubrimientos y banderas | `POST /api/v1/salas/{codigo}/descubrimientos` | Pescador, piezas, cima del faro, observatorio. Solo el juego puede mandar `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` y `observatory_enabled`: si la app las manda recibe `403` (`clave_solo_juego`) |
 | Resolver la radio | `PUT /api/v1/salas/{codigo}/puzzles/radio` | La jugadora sintoniza la radio |
 | Cerrar la sala | `DELETE /api/v1/salas/{codigo}` | Al terminar la partida |
 | Tiempo real | WebSocket `/ws`: manda `auth`; recibe `auth.ok`, `dispositivo.conectado`, `dispositivo.desconectado`, `puzzle.actualizado`, `descubrimiento.nuevo`, `sala.cerrada` y `error` | Desde que creas la sala hasta que la cierras |
@@ -168,7 +167,7 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | Qué | Qué pasa si lo usas |
 |---|---|
 | `POST /api/v1/salas/{codigo}/unirse` | **No da error**: el juego ocuparía el lugar de la app y el teléfono recibiría `409` al unirse. Es solo de la app |
-| `PUT /api/v1/salas/{codigo}/puzzles/photo`, `lookout` u `observatory` | **No da error** hoy (pendiente P8): resolvería un puzzle que juega el teléfono. Son de la app |
+| `PUT /api/v1/salas/{codigo}/puzzles/photo`, `lookout` u `observatory` | **No da error**: el backend no revisa qué rol avisa cada puzzle. Resolvería un puzzle que juega el teléfono. Son de la app |
 | Cualquier ruta con el token de otra sala | `403` `El token no pertenece a esta sala` |
 | Cualquier ruta con candado sin token | `401` `Falta el token: envía el encabezado Authorization: Bearer <token>` |
 | Mandar `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `403`: esas claves las crea el servidor |
@@ -889,7 +888,7 @@ Opciones para `lente_limpio` y `obs_encontrado`, para que Unity y Raúl elijan u
 |---|---|---|
 | A. No usarlas | El juego solo reacciona a `lookout` resuelto y a `observatorio_visible` | Nada en el backend |
 | B. Ponerlas juntas al final | Al recibir `lookout` en `resuelto`, el juego pone las dos en `true` | Nada en el backend. El juego no ve los pasos intermedios |
-| C. Que la app las registre | La app manda `POST /descubrimientos` con `lente_limpio` y `obs_encontrado` en cada paso del mirador, y el juego reacciona a `descubrimiento.nuevo` | Hay que acordarlo con la app y con Raúl (P8): el backend ya lo acepta, pero nadie lo ha decidido |
+| C. Que la app las registre | La app manda `POST /descubrimientos` con `lente_limpio` y `obs_encontrado` en cada paso del mirador, y el juego reacciona a `descubrimiento.nuevo` | Hay que acordarlo con la app y con Raúl: el backend acepta esas claves de la app (no son del juego ni del servidor), pero nadie lo ha decidido |
 
 ## 8. Tabla de errores
 
@@ -908,13 +907,14 @@ Todos los errores REST traen el mismo cuerpo JSON. Lee `status` y `codigo` para 
 }
 ```
 
-`codigo` **siempre viene**: vale `null` salvo en `puzzle_bloqueado`. `details` solo trae elementos en errores de validación (`[{"field": "clave", "message": "..."}]`).
+`codigo` **siempre viene**: vale `null` salvo en `puzzle_bloqueado` y `clave_solo_juego`. `details` solo trae elementos en errores de validación (`[{"field": "clave", "message": "..."}]`).
 
 | HTTP | `codigo` | Cuándo | Qué hacer |
 |---|---|---|---|
 | `400` | `null` | JSON mal escrito, clave repetida, un campo con otro tipo (`"true"` en vez de `true`), campo vacío, pueblo fuera del catálogo, escena o id de puzzle desconocido, aviso de puzzle inválido, `datos` de más de 4096 bytes | Error de programación: corrige la petición. No reintentes igual |
 | `401` | `null` | Sin token, token inválido, sala cerrada o vencida | Borra la sesión y vuelve al menú de elegir pueblo |
 | `403` | `null` | Token de otra sala, token de la app en una ruta del juego, o clave que crea el servidor | Error de programación. Regístralo y no reintentes |
+| `403` | `clave_solo_juego` | Una clave del juego (`pieza_*`, `pescador_dialogo_completo`, `lookout_enabled`, `observatory_enabled`) llegó con el token de la app | El juego no lo ve con su propio token. Si aparece, se cruzaron los tokens: revisa que mandas `$TOKEN_JUEGO` |
 | `404` | `null` | Ruta mal escrita (por ejemplo con `/` al final) | Revisa la URL |
 | `409` | `null` | Al crear la sala: el pueblo ya está ocupado | Vuelve a pedir los pueblos libres y deja elegir otro |
 | `409` | `puzzle_bloqueado` | Reportaste un puzzle que todavía está `bloqueado` | Revisa que mandaste antes sus requisitos (sección 6) |

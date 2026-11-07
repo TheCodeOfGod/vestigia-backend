@@ -29,13 +29,13 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 
 	Los errores siempre llegan en JSON (`Content-Type: application/json`), aunque el cliente pida otro formato en `Accept`. Por ejemplo, `GET /pueblos` con `Accept: application/xml` responde `406` con este mismo cuerpo.
 
-	`message` está en español y se puede mostrar al jugador o al log. `details` solo trae elementos en errores de validación, uno por campo. `codigo` es un identificador estable para que el cliente decida qué hacer sin leer `message`. **Siempre viene**: vale `null` salvo en los errores que definen uno. Hoy el único es `puzzle_bloqueado` (`409` en `PUT /salas/{codigo}/puzzles/{puzzle}`).
+	`message` está en español y se puede mostrar al jugador o al log. `details` solo trae elementos en errores de validación, uno por campo. `codigo` es un identificador estable para que el cliente decida qué hacer sin leer `message`. **Siempre viene**: vale `null` salvo en los errores que definen uno. Hoy hay dos: `puzzle_bloqueado` (`409` en `PUT /salas/{codigo}/puzzles/{puzzle}`) y `clave_solo_juego` (`403` en `POST /salas/{codigo}/descubrimientos`).
 
 | Código | Cuándo |
 |---|---|
 | `400` | JSON malformado, campo obligatorio vacío, código fuera del catálogo, id de puzzle desconocido o aviso de puzzle inválido |
 | `401` | Falta el token, el token no existe o su sala ya terminó |
-| `403` | El token es válido pero de otra sala, la clave de descubrimiento la genera el servidor o el rol no puede hacer esa operación |
+| `403` | El token es válido pero de otra sala, la clave de descubrimiento la genera el servidor, la app manda una clave del juego (`codigo: "clave_solo_juego"`) o el rol no puede hacer esa operación |
 | `404` | No hay sala en curso con ese código |
 | `409` | Conflicto de estado: pueblo ocupado, sala con app ya enlazada o puzzle bloqueado (`codigo: "puzzle_bloqueado"`) |
 | `500` | Error interno. El cuerpo no trae detalles |
@@ -179,6 +179,16 @@ Toda escritura exitosa renueva la sala: `expira_en` vuelve a quedar a 2 horas de
 
 Juego o app, con el token de esa sala. Registra algo que aparece en la libreta: una pieza, una bandera del juego, etc.
 
+**Quién manda cada clave.**
+
+| Claves | Quién las manda | Si las manda otro |
+|---|---|---|
+| `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled`, `observatory_enabled` | Solo el juego | La app recibe `403` con `codigo: "clave_solo_juego"` |
+| `coordenada_a`, `coordenada_b`, `observatorio_visible`, `magnetar_localizado` | Solo el servidor, al resolver un puzzle | Juego y app reciben `403` con `codigo: null` |
+| Cualquier otra clave válida | Juego o app | |
+
+La app no registra descubrimientos de la partida: avisa sus puzzles con `PUT /salas/{codigo}/puzzles/{puzzle}`.
+
 ```sh
 curl -X POST http://localhost:8080/api/v1/salas/BACALAR/descubrimientos \
 	-H "Authorization: Bearer $TOKEN" \
@@ -222,8 +232,24 @@ El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `o
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 | `403` | La clave es `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `La clave 'coordenada_a' la genera el servidor al resolver un puzzle; los clientes no pueden enviarla` |
+| `403` | Token de la app con `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` u `observatory_enabled`, exista o no la clave | `La clave 'pieza_1' la registra el juego; la app no puede enviarla`, con `"codigo": "clave_solo_juego"` |
 
 Esas cuatro claves son los resultados de los puzzles y solo las crea el servidor, al resolver cada uno con `PUT /salas/{codigo}/puzzles/{puzzle}`.
+
+Un `403` no escribe nada: no guarda el descubrimiento ni un evento, no emite mensajes por WebSocket y no renueva la expiración. Una clave del juego que ya existe también da `403` a la app, no `200`. Respuesta real:
+
+<!-- respuesta: error -->
+```json
+{
+  "timestamp": "2026-11-07T15:39:38.400910Z",
+  "status": 403,
+  "error": "Forbidden",
+  "codigo": "clave_solo_juego",
+  "message": "La clave 'pieza_1' la registra el juego; la app no puede enviarla",
+  "path": "/api/v1/salas/BACALAR/descubrimientos",
+  "details": []
+}
+```
 
 El límite de `datos` lo fijaron los agentes que construyeron el paso, a raíz de una revisión: la especificación no ponía ninguno y un cliente podía guardar un JSON de cualquier tamaño. Se cambia con la propiedad `vestigia.descubrimientos.datos-max-bytes` (por defecto `4096`).
 

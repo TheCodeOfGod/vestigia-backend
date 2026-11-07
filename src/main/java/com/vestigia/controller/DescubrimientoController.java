@@ -43,7 +43,9 @@ public class DescubrimientoController {
 			+ "devuelve 200 con el descubrimiento que ya existía, sin cambiar sus datos. Tras uno nuevo, el servidor "
 			+ "recalcula qué puzzles pasan a disponible y avisa por WebSocket (descubrimiento.nuevo y "
 			+ "puzzle.actualizado). clave: ^[a-z0-9_]{1,40}$. datos: objeto JSON opcional de hasta 4096 bytes. Las "
-			+ "claves coordenada_a, coordenada_b, observatorio_visible y magnetar_localizado las genera el servidor.",
+			+ "claves coordenada_a, coordenada_b, observatorio_visible y magnetar_localizado las genera el servidor. "
+			+ "Las claves pescador_dialogo_completo, pieza_1, pieza_2, pieza_3, lookout_enabled y observatory_enabled "
+			+ "solo las registra el juego: con el token de la app dan 403 con codigo clave_solo_juego.",
 			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA),
 			requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
 					content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrarDescubrimientoRequest.class),
@@ -64,9 +66,13 @@ public class DescubrimientoController {
 	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó o venció",
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
 					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_401)))
-	@ApiResponse(responseCode = "403", description = "El token es de otra sala o la clave la genera el servidor",
+	@ApiResponse(responseCode = "403", description = "El token es de otra sala, la clave la genera el servidor, o la "
+			+ "clave es del juego y la manda la app (codigo: clave_solo_juego)",
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
-					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_403_CLAVE_SERVIDOR)))
+					examples = {
+							@ExampleObject(name = "Clave del servidor", value = EjemplosOpenApi.ERROR_403_CLAVE_SERVIDOR),
+							@ExampleObject(name = "Clave del juego enviada por la app",
+									value = EjemplosOpenApi.ERROR_403_CLAVE_SOLO_JUEGO) }))
 	public ResponseEntity<Sala.Descubrimiento> registrar(@Valid @RequestBody RegistrarDescubrimientoRequest request,
 			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL) SalaService.Credencial credencial) {
 		DescubrimientoService.Registro registro = descubrimientoService.registrar(credencial, request.clave(),

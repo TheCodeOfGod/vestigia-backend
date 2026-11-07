@@ -2,6 +2,7 @@ package com.vestigia.service;
 
 import java.time.Clock;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -25,6 +26,12 @@ public class DescubrimientoService {
 	public static final Set<String> CLAVES_DEL_SERVIDOR = Set.of("coordenada_a", "coordenada_b",
 			"observatorio_visible", "magnetar_localizado");
 
+	/** Lo que pasa en el mundo del juego: el pescador, las piezas y las banderas de llegada. La app no puede enviarlas. */
+	public static final Set<String> CLAVES_DEL_JUEGO = Set.of("pescador_dialogo_completo", "pieza_1", "pieza_2",
+			"pieza_3", "lookout_enabled", "observatory_enabled");
+
+	private static final String CLAVE_SOLO_JUEGO = "clave_solo_juego";
+
 	/** El descubrimiento guardado y si esta petición lo creó (201) o ya existía (200). */
 	public record Registro(Sala.Descubrimiento descubrimiento, boolean nuevo) {
 	}
@@ -46,8 +53,9 @@ public class DescubrimientoService {
 	}
 
 	/**
-	 * Registra un descubrimiento del juego o de la app. Repetir la clave devuelve el que ya existe, sin cambiar sus datos
-	 * ni guardar otro evento. Las escrituras de una sala se serializan con el bloqueo de su fila, así que dos peticiones
+	 * Registra un descubrimiento del juego o de la app. Las {@link #CLAVES_DEL_JUEGO} solo las acepta del juego, y las
+	 * rechaza antes de bloquear la sala para que el 403 no la renueve. Repetir la clave devuelve el que ya existe, sin
+	 * cambiar sus datos ni guardar otro evento. Las escrituras de una sala se serializan con el bloqueo de su fila, así que dos peticiones
 	 * simultáneas con la misma clave no chocan contra {@code UNIQUE (sala_id, clave)}: la segunda ya ve la primera.
 	 */
 	@Transactional
@@ -55,6 +63,10 @@ public class DescubrimientoService {
 		if (CLAVES_DEL_SERVIDOR.contains(clave)) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN,
 					"La clave '" + clave + "' la genera el servidor al resolver un puzzle; los clientes no pueden enviarla");
+		}
+		if (credencial.rol() == SalaService.Rol.app && CLAVES_DEL_JUEGO.contains(clave)) {
+			throw new ApiException(HttpStatus.FORBIDDEN, CLAVE_SOLO_JUEGO,
+					"La clave '" + clave + "' la registra el juego; la app no puede enviarla", List.of());
 		}
 		SalaModel sala = actividad.bloquear(credencial.salaId());
 		Optional<DescubrimientoModel> existente = descubrimientos.findBySalaIdAndClave(sala.getId(), clave);

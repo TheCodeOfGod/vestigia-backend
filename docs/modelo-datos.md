@@ -102,7 +102,7 @@ Un aviso sobre un puzzle `bloqueado` responde `409` sin tocar nada. Un aviso que
 | `observatorio_visible` | Servidor, al resolver `lookout` | `{}` |
 | `magnetar_localizado` | Servidor, al resolver `observatory` | `{}` |
 
-Las claves del servidor dan `403` si las manda un cliente. Las del juego hoy también las acepta la app: decidir si solo el juego puede mandarlas es el pendiente P8 de `docs/PLAN.md`.
+Las claves del servidor dan `403` si las manda un cliente. Las del juego dan `403` con `codigo: "clave_solo_juego"` si las manda la app (P8). Las listas viven en `DescubrimientoService.CLAVES_DEL_SERVIDOR` y `CLAVES_DEL_JUEGO`; una prueba unitaria revisa que cada requisito de `HabilitacionPuzzlesService` esté en una de las dos.
 
 ### `eventos`
 
