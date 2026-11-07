@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -38,6 +41,12 @@ import com.vestigia.repository.DescubrimientoRepository;
 class DescubrimientoServiceTest {
 
 	private static final Instant AHORA = Instant.parse("2026-11-05T18:00:00Z");
+
+	/** Una clave que no es del juego ni del servidor: la app puede registrarla. */
+	private static final String CLAVE_LIBRE = "nota_de_prueba";
+
+	static final List<String> CLAVES_DEL_JUEGO = List.of("pescador_dialogo_completo", "pieza_1", "pieza_2", "pieza_3",
+			"lookout_enabled", "observatory_enabled");
 
 	@Mock
 	private DescubrimientoRepository descubrimientos;
@@ -65,21 +74,21 @@ class DescubrimientoServiceTest {
 	@DisplayName("Un descubrimiento nuevo se guarda con el origen del rol, guarda su evento y luego recalcula los puzzles")
 	void nuevoGuardaEventoYRecalcula() {
 		when(actividad.bloquear(salaId)).thenReturn(sala);
-		when(descubrimientos.findBySalaIdAndClave(sala.getId(), "pieza_1")).thenReturn(Optional.empty());
+		when(descubrimientos.findBySalaIdAndClave(sala.getId(), CLAVE_LIBRE)).thenReturn(Optional.empty());
 		when(descubrimientos.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-		DescubrimientoService.Registro registro = service.registrar(credencial(SalaService.Rol.app), "pieza_1",
+		DescubrimientoService.Registro registro = service.registrar(credencial(SalaService.Rol.app), CLAVE_LIBRE,
 				Map.of("nota", "bajo el muelle"));
 
 		assertThat(registro.nuevo()).isTrue();
-		assertThat(registro.descubrimiento().clave()).isEqualTo("pieza_1");
+		assertThat(registro.descubrimiento().clave()).isEqualTo(CLAVE_LIBRE);
 		assertThat(registro.descubrimiento().origen()).isEqualTo(DescubrimientoModel.Origen.app);
 		assertThat(registro.descubrimiento().datos()).isEqualTo(Map.of("nota", "bajo el muelle"));
 		assertThat(registro.descubrimiento().creadoEn()).isEqualTo(AHORA);
 		InOrder orden = inOrder(descubrimientos, actividad, habilitacion);
 		orden.verify(descubrimientos).save(any());
 		orden.verify(actividad).registrar(sala, EventoModel.Tipo.descubrimiento_registrado,
-				DescubrimientoModel.Origen.app, Map.of("clave", "pieza_1", "datos", Map.of("nota", "bajo el muelle")));
+				DescubrimientoModel.Origen.app, Map.of("clave", CLAVE_LIBRE, "datos", Map.of("nota", "bajo el muelle")));
 		orden.verify(habilitacion).recalcular(sala);
 	}
 
@@ -108,7 +117,7 @@ class DescubrimientoServiceTest {
 		when(actividad.bloquear(salaId)).thenReturn(sala);
 		when(descubrimientos.findBySalaIdAndClave(sala.getId(), "pieza_1")).thenReturn(Optional.of(original));
 
-		DescubrimientoService.Registro registro = service.registrar(credencial(SalaService.Rol.app), "pieza_1",
+		DescubrimientoService.Registro registro = service.registrar(credencial(SalaService.Rol.juego), "pieza_1",
 				Map.of("v", 2));
 
 		assertThat(registro.nuevo()).isFalse();
@@ -132,6 +141,43 @@ class DescubrimientoServiceTest {
 			}
 		}
 		verifyNoInteractions(actividad, descubrimientos, habilitacion);
+	}
+
+	@Test
+	@DisplayName("CLAVES_DEL_JUEGO son exactamente las seis claves que el diseño reserva al juego")
+	void clavesDelJuego() {
+		assertThat(DescubrimientoService.CLAVES_DEL_JUEGO).containsExactlyInAnyOrderElementsOf(CLAVES_DEL_JUEGO);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@FieldSource("CLAVES_DEL_JUEGO")
+	@DisplayName("Una clave del juego enviada por la app da 403 clave_solo_juego sin bloquear la sala ni leer el repositorio")
+	void claveDelJuegoDesdeLaAppDa403(String clave) {
+		assertThatThrownBy(() -> service.registrar(credencial(SalaService.Rol.app), clave, Map.of()))
+				.isInstanceOfSatisfying(ApiException.class, ex -> {
+					assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+					assertThat(ex.getCodigo()).isEqualTo("clave_solo_juego");
+					assertThat(ex.getReason())
+							.isEqualTo("La clave '" + clave + "' la registra el juego; la app no puede enviarla");
+					assertThat(ex.getDetalles()).isEmpty();
+				});
+		verifyNoInteractions(actividad, descubrimientos, habilitacion);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@FieldSource("CLAVES_DEL_JUEGO")
+	@DisplayName("Una clave del juego enviada por el juego se registra con origen juego")
+	void claveDelJuegoDesdeElJuegoSeRegistra(String clave) {
+		when(actividad.bloquear(salaId)).thenReturn(sala);
+		when(descubrimientos.findBySalaIdAndClave(sala.getId(), clave)).thenReturn(Optional.empty());
+		when(descubrimientos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		DescubrimientoService.Registro registro = service.registrar(credencial(SalaService.Rol.juego), clave, null);
+
+		assertThat(registro.nuevo()).isTrue();
+		assertThat(registro.descubrimiento().clave()).isEqualTo(clave);
+		assertThat(registro.descubrimiento().origen()).isEqualTo(DescubrimientoModel.Origen.juego);
+		verify(habilitacion).recalcular(sala);
 	}
 
 	@Test

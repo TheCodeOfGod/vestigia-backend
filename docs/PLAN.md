@@ -1,6 +1,6 @@
 # Vestigia: plan del backend (documento vivo)
 
-Última actualización: 6 de noviembre de 2026 (Paso 7: listo para Railway).
+Última actualización: 7 de noviembre de 2026 (P8: las claves del juego solo las manda el juego).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
 **Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
@@ -60,12 +60,14 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | `codigo` en los errores que no lo definen | Siempre viaja como `"codigo": null`, no se omite, para que los clientes lean siempre la misma forma (entrega 3b) | 🟡 |
 | Id de puzzle desconocido en la ruta | `400` con la lista de ids, igual que una escena desconocida. También para los ids viejos `fotografia`, `mirador` y `observatorio` (entrega 3b) | 🟡 |
 | Versión de la API | Sigue en `/api/v1`. Estos cambios no crean una versión nueva | ✅ |
-| Segunda conexión de WebSocket del mismo rol | Reemplaza a la anterior, que cierra con `4009`; el otro rol no recibe `desconectado` (Paso 4) | 🟡 |
-| Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada`; `4500` a un cliente que no lee (Paso 4) | 🟡 |
-| Cliente de WebSocket que no lee | Su envío se corta a los 5 s o al juntar 64 KB sin enviar y se cierra solo su conexión (`4500`); no frena a nadie más (Paso 4, ronda 1) | 🟡 |
-| Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4) | 🟡 |
-| Swagger UI y `/v3/api-docs` en producción | Hoy se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. Decide Raúl si se apagan en producción. El Paso 7 comprobó en la imagen que se apagan sin cambiar código, con `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` (D-Swagger en `docs/despliegue.md`) | 🟡 |
-| Página de prueba `/prueba-ws.html` en producción | Hoy se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. Decide Raúl si se quita en producción. El Paso 7 comprobó que se quita sin cambiar código con `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`, que no afecta a Swagger UI (D-Prueba) | 🟡 |
+| Segunda conexión de WebSocket del mismo rol | Reemplaza a la anterior, que cierra con `4009`; el otro rol no recibe `desconectado` (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Errores y cierres del WebSocket | `error` con `{codigo, message}` ya autenticado; antes de `auth`, cierre con `4000`, `4001` o `4008`; `1000` tras `sala.cerrada`; `4500` a un cliente que no lee (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Cliente de WebSocket que no lee | Su envío se corta a los 5 s o al juntar 64 KB sin enviar y se cierra solo su conexión (`4500`); no frena a nadie más (Paso 4, ronda 1). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
+| Swagger UI y `/v3/api-docs` en producción | Raúl decidió el 2026-11-06 dejarlos públicos en producción por ahora. Se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. El Paso 7 comprobó en la imagen que se apagan sin cambiar código, con `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` (D-Swagger en `docs/despliegue.md`) | ✅ |
+| Página de prueba `/prueba-ws.html` en producción | Raúl decidió el 2026-11-06 dejarla pública en producción por ahora. Se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. El Paso 7 comprobó que se quita sin cambiar código con `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`, que no afecta a Swagger UI (D-Prueba) | ✅ |
+| Quién manda cada clave de descubrimiento (P8) | `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` y `observatory_enabled` las manda solo el juego. Con el token de la app, `POST /descubrimientos` responde `403` con `codigo: "clave_solo_juego"`, aunque la clave ya exista, sin tocar la sala. Decidido por Raúl e implementado el 2026-11-07 (`DescubrimientoService.CLAVES_DEL_JUEGO`). No cubre `PUT puzzles` (ver P8b) | ✅ |
+| `POST /salas` y `unirse` sin token (P9) | Por diseño: así obtienen su token el juego y la app. Aceptado por Raúl | ✅ |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
 
 ## 3. Salas
@@ -101,7 +103,7 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 | `POST /salas/{codigo}/unirse` | App | Enlaza el teléfono | ✅ 2 |
 | `GET /salas/{codigo}/estado` | Todos | Estado completo (sirve para reconectar) | ✅ 2 |
 | `PUT /salas/{codigo}/puzzles/{puzzle}` | App o juego | Reporta que un puzzle empezó o se completó | ✅ 3b |
-| `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. | ✅ 3a |
+| `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. Las claves del juego solo con el token del juego (P8) | ✅ 3a |
 | `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ✅ 3a |
 | `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
 
@@ -136,7 +138,7 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 | 3 | `lookout` | La app | `photo` resuelto y la bandera `lookout_enabled` del juego | `{completada: true}`, lo manda la app | `observatorio_visible` |
 | 4 | `observatory` | **La app** (el juego solo se entera) | `coordenada_a`, `coordenada_b`, `lookout` resuelto y la bandera `observatory_enabled` del juego | `{completada: true}`, lo manda la app | `magnetar_localizado` |
 
-**Reglas comunes:** solo `true` es válido en `sintonizada`, `completada` e `iniciado` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409` con `codigo: "puzzle_bloqueado"`. Al abrir `photo`, `lookout` u `observatory` la app avisa `{iniciado: true}` y el puzzle pasa a `en_curso`. Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`).
+**Reglas comunes:** solo `true` es válido en `sintonizada`, `completada` e `iniciado` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409` con `codigo: "puzzle_bloqueado"`. Al abrir `photo`, `lookout` u `observatory` la app avisa `{iniciado: true}` y el puzzle pasa a `en_curso`. Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`). La app no puede enviar las del juego: `pescador_dialogo_completo`, `pieza_1..3`, `lookout_enabled` y `observatory_enabled` (`403` con `codigo: "clave_solo_juego"`, P8).
 
 **Coordenadas:** se entregan como descubrimientos con `valor` en **texto**, para conservar el signo y los ceros. Son los únicos valores del misterio que viven en el servidor (configurables).
 
@@ -223,6 +225,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `EmisorEventos` emite después del commit `puzzle.actualizado` en cada cambio de estado, `descubrimiento.nuevo`, `escena.cambiada` (solo a la app) y `sala.cerrada` (al cerrar o expirar, y luego cierra las conexiones). El job de expiración guarda y publica `sala.expirada`.
   - Ya autenticado, JSON inválido, tipo desconocido u `orientacion` responden `error` y la conexión sigue. Más de 4096 caracteres cierra con `1009`. Ping cada 25 s.
   - Contrato en `docs/tiempo-real.md`, con las decisiones que tomaron los agentes. Evidencia en `docs/pruebas/paso-4-websocket.md`.
+- [x] **P8: claves del juego.** `DescubrimientoService.CLAVES_DEL_JUEGO` con las seis claves; la app recibe `403` con `codigo: "clave_solo_juego"` antes de bloquear la sala, así que el `403` no guarda nada, no emite ni renueva la expiración. Una prueba fija que cada requisito de `HabilitacionPuzzlesService` es una clave del juego o del servidor. Evidencia en `docs/pruebas/paso-p8-claves.md`.
 - [ ] **Paso 5: Orientación.** ⏸️ Diferido. El observatorio se juega en el teléfono, así que no hace falta reenviar la orientación al juego.
 - [x] **Paso 6: Cierre.** Swagger, una guía de integración por cliente y página HTML de prueba.
   - Swagger: cada endpoint con descripción en español, esquemas, ejemplos reales de petición y respuesta, errores con `ErrorBody` (incluido `codigo`) y el esquema `Bearer`. `DocumentacionIT` compara `/v3/api-docs` con las rutas reales.
@@ -245,8 +248,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Pendiente | Quién decide | Bloquea | Mi recomendación |
 |---|---|---|---|---|
 | P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
-| P8 | Qué rol puede mandar cada clave de descubrimiento. Hoy la app también puede registrar `pieza_*`, `pescador_dialogo_completo`, `lookout_enabled` y `observatory_enabled`, que en el diseño manda el juego, y así habilitar puzzles sin pasar por él. El contrato vigente dice "juego o app" (hallazgo B3 de la revisión del 3a). Lo mismo pasa con `PUT puzzles`: cualquier rol puede reportar cualquier puzzle, aunque en el diseño la radio la manda el juego y los demás la app | Raúl | No bloquea. Sigue abierto tras el 3b | Restringir esas claves al rol `juego` (`403` para la app) si Unity confirma que las manda todas (C2) |
-| P9 | Observación de seguridad (revisión del Paso 6, W3). `POST /salas` no pide token, por diseño: es como el juego obtiene el suyo. Por eso cualquier cliente (un navegador, un script) puede ocupar pueblos sin jugar y, repitiéndolo, dejar el catálogo sin pueblos libres hasta que expiren (2 horas). Lo mismo con `POST /salas/{codigo}/unirse`, que ocupa el lugar de la app de una sala recién creada. Es el contrato vigente y no se cambió | Raúl | No bloquea | Decidir si hace falta un límite por IP o una clave del juego antes de publicar la URL |
+| P8b | Si `PUT puzzles` también se restringe por rol. Hoy cualquier rol puede reportar cualquier puzzle, aunque en el diseño la radio la manda el juego y los demás la app. P8 (claves de descubrimiento) ya está decidido e implementado | Raúl | No bloquea | Restringir `radio` al juego y `photo`, `lookout` y `observatory` a la app con `403`, si Unity y la app confirman que nadie más los avisa |
 
 ### Por confirmar con otros equipos
 

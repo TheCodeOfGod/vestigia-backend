@@ -114,6 +114,11 @@ final class EjemplosOpenApi {
 			"message": "La clave 'coordenada_a' la genera el servidor al resolver un puzzle; los clientes no pueden \
 			enviarla", "path": "/api/v1/salas/BACALAR/descubrimientos", "details": []}""";
 
+	static final String ERROR_403_CLAVE_SOLO_JUEGO = """
+			{"timestamp": "2026-11-07T15:39:38.400910Z", "status": 403, "error": "Forbidden", \
+			"codigo": "clave_solo_juego", "message": "La clave 'pieza_1' la registra el juego; la app no puede enviarla", \
+			"path": "/api/v1/salas/BACALAR/descubrimientos", "details": []}""";
+
 	static final String ERROR_403_ESCENA = """
 			{"timestamp": "2026-11-06T15:45:32.450749Z", "status": 403, "error": "Forbidden", "codigo": null, \
 			"message": "Solo el juego puede cambiar la escena", "path": "/api/v1/salas/BACALAR/escena", \

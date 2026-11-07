@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.vestigia.config.JacksonConfig;
 import com.vestigia.dto.Sala;
 import com.vestigia.model.DescubrimientoModel;
+import com.vestigia.service.ApiException;
 import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.SalaService;
 
@@ -122,6 +124,23 @@ class DescubrimientoControllerTest {
 				.andExpect(jsonPath("$.status").value(403))
 				.andExpect(jsonPath("$.path").value(RUTA))
 				.andExpect(jsonPath("$.message").value("La clave 'coordenada_a' la genera el servidor"));
+	}
+
+	@Test
+	@DisplayName("Una clave del juego enviada por la app responde 403 con codigo clave_solo_juego en el cuerpo uniforme")
+	void claveDelJuegoDesdeLaAppDa403ConCodigo() throws Exception {
+		when(descubrimientoService.registrar(credencial, "pieza_1", null)).thenThrow(new ApiException(
+				HttpStatus.FORBIDDEN, "clave_solo_juego", "La clave 'pieza_1' la registra el juego; la app no puede enviarla",
+				List.of()));
+
+		enviar("{\"clave\":\"pieza_1\"}").andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.status").value(403))
+				.andExpect(jsonPath("$.error").value("Forbidden"))
+				.andExpect(jsonPath("$.codigo").value("clave_solo_juego"))
+				.andExpect(jsonPath("$.message").value("La clave 'pieza_1' la registra el juego; la app no puede enviarla"))
+				.andExpect(jsonPath("$.path").value(RUTA))
+				.andExpect(jsonPath("$.details").isEmpty())
+				.andExpect(jsonPath("$.timestamp").isNotEmpty());
 	}
 
 	@Test

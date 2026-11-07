@@ -36,6 +36,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Import(PostgresTestConfig.class)
 class EscriturasSalaIT {
 
+	private static final List<String> CLAVES_DEL_JUEGO = List.of("pescador_dialogo_completo", "pieza_1", "pieza_2",
+			"pieza_3", "lookout_enabled", "observatory_enabled");
+
 	@LocalServerPort
 	private int port;
 
@@ -88,18 +91,18 @@ class EscriturasSalaIT {
 		String juego = api.tokenJuego("MANI");
 		String app = api.tokenApp("MANI");
 
-		HttpResponse<String> respuesta = descubrir("MANI", "pieza_1", "{\"nota\":\"bajo el muelle\"}", app);
+		HttpResponse<String> respuesta = descubrir("MANI", "nota_de_prueba", "{\"nota\":\"bajo el muelle\"}", app);
 
 		assertThat(respuesta.statusCode()).isEqualTo(201);
 		JsonNode cuerpo = api.cuerpo(respuesta);
-		assertThat(cuerpo.get("clave").asString()).isEqualTo("pieza_1");
+		assertThat(cuerpo.get("clave").asString()).isEqualTo("nota_de_prueba");
 		assertThat(cuerpo.get("origen").asString()).isEqualTo("app");
 		assertThat(cuerpo.get("datos").get("nota").asString()).isEqualTo("bajo el muelle");
 		JsonNode estado = api.cuerpo(api.enviar("GET", "/api/v1/salas/MANI/estado", null, juego));
 		assertThat(estado.get("descubrimientos").valueStream().map(d -> d.get("clave").asString()))
-				.containsExactly("pieza_1");
+				.containsExactly("nota_de_prueba");
 		assertThat(eventos("MANI")).last()
-				.isEqualTo("descubrimiento.registrado:app:{\"clave\": \"pieza_1\", \"datos\": {\"nota\": \"bajo el muelle\"}}");
+				.isEqualTo("descubrimiento.registrado:app:{\"clave\": \"nota_de_prueba\", \"datos\": {\"nota\": \"bajo el muelle\"}}");
 	}
 
 	@Test
@@ -552,6 +555,72 @@ class EscriturasSalaIT {
 		assertThat(escena("HUICHAPAN", "\"faro\"", juego).statusCode()).isEqualTo(200);
 		assertThat(api.enviar("PUT", "/api/v1/salas/HUICHAPAN/puzzles/radio", "{\"datos\":{\"sintonizada\":true}}",
 				juego).statusCode()).isEqualTo(200);
+	}
+
+	@Test
+	@DisplayName("Cada clave del juego enviada por la app da 403 clave_solo_juego y no cambia la sala: ni descubrimiento, ni puzzles, ni expiración, ni evento; el juego las registra con 201")
+	void clavesDelJuegoSoloDelJuego() throws Exception {
+		String juego = api.tokenJuego("VIESCA");
+		String app = api.tokenApp("VIESCA");
+		JsonNode estadoAntes = api.cuerpo(api.enviar("GET", "/api/v1/salas/VIESCA/estado", null, juego));
+		Instant expiraAntes = expiraEn("VIESCA");
+		Instant actividadAntes = ultimaActividad("VIESCA");
+		List<String> eventosAntes = eventos("VIESCA");
+		reloj.avanzar(Duration.ofMinutes(10));
+
+		for (String clave : CLAVES_DEL_JUEGO) {
+			HttpResponse<String> respuesta = descubrir("VIESCA", clave, "{\"nota\":\"desde la app\"}", app);
+
+			assertThat(respuesta.statusCode()).as(clave).isEqualTo(403);
+			JsonNode error = api.cuerpo(respuesta);
+			assertThat(error.propertyNames()).as(clave).containsExactlyInAnyOrder("timestamp", "status", "error",
+					"codigo", "message", "path", "details");
+			assertThat(error.get("status").asInt()).as(clave).isEqualTo(403);
+			assertThat(error.get("error").asString()).as(clave).isEqualTo("Forbidden");
+			assertThat(error.get("codigo").asString()).as(clave).isEqualTo("clave_solo_juego");
+			assertThat(error.get("message").asString()).as(clave)
+					.isEqualTo("La clave '" + clave + "' la registra el juego; la app no puede enviarla");
+			assertThat(error.get("path").asString()).as(clave).isEqualTo("/api/v1/salas/VIESCA/descubrimientos");
+			assertThat(error.get("details").isEmpty()).as(clave).isTrue();
+		}
+
+		assertThat(api.cuerpo(api.enviar("GET", "/api/v1/salas/VIESCA/estado", null, juego))).isEqualTo(estadoAntes);
+		assertThat(expiraEn("VIESCA")).isEqualTo(expiraAntes);
+		assertThat(ultimaActividad("VIESCA")).isEqualTo(actividadAntes);
+		assertThat(eventos("VIESCA")).isEqualTo(eventosAntes);
+
+		for (String clave : CLAVES_DEL_JUEGO) {
+			HttpResponse<String> respuesta = descubrir("VIESCA", clave, null, juego);
+			assertThat(respuesta.statusCode()).as(clave).isEqualTo(201);
+			assertThat(api.cuerpo(respuesta).get("origen").asString()).as(clave).isEqualTo("juego");
+		}
+		assertThat(estadoPuzzle("VIESCA", "radio")).isEqualTo("disponible");
+		assertThat(estadoPuzzle("VIESCA", "photo")).isEqualTo("disponible");
+		assertThat(eventos("VIESCA")).filteredOn(e -> e.startsWith("descubrimiento.registrado"))
+				.allMatch(e -> e.startsWith("descubrimiento.registrado:juego:")).hasSize(CLAVES_DEL_JUEGO.size());
+	}
+
+	@Test
+	@DisplayName("Una clave del juego que ya existe da 403 a la app, no 200: no devuelve el descubrimiento ni renueva la expiración")
+	void claveDelJuegoRepetidaPorLaAppDa403() throws Exception {
+		String juego = api.tokenJuego("XILITLA");
+		String app = api.tokenApp("XILITLA");
+		assertThat(descubrir("XILITLA", "pieza_1", null, juego).statusCode()).isEqualTo(201);
+		Instant expiraAntes = expiraEn("XILITLA");
+		List<String> eventosAntes = eventos("XILITLA");
+		reloj.avanzar(Duration.ofMinutes(10));
+
+		HttpResponse<String> respuesta = descubrir("XILITLA", "pieza_1", null, app);
+
+		assertThat(respuesta.statusCode()).isEqualTo(403);
+		assertThat(api.cuerpo(respuesta).get("codigo").asString()).isEqualTo("clave_solo_juego");
+		assertThat(expiraEn("XILITLA")).isEqualTo(expiraAntes);
+		assertThat(eventos("XILITLA")).isEqualTo(eventosAntes);
+		assertThat(descubrir("XILITLA", "pieza_1", null, juego).statusCode()).isEqualTo(200);
+	}
+
+	private Instant ultimaActividad(String codigo) {
+		return jdbc.queryForObject("SELECT ultima_actividad FROM salas WHERE id = ?", Instant.class, salaViva(codigo));
 	}
 
 	private HttpResponse<String> descubrir(String codigo, String clave, String datos, String token) throws Exception {

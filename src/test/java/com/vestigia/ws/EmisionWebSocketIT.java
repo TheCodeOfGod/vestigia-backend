@@ -111,7 +111,7 @@ class EmisionWebSocketIT {
 	}
 
 	@Test
-	@DisplayName("Las escrituras repetidas (descubrimiento, aviso de puzzle, misma escena) responden con éxito y no emiten nada")
+	@DisplayName("Las escrituras repetidas (descubrimiento, aviso de puzzle, misma escena) responden con éxito y no emiten nada; una clave del juego enviada por la app da 403 y tampoco emite")
 	void escriturasRepetidasNoEmiten() throws Exception {
 		String juego = api.tokenJuego("TEMACAPULIN");
 		String app = api.tokenApp("TEMACAPULIN");
@@ -123,9 +123,10 @@ class EmisionWebSocketIT {
 		assertThat(reportar("TEMACAPULIN", "radio", "sintonizada", juego)).isEqualTo(200);
 		assertThat(api.enviar("PUT", "/api/v1/salas/TEMACAPULIN/escena", "{\"escena\":\"introduccion\"}", juego)
 				.statusCode()).isEqualTo(200);
-		descubrir("TEMACAPULIN", "pieza_1", app);
+		assertThat(descubrir("TEMACAPULIN", "pieza_1", app)).isEqualTo(403);
+		descubrir("TEMACAPULIN", "nota_de_prueba", app);
 
-		sala.reciben(descubrimiento("pieza_1", "{}", "app"));
+		sala.reciben(descubrimiento("nota_de_prueba", "{}", "app"));
 		sala.cerrar();
 	}
 

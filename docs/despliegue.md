@@ -56,10 +56,10 @@ Ninguna bloquea el primer despliegue. El Paso 7 no cambió nada de esto: solo lo
 
 | # | Tema | Hoy | Cómo cambiarlo |
 |---|---|---|---|
-| D-Swagger | Swagger UI (`/swagger-ui/index.html`) y `/v3/api-docs` | Públicos en todos los entornos, sin token. Describen la API y no exponen datos. Al arrancar, springdoc avisa en el log: `SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production…` | `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` en el servicio de Railway. Sin cambio de código |
-| D-Prueba | Página `/prueba-ws.html` | Se sirve en todos los entornos. Sola no muestra ni guarda nada: necesita un token | `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`. Sin cambio de código |
+| D-Swagger | Swagger UI (`/swagger-ui/index.html`) y `/v3/api-docs` | ✅ Raúl decidió el 2026-11-06 dejarlos públicos en producción por ahora. Públicos en todos los entornos, sin token. Describen la API y no exponen datos. Al arrancar, springdoc avisa en el log: `SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production…` | `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` en el servicio de Railway. Sin cambio de código |
+| D-Prueba | Página `/prueba-ws.html` | ✅ Raúl decidió el 2026-11-06 dejarla pública en producción por ahora. Se sirve en todos los entornos. Sola no muestra ni guarda nada: necesita un token | `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`. Sin cambio de código |
 | O10 | Páginas servidas por el backend detrás del proxy TLS | Ver la sección siguiente | `CORS_ALLOWED_ORIGINS` o `SERVER_FORWARD_HEADERS_STRATEGY` |
-| P9 | `POST /salas` y `unirse` no piden token (por diseño) | Cualquiera con la URL puede ocupar pueblos hasta que expiran (2 horas) | Decidir si hace falta un límite por IP o una clave del juego antes de publicar la URL (`docs/PLAN.md`) |
+| P9 | `POST /salas` y `unirse` no piden token (por diseño) | ✅ Aceptado por Raúl: es como el juego y la app obtienen su token. Cualquiera con la URL puede ocupar pueblos hasta que expiran (2 horas) | Si hiciera falta, un límite por IP o una clave del juego (cambio de código y de contrato) |
 
 ## O10: el backend detrás del proxy TLS de Railway
 
@@ -154,7 +154,7 @@ Cada paso es manual. Marca cada casilla al terminarlo.
 
 - [ ] Revisa en GitHub por qué el workflow `CI` no arranca (sección "CI"). Mientras no corra, no hay checks que esperar en el paso 6.
 - [ ] Haz merge de los PR pendientes hasta `main` por el flujo de siempre (`feature/*` → `develop` → `main`). Railway despliega `main`.
-- [ ] Decide D-Swagger, D-Prueba, O10 y P9 (sección "Decisiones"). Puedes desplegar primero y decidir después: son variables de entorno.
+- [ ] Decide O10 (sección "Decisiones"; D-Swagger, D-Prueba y P9 ya están decididos). Puedes desplegar primero y decidir después: son variables de entorno.
 
 **En Railway**
 
