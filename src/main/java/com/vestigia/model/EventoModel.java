@@ -28,7 +28,7 @@ public class EventoModel {
 
 		sala_creada("sala.creada"), app_unida("app.unida"), descubrimiento_registrado("descubrimiento.registrado"),
 		puzzle_habilitado("puzzle.habilitado"), puzzle_iniciado("puzzle.iniciado"), puzzle_resuelto("puzzle.resuelto"),
-		escena_cambiada("escena.cambiada"), sala_finalizada("sala.finalizada");
+		escena_cambiada("escena.cambiada"), sala_finalizada("sala.finalizada"), sala_expirada("sala.expirada");
 
 		private final String valor;
 

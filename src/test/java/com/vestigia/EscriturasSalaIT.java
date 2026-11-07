@@ -395,6 +395,25 @@ class EscriturasSalaIT {
 	}
 
 	@Test
+	@DisplayName("El job guarda sala.expirada con origen servidor y deja ultima_actividad en la última escritura")
+	void expirarGuardaSuEvento() throws Exception {
+		api.tokenJuego("TEKAX");
+		UUID sala = salaViva("TEKAX");
+		Instant ultimaActividad = jdbc.queryForObject("SELECT ultima_actividad FROM salas WHERE id = ?", Instant.class,
+				sala);
+
+		reloj.avanzar(Duration.ofHours(2).plusSeconds(1));
+		salaService.expirarVencidas();
+
+		assertThat(eventos("TEKAX")).containsExactly("sala.creada:juego:{\"codigo\": \"TEKAX\"}",
+				"sala.expirada:servidor:{}");
+		assertThat(jdbc.queryForObject("SELECT ultima_actividad FROM salas WHERE id = ?", Instant.class, sala))
+				.isEqualTo(ultimaActividad);
+		salaService.expirarVencidas();
+		assertThat(eventos("TEKAX")).hasSize(2);
+	}
+
+	@Test
 	@DisplayName("Unos datos que pasan de 4096 bytes en JSON dan 400 y no se guardan; justo en el límite responden 201")
 	void datosConTamanoAcotado() throws Exception {
 		String juego = api.tokenJuego("SALVATIERRA");

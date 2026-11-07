@@ -139,6 +139,29 @@ class ActividadServiceTest {
 	}
 
 	@Test
+	@DisplayName("Registrar la expiración guarda y publica sala.expirada con origen servidor sin tocar ultima_actividad ni expira_en")
+	void registrarExpiracionNoRenueva() {
+		SalaModel sala = sala(SalaModel.Estado.expirada);
+		Instant ultimaActividad = AHORA.minus(Duration.ofHours(3));
+		sala.setUltimaActividad(ultimaActividad);
+		Instant expiraEn = sala.getExpiraEn();
+		when(eventos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		service.registrarExpiracion(sala);
+
+		ArgumentCaptor<EventoModel> evento = ArgumentCaptor.forClass(EventoModel.class);
+		verify(eventos).save(evento.capture());
+		assertThat(evento.getValue().getTipo()).isEqualTo(EventoModel.Tipo.sala_expirada);
+		assertThat(evento.getValue().getOrigen()).isEqualTo(DescubrimientoModel.Origen.servidor);
+		assertThat(evento.getValue().getPayload()).isEmpty();
+		assertThat(evento.getValue().getCreadoEn()).isEqualTo(AHORA);
+		assertThat(sala.getUltimaActividad()).isEqualTo(ultimaActividad);
+		assertThat(sala.getExpiraEn()).isEqualTo(expiraEn);
+		verify(publicador).publishEvent(new ActividadService.SalaEvento(sala.getId(), "ALAMOS",
+				EventoModel.Tipo.sala_expirada, DescubrimientoModel.Origen.servidor, Map.of(), AHORA));
+	}
+
+	@Test
 	@DisplayName("Los tipos de evento se guardan con su punto: sala.creada, app.unida, descubrimiento.registrado...")
 	void elConvertidorGuardaElTipoConPunto() {
 		EventoModel.TipoConverter conversor = new EventoModel.TipoConverter();

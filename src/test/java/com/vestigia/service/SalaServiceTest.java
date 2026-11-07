@@ -71,11 +71,14 @@ class SalaServiceTest {
 	@Mock
 	private ActividadService actividad;
 
+	@Mock
+	private SalaService.Presencia presencia;
+
 	private SalaService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new SalaService(pueblos, salas, puzzles, descubrimientos, actividad,
+		service = new SalaService(pueblos, salas, puzzles, descubrimientos, actividad, presencia,
 				Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
 	}
 
@@ -278,7 +281,8 @@ class SalaServiceTest {
 	}
 
 	@Test
-	void estadoOrdenaLosPuzzlesYReportaDispositivosDesconectados() {
+	@DisplayName("El estado ordena los puzzles y reporta los dispositivos que da la presencia del WebSocket")
+	void estadoOrdenaLosPuzzlesYReportaLaPresencia() {
 		UUID id = UUID.randomUUID();
 		SalaModel sala = new SalaModel();
 		sala.setCodigo("ALAMOS");
@@ -291,12 +295,13 @@ class SalaServiceTest {
 				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatory, PuzzleEstadoModel.Estado.bloqueado, AHORA),
 				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado, AHORA)));
 		when(descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(id)).thenReturn(List.of());
+		when(presencia.dispositivos(id)).thenReturn(new Sala.Dispositivos(true, false));
 
 		Sala estado = service.estado(id);
 
 		assertThat(estado.puzzles()).extracting(Sala.Puzzle::puzzle)
 				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatory);
-		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(false, false));
+		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(true, false));
 		assertThat(estado.expiraEn()).isEqualTo(AHORA.plusSeconds(60));
 	}
 
@@ -376,10 +381,29 @@ class SalaServiceTest {
 	}
 
 	@Test
-	void expirarVencidasUsaLaHoraDelReloj() {
+	@DisplayName("El job bloquea las salas vivas vencidas según el reloj, las marca expirada y guarda sala.expirada de cada una")
+	void expirarVencidasMarcaYRegistraCadaSala() {
+		SalaModel esperando = salaQueExpiraEn(AHORA.minusSeconds(1));
+		SalaModel activa = salaQueExpiraEn(AHORA.minusSeconds(60));
+		activa.setEstado(SalaModel.Estado.activa);
+		when(salas.bloquearVencidas(AHORA, SalaModel.Estado.VIVOS)).thenReturn(List.of(esperando, activa));
+
 		service.expirarVencidas();
 
-		verify(salas).expirarVencidas(AHORA, SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+		assertThat(List.of(esperando, activa)).extracting(SalaModel::getEstado)
+				.containsOnly(SalaModel.Estado.expirada);
+		verify(actividad).registrarExpiracion(esperando);
+		verify(actividad).registrarExpiracion(activa);
+	}
+
+	@Test
+	@DisplayName("Sin salas vencidas, el job no registra nada")
+	void expirarSinVencidasNoRegistraNada() {
+		when(salas.bloquearVencidas(AHORA, SalaModel.Estado.VIVOS)).thenReturn(List.of());
+
+		service.expirarVencidas();
+
+		verifyNoInteractions(actividad);
 	}
 
 	private static SalaModel salaQueExpiraEn(Instant expiraEn) {

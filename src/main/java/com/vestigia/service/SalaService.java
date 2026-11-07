@@ -78,6 +78,13 @@ public class SalaService {
 	public record Credencial(UUID salaId, String codigo, Rol rol) {
 	}
 
+	/** Qué dispositivos de una sala están conectados por WebSocket. Lo implementa el registro de sesiones de ws. */
+	public interface Presencia {
+
+		Sala.Dispositivos dispositivos(UUID salaId);
+
+	}
+
 	private final CodigoPuebloRepository pueblos;
 
 	private final SalaRepository salas;
@@ -88,18 +95,21 @@ public class SalaService {
 
 	private final ActividadService actividad;
 
+	private final Presencia presencia;
+
 	private final Clock clock;
 
 	private final Duration expiracion;
 
 	public SalaService(CodigoPuebloRepository pueblos, SalaRepository salas, PuzzleEstadoRepository puzzles,
-			DescubrimientoRepository descubrimientos, ActividadService actividad, Clock clock,
+			DescubrimientoRepository descubrimientos, ActividadService actividad, Presencia presencia, Clock clock,
 			@Value("${vestigia.salas.expiracion}") Duration expiracion) {
 		this.pueblos = pueblos;
 		this.salas = salas;
 		this.puzzles = puzzles;
 		this.descubrimientos = descubrimientos;
 		this.actividad = actividad;
+		this.presencia = presencia;
 		this.clock = clock;
 		this.expiracion = expiracion;
 	}
@@ -201,7 +211,7 @@ public class SalaService {
 				.map(d -> new Sala.Descubrimiento(d.getClave(), d.getDatos(), d.getOrigen(), d.getCreadoEn()))
 				.toList();
 		return new Sala(sala.getCodigo(), sala.getEstado(), sala.getEscenaActual(), puzzlesSala, descubrimientosSala,
-				new Sala.Dispositivos(false, false), sala.getCreadaEn(), sala.getExpiraEn());
+				presencia.dispositivos(salaId), sala.getCreadaEn(), sala.getExpiraEn());
 	}
 
 	/**
@@ -253,13 +263,20 @@ public class SalaService {
 		return sala.getExpiraEn().isBefore(ahora);
 	}
 
-	/** Marca expirada cada sala viva cuyo expira_en ya pasó. Su código queda libre y la fila se conserva. */
+	/**
+	 * Marca expirada cada sala viva cuyo expira_en ya pasó y guarda su evento sala.expirada. Su código queda libre y la
+	 * fila se conserva.
+	 */
 	@Scheduled(fixedDelayString = "${vestigia.salas.expiracion-revision}")
 	@Transactional
 	public void expirarVencidas() {
-		int expiradas = salas.expirarVencidas(clock.instant(), SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
-		if (expiradas > 0) {
-			log.info("[SALAS] {} sala(s) expirada(s)", expiradas);
+		List<SalaModel> vencidas = salas.bloquearVencidas(clock.instant(), SalaModel.Estado.VIVOS);
+		for (SalaModel sala : vencidas) {
+			sala.setEstado(SalaModel.Estado.expirada);
+			actividad.registrarExpiracion(sala);
+		}
+		if (!vencidas.isEmpty()) {
+			log.info("[SALAS] {} sala(s) expirada(s)", vencidas.size());
 		}
 	}
 

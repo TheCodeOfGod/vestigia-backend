@@ -155,7 +155,7 @@ curl http://localhost:8080/api/v1/salas/BACALAR/estado \
 | `estado` | `esperando_app` o `activa`. Una sala terminada ya no se puede consultar con su token |
 | `puzzles` | Siempre los cuatro, en el orden del juego: `radio`, `photo`, `lookout`, `observatory`. `estado` es `bloqueado`, `disponible`, `en_curso` o `resuelto` |
 | `descubrimientos` | `[{clave, datos, origen, creado_en}]` en orden de llegada. `origen` es `juego`, `app` o `servidor` |
-| `dispositivos` | Quién está conectado por WebSocket. **Hasta el Paso 4 los dos valores son siempre `false`** |
+| `dispositivos` | Quién tiene en este momento una conexión autenticada en `/ws` (`docs/tiempo-real.md`): `{"juego": bool, "app": bool}` |
 | `expira_en` | Momento en que la sala expira si nadie escribe antes |
 
 | Error | `message` |
@@ -204,7 +204,7 @@ curl -X POST http://localhost:8080/api/v1/salas/BACALAR/descubrimientos \
 | `lookout` | `photo` está `resuelto` y existe `lookout_enabled` |
 | `observatory` | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` y existe `observatory_enabled` |
 
-El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `observatory_enabled` cuando llega al observatorio. Para ver el estado nuevo de los puzzles, pide `GET /salas/{codigo}/estado`. Desde el Paso 4 también llegará por WebSocket.
+El juego manda `lookout_enabled` cuando el jugador llega a la cima del faro y `observatory_enabled` cuando llega al observatorio. Los dos dispositivos se enteran por WebSocket (`descubrimiento.nuevo` y `puzzle.actualizado`, ver `docs/tiempo-real.md`); `GET /salas/{codigo}/estado` trae el estado completo.
 
 | Error | Cuándo | `message` |
 |---|---|---|
@@ -261,7 +261,7 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
 
 `200` sin cambios responde el estado actual con los `datos` que lo dejaron así y no guarda otro evento ni otro descubrimiento, pero sí renueva la expiración de la sala, igual que un descubrimiento repetido. Si dos avisos llegan a la vez, el puzzle se resuelve una sola vez y los dos reciben `200`.
 
-**Al resolver**, en la misma transacción, el servidor guarda el aviso en `datos`, crea el descubrimiento resultado con origen `servidor`, pasa a `disponible` los puzzles que ya cumplen sus requisitos (ver la tabla de `POST /descubrimientos`), guarda los eventos y renueva la expiración. Por ejemplo, si `lookout_enabled` llegó antes, resolver `photo` deja `lookout` en `disponible` en la misma petición. Pide `GET /salas/{codigo}/estado` para ver los resultados; desde el Paso 4 también llegarán por WebSocket.
+**Al resolver**, en la misma transacción, el servidor guarda el aviso en `datos`, crea el descubrimiento resultado con origen `servidor`, pasa a `disponible` los puzzles que ya cumplen sus requisitos (ver la tabla de `POST /descubrimientos`), guarda los eventos y renueva la expiración. Por ejemplo, si `lookout_enabled` llegó antes, resolver `photo` deja `lookout` en `disponible` en la misma petición. Los dos dispositivos reciben por WebSocket un mensaje por cada cambio, después de que la transacción se confirma (`docs/tiempo-real.md`); `GET /salas/{codigo}/estado` trae el estado completo.
 
 | Error | Cuándo | `message` |
 |---|---|---|
