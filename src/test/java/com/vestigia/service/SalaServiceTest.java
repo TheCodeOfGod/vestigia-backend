@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -19,11 +20,13 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +42,8 @@ import com.vestigia.dto.Pueblo;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaCreada;
 import com.vestigia.model.CodigoPuebloModel;
+import com.vestigia.model.DescubrimientoModel;
+import com.vestigia.model.EventoModel;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.model.SalaModel;
 import com.vestigia.repository.CodigoPuebloRepository;
@@ -63,11 +68,18 @@ class SalaServiceTest {
 	@Mock
 	private DescubrimientoRepository descubrimientos;
 
+	@Mock
+	private ActividadService actividad;
+
+	@Mock
+	private SalaService.Presencia presencia;
+
 	private SalaService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new SalaService(pueblos, salas, puzzles, descubrimientos, Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
+		service = new SalaService(pueblos, salas, puzzles, descubrimientos, actividad, presencia,
+				Clock.fixed(AHORA, ZoneOffset.UTC), Duration.ofHours(2));
 	}
 
 	@Test
@@ -85,7 +97,7 @@ class SalaServiceTest {
 		assertThat(sala.getValue().getCodigo()).isEqualTo("ALAMOS");
 		assertThat(sala.getValue().getTokenJuegoHash()).isEqualTo(sha256(creada.token())).hasSize(64);
 		assertThat(sala.getValue().getTokenAppHash()).isNull();
-		assertThat(sala.getValue().getEscenaActual()).isEqualTo("introduccion");
+		assertThat(sala.getValue().getEscenaActual()).isEqualTo(SalaModel.Escena.introduccion);
 		assertThat(sala.getValue().getUltimaActividad()).isEqualTo(AHORA);
 		assertThat(sala.getValue().getExpiraEn()).isEqualTo(AHORA.plus(Duration.ofHours(2)));
 	}
@@ -157,17 +169,53 @@ class SalaServiceTest {
 		ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
 		when(salas.unirApp(eq("ALAMOS"), hash.capture(), eq(AHORA), eq(AHORA.plus(Duration.ofHours(2))),
 				eq(SalaModel.Estado.esperando_app), eq(SalaModel.Estado.activa))).thenReturn(1);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
 
 		AppUnida unida = service.unirse(" alamos");
 
 		assertThat(hash.getValue()).isEqualTo(sha256(unida.token()));
-		verify(salas, never()).findByCodigoAndEstadoIn(any(), any());
+	}
+
+	@Test
+	@DisplayName("Crear la sala guarda el evento sala.creada con origen juego y el código en el payload")
+	void crearRegistraElEventoSalaCreada() {
+		when(pueblos.existsById("ALAMOS")).thenReturn(true);
+		when(salas.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		service.crear("alamos");
+
+		ArgumentCaptor<SalaModel> sala = ArgumentCaptor.forClass(SalaModel.class);
+		verify(actividad).registrar(sala.capture(), eq(EventoModel.Tipo.sala_creada),
+				eq(DescubrimientoModel.Origen.juego), eq(Map.of("codigo", "ALAMOS")));
+		assertThat(sala.getValue().getCodigo()).isEqualTo("ALAMOS");
+	}
+
+	@Test
+	@DisplayName("Unirse guarda el evento app.unida con origen app sobre la sala enlazada")
+	void unirseRegistraElEventoAppUnida() {
+		SalaModel sala = new SalaModel();
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(1);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(sala));
+
+		service.unirse("ALAMOS");
+
+		verify(actividad).registrar(sala, EventoModel.Tipo.app_unida, DescubrimientoModel.Origen.app, Map.of());
+	}
+
+	@Test
+	@DisplayName("Si unirse pierde la carrera no guarda ningún evento")
+	void unirseFallidoNoRegistraEvento() {
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(salaQueExpiraEn(AHORA)));
+
+		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOf(ResponseStatusException.class);
+		verifyNoInteractions(actividad);
 	}
 
 	@Test
 	void unirseASalaVivaQueYaTieneAppDa409() {
 		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
-		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(new SalaModel()));
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS)).thenReturn(Optional.of(salaQueExpiraEn(AHORA)));
 
 		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOfSatisfying(ResponseStatusException.class,
 				ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
@@ -188,6 +236,7 @@ class SalaServiceTest {
 		sala.setCodigo("ALAMOS");
 		sala.setTokenJuegoHash(sha256("tok-juego"));
 		sala.setTokenAppHash(sha256("tok-app"));
+		sala.setExpiraEn(AHORA.plusSeconds(60));
 		when(salas.findByTokenHashAndEstadoIn(anyString(), eq(SalaModel.Estado.VIVOS))).thenReturn(Optional.of(sala));
 
 		assertThat(service.autenticar("tok-juego")).get().extracting(SalaService.Credencial::rol)
@@ -198,6 +247,33 @@ class SalaServiceTest {
 	}
 
 	@Test
+	@DisplayName("Autenticar con el token de una sala viva con expira_en vencido no da credencial; justo en expira_en sí")
+	void autenticarSalaVencidaNoDaCredencial() throws Exception {
+		SalaModel sala = salaQueExpiraEn(AHORA.minusNanos(1000));
+		sala.setTokenJuegoHash(sha256("tok"));
+		when(salas.findByTokenHashAndEstadoIn(anyString(), eq(SalaModel.Estado.VIVOS))).thenReturn(Optional.of(sala));
+
+		assertThat(service.autenticar("tok")).isEmpty();
+
+		sala.setExpiraEn(AHORA);
+		assertThat(service.autenticar("tok")).isPresent();
+	}
+
+	@Test
+	@DisplayName("Unirse a una sala con expira_en vencido que el job aún no marcó responde 404 con el mensaje de sala inexistente")
+	void unirseASalaVencidaDa404() {
+		when(salas.unirApp(eq("ALAMOS"), anyString(), any(), any(), any(), any())).thenReturn(0);
+		when(salas.findByCodigoAndEstadoIn("ALAMOS", SalaModel.Estado.VIVOS))
+				.thenReturn(Optional.of(salaQueExpiraEn(AHORA.minusNanos(1000))));
+
+		assertThatThrownBy(() -> service.unirse("ALAMOS")).isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+			assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+			assertThat(ex.getReason()).isEqualTo("No hay una sala en curso con el código 'ALAMOS'");
+		});
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
 	void autenticarConTokenDesconocidoNoDaCredencial() {
 		when(salas.findByTokenHashAndEstadoIn(anyString(), any())).thenReturn(Optional.empty());
 
@@ -205,33 +281,140 @@ class SalaServiceTest {
 	}
 
 	@Test
-	void estadoOrdenaLosPuzzlesYReportaDispositivosDesconectados() {
+	@DisplayName("El estado ordena los puzzles y reporta los dispositivos que da la presencia del WebSocket")
+	void estadoOrdenaLosPuzzlesYReportaLaPresencia() {
 		UUID id = UUID.randomUUID();
 		SalaModel sala = new SalaModel();
 		sala.setCodigo("ALAMOS");
 		sala.setEstado(SalaModel.Estado.activa);
-		sala.setEscenaActual("introduccion");
+		sala.setEscenaActual(SalaModel.Escena.introduccion);
 		sala.setCreadaEn(AHORA);
 		sala.setExpiraEn(AHORA.plusSeconds(60));
 		when(salas.findById(id)).thenReturn(Optional.of(sala));
 		when(puzzles.findByClaveSalaId(id)).thenReturn(List.of(
-				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatorio, PuzzleEstadoModel.Estado.bloqueado, AHORA),
+				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.observatory, PuzzleEstadoModel.Estado.bloqueado, AHORA),
 				new PuzzleEstadoModel(id, PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado, AHORA)));
 		when(descubrimientos.findBySalaIdOrderByCreadoEnAscIdAsc(id)).thenReturn(List.of());
+		when(presencia.dispositivos(id)).thenReturn(new Sala.Dispositivos(true, false));
 
 		Sala estado = service.estado(id);
 
 		assertThat(estado.puzzles()).extracting(Sala.Puzzle::puzzle)
-				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatorio);
-		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(false, false));
+				.containsExactly(PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Puzzle.observatory);
+		assertThat(estado.dispositivos()).isEqualTo(new Sala.Dispositivos(true, false));
 		assertThat(estado.expiraEn()).isEqualTo(AHORA.plusSeconds(60));
 	}
 
 	@Test
-	void expirarVencidasUsaLaHoraDelReloj() {
+	@DisplayName("La app no puede cambiar la escena: 403 sin tocar la sala")
+	void appNoCambiaLaEscena() {
+		assertThatThrownBy(() -> service.cambiarEscena(credencial(SalaService.Rol.app), "faro"))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
+	@DisplayName("Una escena fuera de introduccion, pueblo, faro, observatorio y desenlace da 400 con la lista de válidas")
+	void escenaInvalidaDa400() {
+		for (String escena : new String[] { "bosque", "Faro", " faro", "FARO" }) {
+			assertThatThrownBy(() -> service.cambiarEscena(credencial(SalaService.Rol.juego), escena)).as(escena)
+					.isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+						assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+						assertThat(ex.getReason()).contains("introduccion, pueblo, faro, observatorio, desenlace");
+					});
+		}
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
+	@DisplayName("Cambiar la escena la guarda y registra escena.cambiada con la anterior y la nueva")
+	void cambiarEscenaRegistraEvento() {
+		SalaService.Credencial credencial = credencial(SalaService.Rol.juego);
+		SalaModel sala = new SalaModel();
+		sala.setEscenaActual(SalaModel.Escena.pueblo);
+		when(actividad.bloquear(credencial.salaId())).thenReturn(sala);
+
+		assertThat(service.cambiarEscena(credencial, "faro").escenaActual()).isEqualTo(SalaModel.Escena.faro);
+
+		assertThat(sala.getEscenaActual()).isEqualTo(SalaModel.Escena.faro);
+		verify(actividad).registrar(sala, EventoModel.Tipo.escena_cambiada, DescubrimientoModel.Origen.juego,
+				Map.of("anterior", "pueblo", "escena", "faro"));
+	}
+
+	@Test
+	@DisplayName("Repetir la escena actual responde igual y solo renueva la sala, sin evento")
+	void repetirEscenaSoloRenueva() {
+		SalaService.Credencial credencial = credencial(SalaService.Rol.juego);
+		SalaModel sala = new SalaModel();
+		sala.setEscenaActual(SalaModel.Escena.faro);
+		when(actividad.bloquear(credencial.salaId())).thenReturn(sala);
+
+		assertThat(service.cambiarEscena(credencial, "faro").escenaActual()).isEqualTo(SalaModel.Escena.faro);
+
+		verify(actividad).renovar(sala);
+		verify(actividad, never()).registrar(any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("La app no puede cerrar la sala: 403 sin tocarla")
+	void appNoCierraLaSala() {
+		assertThatThrownBy(() -> service.finalizar(credencial(SalaService.Rol.app)))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+		verifyNoInteractions(actividad);
+	}
+
+	@Test
+	@DisplayName("Cerrar la sala la pasa a finalizada y guarda sala.finalizada con origen juego")
+	void finalizarPasaAFinalizadaYRegistraEvento() {
+		SalaService.Credencial credencial = credencial(SalaService.Rol.juego);
+		SalaModel sala = new SalaModel();
+		sala.setEstado(SalaModel.Estado.activa);
+		when(actividad.bloquear(credencial.salaId())).thenReturn(sala);
+
+		service.finalizar(credencial);
+
+		assertThat(sala.getEstado()).isEqualTo(SalaModel.Estado.finalizada);
+		verify(actividad).registrar(sala, EventoModel.Tipo.sala_finalizada, DescubrimientoModel.Origen.juego,
+				Map.of());
+	}
+
+	@Test
+	@DisplayName("El job bloquea las salas vivas vencidas según el reloj, las marca expirada y guarda sala.expirada de cada una")
+	void expirarVencidasMarcaYRegistraCadaSala() {
+		SalaModel esperando = salaQueExpiraEn(AHORA.minusSeconds(1));
+		SalaModel activa = salaQueExpiraEn(AHORA.minusSeconds(60));
+		activa.setEstado(SalaModel.Estado.activa);
+		when(salas.bloquearVencidas(AHORA, SalaModel.Estado.VIVOS)).thenReturn(List.of(esperando, activa));
+
 		service.expirarVencidas();
 
-		verify(salas).expirarVencidas(AHORA, SalaModel.Estado.VIVOS, SalaModel.Estado.expirada);
+		assertThat(List.of(esperando, activa)).extracting(SalaModel::getEstado)
+				.containsOnly(SalaModel.Estado.expirada);
+		verify(actividad).registrarExpiracion(esperando);
+		verify(actividad).registrarExpiracion(activa);
+	}
+
+	@Test
+	@DisplayName("Sin salas vencidas, el job no registra nada")
+	void expirarSinVencidasNoRegistraNada() {
+		when(salas.bloquearVencidas(AHORA, SalaModel.Estado.VIVOS)).thenReturn(List.of());
+
+		service.expirarVencidas();
+
+		verifyNoInteractions(actividad);
+	}
+
+	private static SalaModel salaQueExpiraEn(Instant expiraEn) {
+		SalaModel sala = new SalaModel();
+		sala.setEstado(SalaModel.Estado.esperando_app);
+		sala.setExpiraEn(expiraEn);
+		return sala;
+	}
+
+	private static SalaService.Credencial credencial(SalaService.Rol rol) {
+		return new SalaService.Credencial(UUID.randomUUID(), "ALAMOS", rol);
 	}
 
 	private static DataIntegrityViolationException violacion(String constraint) {

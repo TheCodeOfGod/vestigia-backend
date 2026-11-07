@@ -10,8 +10,10 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 /** Toda ruta bajo /api/v1/salas pide token, salvo crear la sala y unirse a ella. */
 @Configuration
 @SecurityScheme(name = SeguridadConfig.ESQUEMA, type = SecuritySchemeType.HTTP, scheme = "bearer",
+		bearerFormat = "token opaco de 43 caracteres",
 		description = "Token que devuelve POST /salas (juego) o POST /salas/{codigo}/unirse (app). "
-				+ "Se envía como Authorization: Bearer <token>.")
+				+ "Se envía como Authorization: Bearer <token>. Decide la sala y el rol, y solo sirve mientras la sala "
+				+ "esté viva.")
 public class SeguridadConfig implements WebMvcConfigurer {
 
 	public static final String ESQUEMA = "token";

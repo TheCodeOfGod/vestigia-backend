@@ -3,6 +3,9 @@ name: CI
 on:
   pull_request:
     branches: [develop, main]
+  # Railway, con "Wait for CI", espera los checks del commit que despliega: necesitan correr también en push a main.
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -27,3 +30,4 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build -t vestigia-backend:ci .
+

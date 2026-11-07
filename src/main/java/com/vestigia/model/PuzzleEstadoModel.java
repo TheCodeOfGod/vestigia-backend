@@ -22,10 +22,11 @@ public class PuzzleEstadoModel {
 	/** El orden de las constantes es el orden del juego. */
 	public enum Puzzle {
 
-		radio, fotografia, mirador, observatorio
+		radio, photo, lookout, observatory
 
 	}
 
+	/** En el orden en que avanza un puzzle. Un aviso del cliente solo lo mueve hacia adelante. */
 	public enum Estado {
 
 		bloqueado, disponible, en_curso, resuelto
