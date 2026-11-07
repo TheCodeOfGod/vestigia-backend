@@ -454,7 +454,10 @@ Notas:
 
 ## 7. Revisiones independientes
 
-Pendiente: la completa el orquestador.
+| Quién | Familia | Qué revisó | Resultado |
+|---|---|---|---|
+| Orquestador (Claude Opus 5.5) | Claude | El diff del código y una corrida propia de `./mvnw clean verify` (266 pruebas, 0 fallos, 0 errores, 0 omitidas) | Sin hallazgos. No cuenta como revisión independiente |
+| gemini-3.8-flash (Antigravity) | Gemini, otra familia | El diff completo, los archivos clave y las guías: saltos del 403, orden de los chequeos, regresiones, pruebas y documentación | **APROBADO**, sin hallazgos bloqueantes ni importantes. Su informe se cortó después del veredicto, así que no lista hallazgos menores |
 
 ## 8. Lo que no se probó y por qué
 
