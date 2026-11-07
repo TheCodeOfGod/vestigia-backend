@@ -4,17 +4,39 @@ Guía para quien integra el juego (Unity) o la app (Flutter). El backend avisa p
 
 Es un WebSocket simple, sin STOMP ni SockJS. Cada mensaje es un texto JSON con la forma:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "disponible", "datos": {}}}
 ```
 
-Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWebSocketIT`, que usan un cliente WebSocket real contra el backend.
+Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWebSocketIT`, que usan un cliente WebSocket real contra el backend. Las guías de cada cliente (`docs/integracion-unity.md` y `docs/integracion-flutter.md`) explican qué hacer con cada mensaje.
+
+## Todos los mensajes de un vistazo
+
+| `type` | Lo envía | Lo recibe | Ejemplo de `payload` |
+|---|---|---|---|
+| `auth` | Juego o app, como primer mensaje | Servidor | `{"token": "<token>"}` |
+| `auth.ok` | Servidor | Quien se autenticó | `{"rol": "juego", "sala": "BACALAR"}` |
+| `dispositivo.conectado` | Servidor | El otro rol | `{"rol": "app"}` |
+| `dispositivo.desconectado` | Servidor | El otro rol | `{"rol": "app"}` |
+| `puzzle.actualizado` | Servidor | Juego y app | `{"puzzle": "photo", "estado": "disponible", "datos": {}}` |
+| `descubrimiento.nuevo` | Servidor | Juego y app | `{"clave": "pieza_1", "datos": {}, "origen": "juego"}` |
+| `escena.cambiada` | Servidor | Solo la app | `{"escena": "faro", "anterior": "pueblo"}` |
+| `sala.cerrada` | Servidor | Juego y app | `{"estado": "finalizada"}` |
+| `error` | Servidor | Quien mandó un mensaje inválido | `{"codigo": "tipo_desconocido", "message": "..."}` |
+
+El cliente solo manda `auth`. Todo lo demás (descubrimientos, puzzles, escena, cierre) va por REST.
+
+## Probarlo sin Unity ni Flutter
+
+Con el backend corriendo, abre `http://localhost:8080/prueba-ws.html` en el navegador. La página tiene un panel para el juego y otro para la app: en cada uno pegas el token (o lo creas con los botones **Crear sala** y **Unirse**), pulsas **Conectar** y ves cada mensaje que llega, con su hora, y el código de cierre con su significado. El token se escribe en un campo y viaja solo dentro del mensaje `auth`: no va en la URL ni se guarda en el navegador. Las escrituras se mandan con `curl` o Swagger mientras la página escucha.
 
 ## Conectarse
 
 1. Abre `ws://<host>/ws` (`wss://` en producción). **El token no va en la URL.**
 2. En menos de 5 segundos manda:
 
+	<!-- peticion -->
 	```json
 	{"type": "auth", "payload": {"token": "<token>"}}
 	```
@@ -23,14 +45,23 @@ Los ejemplos de esta página salieron de las pruebas `WebSocketIT` y `EmisionWeb
 
 3. El servidor responde:
 
+	<!-- respuesta: ws -->
 	```json
 	{"type": "auth.ok", "payload": {"rol": "juego", "sala": "BACALAR"}}
 	```
 
 	y le avisa al otro dispositivo, si está conectado:
 
+	<!-- respuesta: ws -->
 	```json
 	{"type": "dispositivo.conectado", "payload": {"rol": "juego"}}
+	```
+
+	Cuando una conexión se cierra o se pierde, el otro dispositivo recibe:
+
+	<!-- respuesta: ws -->
+	```json
+	{"type": "dispositivo.desconectado", "payload": {"rol": "app"}}
 	```
 
 4. Pide `GET /api/v1/salas/{codigo}/estado` para ponerte al día. Desde ahí, los mensajes del servidor te dicen qué cambió.
@@ -69,6 +100,7 @@ Cada escritura REST que cambia algo emite sus mensajes **después de confirmarse
 
 Ejemplos reales:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "puzzle.actualizado", "payload": {"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}}
 {"type": "descubrimiento.nuevo", "payload": {"clave": "coordenada_b", "datos": {"tipo": "declinacion", "valor": "+042"}, "origen": "servidor"}}
@@ -78,6 +110,7 @@ Ejemplos reales:
 
 **Resolver un puzzle** emite, en este orden, `puzzle.actualizado` con `resuelto`, `descubrimiento.nuevo` del resultado y un `puzzle.actualizado` con `disponible` por cada puzzle que se habilita. Por ejemplo, `PUT /puzzles/photo` con `{"completada": true}`, con `lookout_enabled` ya registrado:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "puzzle.actualizado", "payload": {"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}}
 {"type": "descubrimiento.nuevo", "payload": {"clave": "coordenada_b", "datos": {"tipo": "declinacion", "valor": "+042"}, "origen": "servidor"}}
@@ -104,8 +137,10 @@ Quien hizo la escritura también recibe sus mensajes. Un cliente puede usarlos p
 
 **Ya autenticado**, un mensaje que el servidor no acepta recibe un `error` y la conexión sigue abierta:
 
+<!-- respuesta: ws -->
 ```json
 {"type": "error", "payload": {"codigo": "json_invalido", "message": "El mensaje debe ser un objeto JSON de texto con la forma {\"type\": \"...\", \"payload\": {...}}"}}
+{"type": "error", "payload": {"codigo": "tipo_desconocido", "message": "El mensaje orientacion está diferido: el servidor no lo recibe por ahora"}}
 ```
 
 | `codigo` | Cuándo |

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vestigia · prueba del WebSocket</title>
+<style>
+	:root {
+		--fondo: #f6f5f2; --panel: #ffffff; --texto: #1d1d1b; --suave: #6b6b66; --borde: #d9d7d0;
+		--acento: #1f5f8b; --bien: #2e7d32; --mal: #b3261e; --aviso: #8a5a00; --codigo: #f0efe9;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--fondo: #141413; --panel: #1f1f1d; --texto: #ecebe6; --suave: #a3a29b; --borde: #3a3a36;
+			--acento: #7fb6e0; --bien: #81c784; --mal: #f28b82; --aviso: #e0b25a; --codigo: #2a2a27;
+		}
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 16px; font: 15px/1.45 system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
+	h1 { font-size: 1.3rem; margin: 0 0 4px; }
+	h2 { font-size: 1.05rem; margin: 0 0 8px; }
+	p { margin: 0 0 12px; color: var(--suave); }
+	code { background: var(--codigo); padding: 0 4px; border-radius: 4px; }
+	section { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+	.fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+	label { font-size: .85rem; color: var(--suave); }
+	input { font: inherit; padding: 6px 8px; border: 1px solid var(--borde); border-radius: 6px; background: var(--fondo); color: var(--texto); min-width: 0; flex: 1 1 200px; }
+	button { font: inherit; padding: 6px 12px; border: 1px solid var(--acento); border-radius: 6px; background: transparent; color: var(--acento); cursor: pointer; }
+	button:disabled { opacity: .45; cursor: default; }
+	.paneles { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+	.estado { font-size: .85rem; font-weight: 600; }
+	.estado.conectado { color: var(--bien); }
+	.estado.cerrado { color: var(--mal); }
+	ol { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; border-top: 1px solid var(--borde); }
+	li { padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: .85rem; }
+	li time { color: var(--suave); margin-right: 6px; }
+	li .tipo { font-weight: 600; }
+	li.salida .tipo { color: var(--acento); }
+	li.cierre .tipo, li.error .tipo { color: var(--mal); }
+	li.rest .tipo { color: var(--aviso); }
+	pre { margin: 4px 0 0; padding: 6px; background: var(--codigo); border-radius: 4px; white-space: pre-wrap; word-break: break-all; font-size: .8rem; }
+</style>
+</head>
+<body>
+<h1>Vestigia · prueba del WebSocket</h1>
+<p>Muestra los mensajes de <code>/ws</code> sin Unity ni Flutter. Cada panel abre su propia conexión y manda su token en el mensaje <code>auth</code>. El token no viaja en la URL ni se guarda en el navegador: al recargar la página se pierde.</p>
+
+<section>
+	<h2>1. Sala</h2>
+	<p>Pega el token que te dio el backend en el panel del juego o de la app, o créalos aquí. Crear la sala y unirse son peticiones REST reales: ocupan el pueblo hasta que cierres la sala.</p>
+	<div class="fila">
+		<label for="servidor">Servidor</label>
+		<input id="servidor" autocomplete="off">
+	</div>
+	<div class="fila">
+		<label for="codigo">Pueblo</label>
+		<input id="codigo" placeholder="BACALAR" autocomplete="off">
+		<button id="crear" type="button">Crear sala (juego)</button>
+		<button id="unirse" type="button">Unirse (app)</button>
+	</div>
+</section>
+
+<div class="paneles">
+	<section data-rol="juego">
+		<h2>2. Juego <span class="estado">desconectado</span></h2>
+		<div class="fila">
+			<label>Token del juego</label>
+			<input class="token" type="password" autocomplete="off" spellcheck="false">
+		</div>
+		<div class="fila">
+			<button class="conectar" type="button">Conectar</button>
+			<button class="desconectar" type="button" disabled>Desconectar</button>
+			<button class="estado-sala" type="button">GET estado</button>
+			<button class="limpiar" type="button">Limpiar</button>
+		</div>
+		<ol class="registro"></ol>
+	</section>
+	<section data-rol="app">
+		<h2>3. App <span class="estado">desconectado</span></h2>
+		<div class="fila">
+			<label>Token de la app</label>
+			<input class="token" type="password" autocomplete="off" spellcheck="false">
+		</div>
+		<div class="fila">
+			<button class="conectar" type="button">Conectar</button>
+			<button class="desconectar" type="button" disabled>Desconectar</button>
+			<button class="estado-sala" type="button">GET estado</button>
+			<button class="limpiar" type="button">Limpiar</button>
+		</div>
+		<ol class="registro"></ol>
+	</section>
+</div>
+
+<script>
+	'use strict';
+
+	const CIERRES = {
+		1000: 'La sala se cerró. No reconectes',
+		1006: 'Se perdió la conexión sin cierre',
+		1009: 'Mensaje demasiado grande',
+		4000: 'El primer mensaje debe ser auth',
+		4001: 'Token inválido o de una sala que ya terminó',
+		4008: 'No llegó auth a tiempo',
+		4009: 'Otra conexión del mismo rol tomó su lugar',
+		4500: 'El cliente no lee sus mensajes o falló un envío'
+	};
+
+	const servidor = document.getElementById('servidor');
+	const codigo = document.getElementById('codigo');
+	servidor.value = location.origin;
+
+	const base = () => servidor.value.trim().replace(/\/$/, '');
+	const codigoNormalizado = () => codigo.value.replace(/\s+/g, '').toUpperCase();
+	const hora = () => new Date().toLocaleTimeString('es-MX', { hour12: false });
+
+	function anotar(panel, clase, tipo, detalle) {
+		const li = document.createElement('li');
+		li.className = clase;
+		const time = document.createElement('time');
+		time.textContent = hora();
+		const span = document.createElement('span');
+		span.className = 'tipo';
+		span.textContent = tipo;
+		li.append(time, span);
+		if (detalle !== undefined) {
+			const pre = document.createElement('pre');
+			pre.textContent = typeof detalle === 'string' ? detalle : JSON.stringify(detalle, null, 2);
+			li.append(pre);
+		}
+		const registro = panel.querySelector('.registro');
+		registro.prepend(li);
+	}
+
+	/** fetch que lee el cuerpo como texto e intenta JSON; el 403 de CORS, por ejemplo, es texto plano. */
+	async function pedir(ruta, opciones) {
+		try {
+			const r = await fetch(base() + ruta, opciones);
+			const texto = await r.text();
+			let cuerpo = texto;
+			try { cuerpo = JSON.parse(texto); } catch (e) { /* texto plano */ }
+			return { status: r.status, cuerpo };
+		} catch (e) {
+			return { status: 0, cuerpo: String(e) };
+		}
+	}
+
+	async function rest(panel, metodo, ruta, token) {
+		const encabezados = {};
+		if (token) encabezados.Authorization = 'Bearer ' + token;
+		const r = await pedir(ruta, { method: metodo, headers: encabezados });
+		if (r.status === 0) anotar(panel, 'error', metodo + ' ' + ruta + ' → sin respuesta', r.cuerpo);
+		else anotar(panel, 'rest', metodo + ' ' + ruta + ' → ' + r.status, r.cuerpo);
+		return r;
+	}
+
+	const paneles = {};
+	for (const panel of document.querySelectorAll('[data-rol]')) {
+		const rol = panel.dataset.rol;
+		const token = panel.querySelector('.token');
+		const conectar = panel.querySelector('.conectar');
+		const desconectar = panel.querySelector('.desconectar');
+		const estado = panel.querySelector('.estado');
+		let ws = null;
+
+		function marcar(texto, clase) {
+			estado.textContent = texto;
+			estado.className = 'estado ' + (clase || '');
+			conectar.disabled = ws !== null;
+			desconectar.disabled = ws === null;
+		}
+
+		conectar.addEventListener('click', () => {
+			const valor = token.value.trim();
+			if (!valor) { anotar(panel, 'error', 'Falta el token'); return; }
+			const url = base().replace(/^http/, 'ws') + '/ws';
+			const socket = new WebSocket(url);
+			ws = socket;
+			marcar('conectando…');
+			socket.addEventListener('open', () => {
+				const auth = { type: 'auth', payload: { token: valor } };
+				socket.send(JSON.stringify(auth));
+				anotar(panel, 'salida', '→ auth', { type: 'auth', payload: { token: '<token>' } });
+			});
+			socket.addEventListener('message', (evento) => {
+				let mensaje = evento.data;
+				try { mensaje = JSON.parse(evento.data); } catch (e) { /* no es JSON */ }
+				const tipo = typeof mensaje === 'object' && mensaje ? mensaje.type : 'texto';
+				anotar(panel, tipo === 'error' ? 'error' : 'entrada', '← ' + tipo, mensaje);
+				if (tipo === 'auth.ok') marcar('conectado como ' + mensaje.payload.rol, 'conectado');
+			});
+			socket.addEventListener('close', (evento) => {
+				const razon = evento.reason || CIERRES[evento.code] || '';
+				anotar(panel, 'cierre', 'cierre ' + evento.code, razon);
+				if (ws === socket) ws = null;
+				marcar('cerrado (' + evento.code + ')', 'cerrado');
+			});
+		});
+
+		desconectar.addEventListener('click', () => { if (ws) ws.close(1000); });
+		panel.querySelector('.limpiar').addEventListener('click', () => { panel.querySelector('.registro').replaceChildren(); });
+		panel.querySelector('.estado-sala').addEventListener('click', () => {
+			const c = codigoNormalizado();
+			if (!c) { anotar(panel, 'error', 'Escribe el pueblo arriba'); return; }
+			rest(panel, 'GET', '/api/v1/salas/' + encodeURIComponent(c) + '/estado', token.value.trim());
+		});
+		paneles[rol] = { panel, token };
+	}
+
+	document.getElementById('crear').addEventListener('click', async () => {
+		const c = codigoNormalizado();
+		const { panel, token } = paneles.juego;
+		if (!c) { anotar(panel, 'error', 'Escribe el pueblo'); return; }
+		const r = await pedir('/api/v1/salas', {
+			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c })
+		});
+		if (r.status === 201) {
+			token.value = r.cuerpo.token;
+			anotar(panel, 'rest', 'POST /api/v1/salas → 201', { ...r.cuerpo, token: '<token guardado en el campo>' });
+		} else {
+			anotar(panel, 'error', 'POST /api/v1/salas → ' + r.status, r.cuerpo);
+		}
+	});
+
+	document.getElementById('unirse').addEventListener('click', async () => {
+		const c = codigoNormalizado();
+		const { panel, token } = paneles.app;
+		if (!c) { anotar(panel, 'error', 'Escribe el pueblo'); return; }
+		const r = await pedir('/api/v1/salas/' + encodeURIComponent(c) + '/unirse', { method: 'POST' });
+		if (r.status === 200) {
+			token.value = r.cuerpo.token;
+			anotar(panel, 'rest', 'POST /unirse → 200', { token: '<token guardado en el campo>' });
+		} else {
+			anotar(panel, 'error', 'POST /unirse → ' + r.status, r.cuerpo);
+		}
+	});
+</script>
+</body>
+</html>

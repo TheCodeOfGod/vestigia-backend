@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -40,17 +41,32 @@ public class DescubrimientoController {
 	@PostMapping
 	@Operation(summary = "Registra un descubrimiento (juego o app)", description = "Idempotente: repetir la clave "
 			+ "devuelve 200 con el descubrimiento que ya existía, sin cambiar sus datos. Tras uno nuevo, el servidor "
-			+ "recalcula qué puzzles pasan a disponible.", security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA))
+			+ "recalcula qué puzzles pasan a disponible y avisa por WebSocket (descubrimiento.nuevo y "
+			+ "puzzle.actualizado). clave: ^[a-z0-9_]{1,40}$. datos: objeto JSON opcional de hasta 4096 bytes. Las "
+			+ "claves coordenada_a, coordenada_b, observatorio_visible y magnetar_localizado las genera el servidor.",
+			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA),
+			requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrarDescubrimientoRequest.class),
+							examples = {
+									@ExampleObject(name = "Pieza con datos", value = EjemplosOpenApi.REGISTRAR_DESCUBRIMIENTO),
+									@ExampleObject(name = "Bandera del juego", value = EjemplosOpenApi.BANDERA_JUEGO) })))
 	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
-			schema = @Schema(type = "string"))
-	@ApiResponse(responseCode = "201", description = "Descubrimiento nuevo")
-	@ApiResponse(responseCode = "200", description = "La clave ya existía; se devuelve tal como estaba")
-	@ApiResponse(responseCode = "400", description = "Clave con formato inválido o datos que no son un objeto JSON",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
-	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+			example = "BACALAR", schema = @Schema(type = "string"))
+	@ApiResponse(responseCode = "201", description = "Descubrimiento nuevo",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = Sala.Descubrimiento.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.DESCUBRIMIENTO)))
+	@ApiResponse(responseCode = "200", description = "La clave ya existía; se devuelve tal como estaba",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = Sala.Descubrimiento.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.DESCUBRIMIENTO)))
+	@ApiResponse(responseCode = "400", description = "Clave con formato inválido, datos que no son un objeto JSON o "
+			+ "de más de 4096 bytes", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_400_JSON)))
+	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó o venció",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_401)))
 	@ApiResponse(responseCode = "403", description = "El token es de otra sala o la clave la genera el servidor",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_403_CLAVE_SERVIDOR)))
 	public ResponseEntity<Sala.Descubrimiento> registrar(@Valid @RequestBody RegistrarDescubrimientoRequest request,
 			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL) SalaService.Credencial credencial) {
 		DescubrimientoService.Registro registro = descubrimientoService.registrar(credencial, request.clave(),

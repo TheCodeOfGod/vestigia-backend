@@ -89,6 +89,21 @@ Un aviso sobre un puzzle `bloqueado` responde `409` sin tocar nada. Un aviso que
 | `origen` | `VARCHAR(10)` | `juego`, `app` o `servidor` |
 | `creado_en` | `TIMESTAMPTZ` | |
 
+**Claves que se usan hoy.** `POST /descubrimientos` acepta cualquier clave con `^[a-z0-9_]{1,40}$`; estas son las que usa la partida. Las guías de cada cliente dicen cuándo mandar cada una.
+
+| Clave | La registra | Para qué |
+|---|---|---|
+| `pescador_dialogo_completo` | Juego | Habilita `radio` |
+| `pieza_1`, `pieza_2`, `pieza_3` | Juego | Las tres juntas habilitan `photo` |
+| `lookout_enabled` | Juego | Con `photo` resuelto, habilita `lookout` |
+| `observatory_enabled` | Juego | Con las dos coordenadas y `lookout` resuelto, habilita `observatory` |
+| `coordenada_a` | Servidor, al resolver `radio` | `{"tipo": "ascension_recta", "valor": "137"}` |
+| `coordenada_b` | Servidor, al resolver `photo` | `{"tipo": "declinacion", "valor": "+042"}` |
+| `observatorio_visible` | Servidor, al resolver `lookout` | `{}` |
+| `magnetar_localizado` | Servidor, al resolver `observatory` | `{}` |
+
+Las claves del servidor dan `403` si las manda un cliente. Las del juego hoy también las acepta la app: decidir si solo el juego puede mandarlas es el pendiente P8 de `docs/PLAN.md`.
+
 ### `eventos`
 
 | Columna | Tipo | Notas |

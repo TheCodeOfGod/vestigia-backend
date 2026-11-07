@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -39,22 +40,39 @@ public class PuzzleController {
 	@PutMapping("/{puzzle}")
 	@Operation(summary = "Reporta un puzzle (juego o app)", description = "radio acepta {\"sintonizada\": true}; "
 			+ "photo, lookout y observatory aceptan {\"iniciado\": true} o {\"completada\": true}. Solo vale el "
-			+ "booleano true. Repetir un aviso que ya no mueve el puzzle responde 200 con el estado actual. Al "
-			+ "resolverse, el servidor crea el descubrimiento resultado y habilita los puzzles que dependen de él.",
-			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA))
+			+ "booleano true y exactamente una clave. Un aviso solo mueve el puzzle hacia adelante; repetir uno que "
+			+ "ya no lo mueve responde 200 con el estado actual. Al resolverse, el servidor crea el descubrimiento "
+			+ "resultado (coordenada_a, coordenada_b, observatorio_visible o magnetar_localizado) y habilita los "
+			+ "puzzles que dependen de él. El servidor no mide ni valida números.",
+			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA),
+			requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ReportarPuzzleRequest.class),
+							examples = {
+									@ExampleObject(name = "photo, lookout u observatory completado",
+											value = EjemplosOpenApi.AVISO_COMPLETADA),
+									@ExampleObject(name = "photo, lookout u observatory abierto",
+											value = EjemplosOpenApi.AVISO_INICIADO),
+									@ExampleObject(name = "radio sintonizada", value = EjemplosOpenApi.AVISO_SINTONIZADA) })))
 	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
-			schema = @Schema(type = "string"))
-	@ApiResponse(responseCode = "200", description = "Estado del puzzle tras el aviso")
+			example = "BACALAR", schema = @Schema(type = "string"))
+	@ApiResponse(responseCode = "200", description = "Estado del puzzle tras el aviso",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = Sala.Puzzle.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.PUZZLE)))
 	@ApiResponse(responseCode = "400", description = "Puzzle desconocido, o datos que no son un aviso válido para él",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
-	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class), examples = {
+					@ExampleObject(name = "Aviso inválido", value = EjemplosOpenApi.ERROR_400_VALIDACION),
+					@ExampleObject(name = "Puzzle desconocido", value = EjemplosOpenApi.ERROR_400_PUZZLE) }))
+	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó o venció",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_401)))
 	@ApiResponse(responseCode = "403", description = "El token es de otra sala",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_403_OTRA_SALA)))
 	@ApiResponse(responseCode = "409", description = "El puzzle está bloqueado (codigo: puzzle_bloqueado)",
-			content = @Content(schema = @Schema(implementation = ErrorBody.class)))
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
+					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_409_BLOQUEADO)))
 	public Sala.Puzzle reportar(
-			@Parameter(description = "Id del puzzle",
+			@Parameter(description = "Id del puzzle", example = "photo",
 					schema = @Schema(allowableValues = { "radio", "photo", "lookout", "observatory" }))
 			@PathVariable String puzzle, @Valid @RequestBody ReportarPuzzleRequest request,
 			@Parameter(hidden = true) @RequestAttribute(TokenInterceptor.CREDENCIAL)

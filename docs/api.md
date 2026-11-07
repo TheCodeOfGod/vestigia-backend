@@ -1,6 +1,6 @@
 # API REST
 
-Guía para quien integra el juego (Unity) o la app (Flutter). Todas las rutas cuelgan de `/api/v1`. Los ejemplos usan `http://localhost:8080`. Swagger UI con los mismos endpoints está en `/swagger-ui/index.html`.
+Guía para quien integra el juego (Unity) o la app (Flutter). Todas las rutas cuelgan de `/api/v1`. Los ejemplos usan `http://localhost:8080`. Swagger UI con los mismos endpoints, sus ejemplos de petición y respuesta y sus errores está en `/swagger-ui/index.html`; el documento OpenAPI en JSON, en `/v3/api-docs`. Para probar en Swagger UI una ruta con candado, pulsa **Authorize** y pega el token (sin la palabra `Bearer`). Swagger documenta solo las rutas de `/api/v1`: `/actuator/health` no aparece porque es de Spring Boot Actuator y no se activó `springdoc.show-actuator`, para no mezclar las rutas de operación con las de los clientes. Es público y responde `200` con `{"groups": ["liveness", "readiness"], "status": "UP"}`.
 
 Las respuestas de esta página salieron de correr el backend real. Los tokens están recortados.
 
@@ -14,6 +14,7 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 - **Token.** `POST /salas` le entrega un token al juego y `POST /salas/{codigo}/unirse` le entrega otro a la app. Cada token se entrega **una sola vez**: guárdalo en el dispositivo para reconectar. Se manda en el encabezado `Authorization: Bearer <token>`. El token decide la sala y el rol (`juego` o `app`), y solo sirve mientras la sala esté viva (`esperando_app` o `activa`).
 - **Errores.** Todos tienen el mismo cuerpo:
 
+	<!-- respuesta: error -->
 	```json
 	{
 	  "timestamp": "2026-10-26T23:33:18.786573Z",
@@ -62,6 +63,7 @@ Público. Lista el catálogo en orden alfabético. Un pueblo está ocupado mient
 curl 'http://localhost:8080/api/v1/pueblos?disponibles=true'
 ```
 
+<!-- respuesta: pueblos -->
 ```json
 [
   {"codigo": "ACAXOCHITLAN", "libre": true},
@@ -84,6 +86,7 @@ curl -X POST http://localhost:8080/api/v1/salas \
 
 `201 Created`:
 
+<!-- respuesta: sala-creada -->
 ```json
 {"codigo": "BACALAR", "estado": "esperando_app", "token": "dIg7OY_EqA3T…"}
 ```
@@ -108,6 +111,7 @@ curl -X POST http://localhost:8080/api/v1/salas/bacalar/unirse
 
 `200 OK`:
 
+<!-- respuesta: app-unida -->
 ```json
 {"token": "LiMPYxrtkwFi…"}
 ```
@@ -132,6 +136,7 @@ curl http://localhost:8080/api/v1/salas/BACALAR/estado \
 
 `200 OK`:
 
+<!-- respuesta: estado -->
 ```json
 {
   "codigo": "BACALAR",
@@ -183,6 +188,7 @@ curl -X POST http://localhost:8080/api/v1/salas/BACALAR/descubrimientos \
 
 `201 Created` la primera vez:
 
+<!-- respuesta: descubrimiento -->
 ```json
 {"clave": "pieza_1", "datos": {"lugar": "muelle"}, "origen": "juego", "creado_en": "2026-11-05T18:02:11.513204Z"}
 ```
@@ -234,6 +240,7 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
 
 `200 OK` con el estado del puzzle:
 
+<!-- respuesta: puzzle -->
 ```json
 {"puzzle": "photo", "estado": "resuelto", "datos": {"completada": true}}
 ```
@@ -288,6 +295,7 @@ Por eso `PUT /puzzles/fotografia` con `{}` responde el `400` de `datos`, y con `
 
 Respuesta real de un `409`:
 
+<!-- respuesta: error -->
 ```json
 {
   "timestamp": "2026-11-06T06:25:51.900917Z",
@@ -313,6 +321,7 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/escena \
 
 `200 OK`:
 
+<!-- respuesta: escena -->
 ```json
 {"escena_actual": "faro"}
 ```
