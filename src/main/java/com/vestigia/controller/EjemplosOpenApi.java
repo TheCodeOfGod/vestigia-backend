@@ -119,6 +119,11 @@ final class EjemplosOpenApi {
 			"codigo": "clave_solo_juego", "message": "La clave 'pieza_1' la registra el juego; la app no puede enviarla", \
 			"path": "/api/v1/salas/BACALAR/descubrimientos", "details": []}""";
 
+	static final String ERROR_403_PUZZLE_SOLO_APP = """
+			{"timestamp": "2026-11-08T15:39:38.400910Z", "status": 403, "error": "Forbidden", \
+			"codigo": "puzzle_solo_app", "message": "Los puzzles los avisa la app; el juego no puede reportar 'radio'", \
+			"path": "/api/v1/salas/BACALAR/puzzles/radio", "details": []}""";
+
 	static final String ERROR_403_ESCENA = """
 			{"timestamp": "2026-11-06T15:45:32.450749Z", "status": 403, "error": "Forbidden", "codigo": null, \
 			"message": "Solo el juego puede cambiar la escena", "path": "/api/v1/salas/BACALAR/escena", \

@@ -45,7 +45,7 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Tiempo real | WebSocket simple en `/ws`, mensajes JSON `type` + `payload` | ✅ |
 | Migraciones | Flyway | ✅ |
 | Orientación del teléfono | `azimut` y `altitud` en grados, no cuaternión. Solo aplica si se reactiva el reenvío (ver sección 14) | ⏸️ |
-| Quién resuelve la radio | El **juego**. Avisa al backend cuando se completó | ✅ |
+| Quién resuelve la radio | La **app**, como los otros tres puzzles. La radio aparece cuando el juego registra `pescador_dialogo_completo` y la app avisa `{iniciado: true}` y `{sintonizada: true}`. Cambio del 8 de noviembre: antes la resolvía el juego | ✅ |
 | Coordenadas del misterio | **Ascensión recta (AR) y declinación (DEC)**, como el canon narrativo y la app | ✅ |
 | Mirador y observatorio | **La app indica cuándo se completó.** El servidor no mide ni valida números por ahora | ✅ |
 | Observatorio | Se juega **por completo en el teléfono**. El juego solo se entera de que terminó, por la bandera | ✅ |
@@ -133,12 +133,12 @@ Reglas del diseño: cada puzzle se resuelve en menos de 2 minutos, sin penalizac
 
 | # | Puzzle | Quién lo juega | Requiere | Aviso de que se completó | Resultado |
 |---|---|---|---|---|---|
-| 1 | `radio` | **El juego** | `pescador_dialogo_completo` (lo reporta el juego) | `{sintonizada: true}`, lo manda el juego | `coordenada_a` = AR `"137"` |
+| 1 | `radio` | **La app** | `pescador_dialogo_completo` (lo reporta el juego) | `{iniciado: true}` al abrirla y `{sintonizada: true}` al sintonizarla, los manda la app | `coordenada_a` = AR `"137"` |
 | 2 | `photo` | Piezas: el juego. Unir las imágenes: la app | `pieza_1`, `pieza_2` y `pieza_3` (las reporta el juego al recogerlas) | `{completada: true}`, lo manda la app | `coordenada_b` = DEC `"+042"` |
 | 3 | `lookout` | La app | `photo` resuelto y la bandera `lookout_enabled` del juego | `{completada: true}`, lo manda la app | `observatorio_visible` |
 | 4 | `observatory` | **La app** (el juego solo se entera) | `coordenada_a`, `coordenada_b`, `lookout` resuelto y la bandera `observatory_enabled` del juego | `{completada: true}`, lo manda la app | `magnetar_localizado` |
 
-**Reglas comunes:** solo `true` es válido en `sintonizada`, `completada` e `iniciado` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409` con `codigo: "puzzle_bloqueado"`. Al abrir `photo`, `lookout` u `observatory` la app avisa `{iniciado: true}` y el puzzle pasa a `en_curso`. Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`). La app no puede enviar las del juego: `pescador_dialogo_completo`, `pieza_1..3`, `lookout_enabled` y `observatory_enabled` (`403` con `codigo: "clave_solo_juego"`, P8).
+**Reglas comunes:** solo `true` es válido en `sintonizada`, `completada` e `iniciado` (otro valor da `400`). Las escrituras son idempotentes. Un puzzle `bloqueado` responde `409` con `codigo: "puzzle_bloqueado"`. Al abrir `radio`, `photo`, `lookout` u `observatory` la app avisa `{iniciado: true}` y el puzzle pasa a `en_curso`. **Solo la app avisa puzzles**: el token del juego recibe `403` con `codigo: "puzzle_solo_app"` (P8b, decidido el 8 de noviembre). Los clientes no pueden enviar las claves que genera el servidor: `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` (`403`). La app no puede enviar las del juego: `pescador_dialogo_completo`, `pieza_1..3`, `lookout_enabled` y `observatory_enabled` (`403` con `codigo: "clave_solo_juego"`, P8).
 
 **Coordenadas:** se entregan como descubrimientos con `valor` en **texto**, para conservar el signo y los ceros. Son los únicos valores del misterio que viven en el servidor (configurables).
 
@@ -179,7 +179,7 @@ Inicio ─▶ [Unirme a una sala] ─▶ Escribir código de sala ─▶ LIBRETA
 | Burbuja flotante | Aparece y **pulsa** cuando un puzzle del teléfono está `disponible`. Al tocarla se abre el puzzle | `puzzle.actualizado` con estado `disponible` |
 | Puzzle | Se juega y avisa cuando se completó | `PUT /salas/{codigo}/puzzles/{puzzle}` |
 
-La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos en un menú. La burbuja aplica a `photo`, `lookout` y `observatory`; la radio la juega el juego, así que en la libreta solo se ve su estado.
+La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos en un menú. La burbuja aplica a los cuatro puzzles, incluida la radio, que aparece cuando el juego registra al pescador.
 
 ### Qué progreso puede mostrar la libreta
 
@@ -220,6 +220,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - [x] 3.0. Migración `V3`: ids de puzzle `photo`, `lookout` y `observatory`. Evidencia en `docs/pruebas/paso-3.0-ids.md`.
   - [x] 3a. `POST /descubrimientos` (idempotente, también bajo concurrencia), `PUT /escena` (solo juego) y `DELETE /salas/{codigo}` (solo juego). Cada escritura renueva `ultima_actividad` y `expira_en` y guarda un evento; crear y unirse también. `HabilitacionPuzzlesService` recalcula `radio` y `photo` tras cada descubrimiento y ya tiene las reglas de `lookout` y `observatory` para el 3b. Evidencia en `docs/pruebas/paso-3a-descubrimientos.md`.
   - [x] 3b. `PUT /salas/{codigo}/puzzles/{puzzle}` para los cuatro puzzles (`{sintonizada: true}` en `radio`; `{iniciado: true}` o `{completada: true}` en `photo`, `lookout` y `observatory`; solo el booleano `true`). `PuzzleService` valida la forma, responde `409` con `codigo: "puzzle_bloqueado"` y mueve el puzzle solo hacia adelante; un aviso que ya no lo mueve responde `200` sin cambios. Al resolver crea el resultado con origen `servidor` (las coordenadas salen de `vestigia.puzzles.coordenadas.ar` y `.dec` como texto), recalcula los dependientes y guarda `puzzle.resuelto`, todo en una transacción. El cuerpo de error gana `codigo`. Evidencia en `docs/pruebas/paso-3b-puzzles.md`.
+  - [x] Cambio del 8 de noviembre: la radio la juega la app. `radio` acepta `{iniciado: true}` y `{sintonizada: true}`, igual que los otros tres se inician y se completan; `PuzzleService` rechaza al juego con `403` y `codigo: "puzzle_solo_app"` después de validar el id y la forma del aviso (P8b). Evidencia en `docs/pruebas/radio-en-la-app.md`.
 - [x] **Paso 4: WebSocket.** Autenticación, eventos y presencia.
   - `/ws` reemplaza a `PendienteWebSocketHandler`. El primer mensaje es `auth` con el token, dentro de 5 s (`vestigia.ws.auth-plazo`); si no, cierra con `4000`, `4001` o `4008`. `auth.ok` trae `{rol, sala}` y el otro rol recibe `dispositivo.conectado`; al cerrarse, `dispositivo.desconectado`. `GET estado` reporta los `dispositivos` reales.
   - `EmisorEventos` emite después del commit `puzzle.actualizado` en cada cambio de estado, `descubrimiento.nuevo`, `escena.cambiada` (solo a la app) y `sala.cerrada` (al cerrar o expirar, y luego cierra las conexiones). El job de expiración guarda y publica `sala.expirada`.
@@ -248,7 +249,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 | # | Pendiente | Quién decide | Bloquea | Mi recomendación |
 |---|---|---|---|---|
 | P7 | El archivo de salas terminadas para la PWA: qué muestra, cómo se identifica una sala (el código se reutiliza) y quién puede verla | Raúl y PWA | Después del Paso 6 | |
-| P8b | Si `PUT puzzles` también se restringe por rol. Hoy cualquier rol puede reportar cualquier puzzle, aunque en el diseño la radio la manda el juego y los demás la app. P8 (claves de descubrimiento) ya está decidido e implementado | Raúl | No bloquea | Restringir `radio` al juego y `photo`, `lookout` y `observatory` a la app con `403`, si Unity y la app confirman que nadie más los avisa |
+| P8b | ✅ Decidido el 8 de noviembre: `PUT puzzles` es solo de la app. El token del juego recibe `403` con `codigo: "puzzle_solo_app"` en los cuatro puzzles, aunque el aviso sea válido. Implementado junto con el cambio de la radio | Raúl | Cerrado | |
 
 ### Por confirmar con otros equipos
 
@@ -281,8 +282,7 @@ Lo que se decidió **no** usar. Se deja aquí para no volver a proponerlo.
 
 | Descartado | Por qué |
 |---|---|
-| Radio con dial 0 a 20, posición, intentos y rango 12 a 14 | La radio la resuelve el juego con una bandera |
-| Minijuego de radio dentro de la app | Idem |
+| Radio resuelta por el juego con una bandera | Desde el 8 de noviembre la radio la juega la app. Sus valores (el dial y el rango del prototipo) viven en la app, como los del mirador y el observatorio |
 | `fragmento_1..3` | Pasan a `pieza_1..3` |
 | Fotografía con `slot`, `rot` y `colocacion` | Basta con que la app avise que se completó |
 | Coordenadas de azimut 60° y altitud 35° | El canon usa AR y DEC |
