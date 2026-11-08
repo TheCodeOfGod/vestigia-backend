@@ -76,7 +76,7 @@ bloqueado ─────────────▶ disponible ─────�
                               └──────────────────── completada o sintonizada ─────────────────┘
 ```
 
-Un aviso sobre un puzzle `bloqueado` responde `409` sin tocar nada. Un aviso que ya no mueve el puzzle (`iniciado` en `en_curso`, cualquiera en `resuelto`) no lo cambia. Al pasar a `resuelto`, en la misma transacción, el servidor crea el descubrimiento resultado con origen `servidor`: `coordenada_a` (radio), `coordenada_b` (photo), `observatorio_visible` (lookout) o `magnetar_localizado` (observatory).
+Los cuatro puzzles los avisa la app; el token del juego recibe `403` (`puzzle_solo_app`). Un aviso sobre un puzzle `bloqueado` responde `409` sin tocar nada. Un aviso que ya no mueve el puzzle (`iniciado` en `en_curso`, cualquiera en `resuelto`) no lo cambia. Al pasar a `resuelto`, en la misma transacción, el servidor crea el descubrimiento resultado con origen `servidor`: `coordenada_a` (radio), `coordenada_b` (photo), `observatorio_visible` (lookout) o `magnetar_localizado` (observatory).
 
 ### `descubrimientos`
 

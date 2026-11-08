@@ -554,7 +554,7 @@ class EscriturasSalaIT {
 		assertThat(descubrir("HUICHAPAN", "pieza_1", "{\"lugar\":\"muelle\"}", juego).statusCode()).isEqualTo(201);
 		assertThat(escena("HUICHAPAN", "\"faro\"", juego).statusCode()).isEqualTo(200);
 		assertThat(api.enviar("PUT", "/api/v1/salas/HUICHAPAN/puzzles/radio", "{\"datos\":{\"sintonizada\":true}}",
-				juego).statusCode()).isEqualTo(200);
+				api.tokenApp("HUICHAPAN")).statusCode()).isEqualTo(200);
 	}
 
 	@Test

@@ -102,16 +102,14 @@ class PuzzleServiceTest {
 	}
 
 	@Test
-	@DisplayName("radio solo acepta {sintonizada: true}: iniciado o completada dan 400; los puzzles de la app no aceptan sintonizada")
+	@DisplayName("radio acepta {sintonizada: true} o {iniciado: true} y rechaza completada con 400; los otros tres no aceptan sintonizada")
 	void avisosPorPuzzle() {
-		for (Map<String, Object> datos : List.of(INICIADO, COMPLETADA)) {
-			assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.juego), "radio", datos)).as("%s", datos)
-					.isInstanceOfSatisfying(ApiException.class, ex -> {
-						assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-						assertThat(ex.getDetalles()).containsExactly(
-								new ApiException.Detalle("datos", "en radio debe ser exactamente {\"sintonizada\": true}"));
-					});
-		}
+		assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.app), "radio", COMPLETADA))
+				.isInstanceOfSatisfying(ApiException.class, ex -> {
+					assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+					assertThat(ex.getDetalles()).containsExactly(new ApiException.Detalle("datos",
+							"en radio debe ser exactamente {\"sintonizada\": true} o {\"iniciado\": true}"));
+				});
 		for (String puzzle : List.of("photo", "lookout", "observatory")) {
 			assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.app), puzzle, SINTONIZADA)).as(puzzle)
 					.isInstanceOfSatisfying(ApiException.class,
@@ -222,7 +220,7 @@ class PuzzleServiceTest {
 		Map<String, Map<String, Object>> creados = new HashMap<>();
 		for (Puzzle puzzle : Puzzle.values()) {
 			fila(puzzle, Estado.disponible);
-			service.reportar(credencial(SalaService.Rol.juego), puzzle.name(),
+			service.reportar(credencial(SalaService.Rol.app), puzzle.name(),
 					puzzle == Puzzle.radio ? SINTONIZADA : COMPLETADA);
 		}
 		ArgumentCaptor<String> clave = ArgumentCaptor.forClass(String.class);
@@ -252,7 +250,7 @@ class PuzzleServiceTest {
 		fila(Puzzle.radio, Estado.disponible);
 		fila(Puzzle.photo, Estado.disponible);
 
-		service.reportar(credencial(SalaService.Rol.juego), "radio", SINTONIZADA);
+		service.reportar(credencial(SalaService.Rol.app), "radio", SINTONIZADA);
 		service.reportar(credencial(SalaService.Rol.app), "photo", COMPLETADA);
 
 		verify(descubrimientos).registrarDelServidor(sala, "coordenada_a",
@@ -261,17 +259,57 @@ class PuzzleServiceTest {
 	}
 
 	@Test
-	@DisplayName("El evento lleva el origen del rol que avisó: juego o app")
+	@DisplayName("Los eventos de un puzzle llevan origen app, también el de la radio")
 	void origenDelRol() {
 		fila(Puzzle.radio, Estado.disponible);
-		service.reportar(credencial(SalaService.Rol.juego), "radio", SINTONIZADA);
+		service.reportar(credencial(SalaService.Rol.app), "radio", SINTONIZADA);
 		fila(Puzzle.photo, Estado.disponible);
 		service.reportar(credencial(SalaService.Rol.app), "photo", INICIADO);
 
 		verify(actividad).registrar(eq(sala), eq(EventoModel.Tipo.puzzle_resuelto),
-				eq(DescubrimientoModel.Origen.juego), anyMap());
+				eq(DescubrimientoModel.Origen.app), anyMap());
 		verify(actividad).registrar(eq(sala), eq(EventoModel.Tipo.puzzle_iniciado), eq(DescubrimientoModel.Origen.app),
 				anyMap());
+	}
+
+	@Test
+	@DisplayName("La radio también se inicia: {iniciado: true} la lleva de disponible a en_curso, igual que los otros puzzles de la app")
+	void radioSeIniciaConLaApp() {
+		PuzzleEstadoModel fila = fila(Puzzle.radio, Estado.disponible);
+
+		Sala.Puzzle respuesta = service.reportar(credencial(SalaService.Rol.app), "radio", INICIADO);
+
+		assertThat(respuesta).isEqualTo(new Sala.Puzzle(Puzzle.radio, Estado.en_curso, Map.of("iniciado", true)));
+		assertThat(fila.getEstado()).isEqualTo(Estado.en_curso);
+		verify(actividad).registrar(eq(sala), eq(EventoModel.Tipo.puzzle_iniciado), eq(DescubrimientoModel.Origen.app),
+				anyMap());
+		verifyNoInteractions(descubrimientos);
+	}
+
+	@Test
+	@DisplayName("El juego no avisa puzzles: su token recibe 403 con codigo puzzle_solo_app en los cuatro y no cambia nada")
+	void elJuegoNoAvisaPuzzles() {
+		for (Map.Entry<String, Map<String, Object>> caso : Map.of("radio", SINTONIZADA, "photo", COMPLETADA, "lookout",
+				INICIADO, "observatory", COMPLETADA).entrySet()) {
+			assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.juego), caso.getKey(), caso.getValue()))
+					.as(caso.getKey())
+					.isInstanceOfSatisfying(ApiException.class, ex -> {
+						assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+						assertThat(ex.getCodigo()).isEqualTo("puzzle_solo_app");
+						assertThat(ex.getReason()).isEqualTo(
+								"Los puzzles los avisa la app; el juego no puede reportar '" + caso.getKey() + "'");
+					});
+		}
+		verifyNoInteractions(actividad, puzzles, descubrimientos);
+	}
+
+	@Test
+	@DisplayName("Un aviso mal formado del juego da 400 y no 403: primero se valida el puzzle y la forma, después el rol")
+	void avisoInvalidoDelJuegoDa400() {
+		assertThatThrownBy(() -> service.reportar(credencial(SalaService.Rol.juego), "radio", COMPLETADA))
+				.isInstanceOfSatisfying(ApiException.class,
+						ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+		verifyNoInteractions(actividad, puzzles, descubrimientos);
 	}
 
 	@Test

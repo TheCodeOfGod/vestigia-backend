@@ -38,14 +38,14 @@ Cada respuesta de ejemplo salió de correr el backend real. Los tokens están re
 
 El juego es la partida principal. La jugadora elige un pueblo, y ese nombre es el **código de sala** que luego escribe en su teléfono para enlazar la app (la libreta de Janeth).
 
-Durante la partida, el juego **avisa** al backend lo que pasa en el mundo: la escena en la que está, que terminó el diálogo con el pescador, que sintonizó la radio, cada pieza de la fotografía que recoge y cuando llega a la cima del faro o al observatorio. Con eso, el backend habilita los puzzles que se juegan en el teléfono.
+Durante la partida, el juego **avisa** al backend lo que pasa en el mundo: la escena en la que está, que terminó el diálogo con el pescador, cada pieza de la fotografía que recoge y cuando llega a la cima del faro o al observatorio. Con eso, el backend habilita los puzzles que se juegan en el teléfono.
 
-El juego también **escucha**: el teléfono resuelve la fotografía, el mirador y el observatorio, y el backend le avisa al juego por WebSocket para que reaccione (abrir el camino, mostrar la coordenada, pasar al final). Al terminar, el juego cierra la sala.
+El juego también **escucha**: el teléfono resuelve la radio, la fotografía, el mirador y el observatorio, y el backend le avisa al juego por WebSocket para que reaccione (abrir el camino, mostrar la coordenada, pasar al final). Al terminar, el juego cierra la sala.
 
 ```
  Elegir pueblo ─▶ Crear sala ─▶ Esperar la app ─▶ Pueblo ─────────────────▶ Faro ──────────────────────────▶ Observatorio ─▶ Desenlace ─▶ Cerrar sala
  GET /pueblos     POST /salas   WebSocket          pescador_dialogo_completo  pieza_1, pieza_2, pieza_3         observatory_enabled   PUT escena    DELETE /salas
-                  (token)       dispositivo.       PUT radio (sintonizada)     lookout_enabled (cima)           espera magnetar
+                  (token)       dispositivo.       espera radio (app)          lookout_enabled (cima)           espera magnetar
                                 conectado          PUT escena en cada cambio   espera photo y lookout resueltos  _localizado
 ```
 
@@ -155,7 +155,7 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | C2 | Banderas `lookout_enabled` y `observatory_enabled` | Nombres aprobados por Raúl. Falta que Unity confirme el momento exacto en que las manda |
 | ✅ | Segunda conexión del juego | Si el juego abre otro WebSocket con el mismo token, el nuevo reemplaza al viejo y el viejo se cierra con `4009` |
 | ✅ | Códigos de cierre del WebSocket | `4000`, `4001`, `4008`, `4009`, `4500`, `1000` y `1009`, explicados en la sección 7 |
-| 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` salvo en `puzzle_bloqueado` y `clave_solo_juego` |
+| 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` salvo en `puzzle_bloqueado`, `clave_solo_juego` y `puzzle_solo_app` |
 | 🟡 | Id de puzzle desconocido | Responde `400`, no `404` |
 
 ## 3. Qué sí y qué no hace tu aplicación
@@ -169,7 +169,7 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | Ver el estado | `GET /api/v1/salas/{codigo}/estado` | Al arrancar, tras cada reconexión y cuando dudes |
 | Cambiar de escena | `PUT /api/v1/salas/{codigo}/escena` | Cada vez que cambia la escena |
 | Registrar descubrimientos y banderas | `POST /api/v1/salas/{codigo}/descubrimientos` | Pescador, piezas, cima del faro, observatorio. Solo el juego puede mandar `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` y `observatory_enabled`: si la app las manda recibe `403` (`clave_solo_juego`) |
-| Resolver la radio | `PUT /api/v1/salas/{codigo}/puzzles/radio` | La jugadora sintoniza la radio |
+| Escuchar la radio | WebSocket `puzzle.actualizado` y `descubrimiento.nuevo` (`coordenada_a`) | La jugadora la sintoniza **en el teléfono**; el juego solo se entera |
 | Cerrar la sala | `DELETE /api/v1/salas/{codigo}` | Al terminar la partida |
 | Tiempo real | WebSocket `/ws`: manda `auth`; recibe `auth.ok`, `dispositivo.conectado`, `dispositivo.desconectado`, `puzzle.actualizado`, `descubrimiento.nuevo`, `sala.cerrada` y `error` | Desde que creas la sala hasta que la cierras |
 
@@ -178,7 +178,7 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | Qué | Qué pasa si lo usas |
 |---|---|
 | `POST /api/v1/salas/{codigo}/unirse` | **No da error**: el juego ocuparía el lugar de la app y el teléfono recibiría `409` al unirse. Es solo de la app |
-| `PUT /api/v1/salas/{codigo}/puzzles/photo`, `lookout` u `observatory` | **No da error**: el backend no revisa qué rol avisa cada puzzle. Resolvería un puzzle que juega el teléfono. Son de la app |
+| `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}` (cualquiera de los cuatro: `radio`, `photo`, `lookout` u `observatory`) | `403` con `"codigo": "puzzle_solo_app"`: los cuatro puzzles se juegan en el teléfono y solo la app los avisa. El juego se entera por WebSocket |
 | Cualquier ruta con el token de otra sala | `403` `El token no pertenece a esta sala` |
 | Cualquier ruta con candado sin token | `401` `Falta el token: envía el encabezado Authorization: Bearer <token>` |
 | Mandar `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `403`: esas claves las crea el servidor |
@@ -477,7 +477,7 @@ Y por WebSocket, al juego y a la app:
 {"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "disponible", "datos": {}}}
 ```
 
-**Qué hacer:** la radio ya se puede sintonizar. Si repites la petición, responde `200 OK` con el mismo cuerpo y no pasa nada más: es seguro reintentar.
+**Qué hacer:** la radio ya aparece en la libreta de la jugadora, que la sintoniza en el teléfono. Si repites la petición, responde `200 OK` con el mismo cuerpo y no pasa nada más: es seguro reintentar.
 
 `datos` es opcional: un objeto JSON de hasta 4096 bytes. Para estas claves no hace falta mandarlo.
 
@@ -497,69 +497,42 @@ IEnumerator RegistrarDescubrimiento(string clave) // "pescador_dialogo_completo"
 }
 ```
 
-### Paso 8. Sintonizar la radio
+### Paso 8. La radio se juega en el teléfono (el juego solo escucha)
 
-**Cuándo:** la jugadora sintoniza la radio en el juego. La radio la juega **el juego**: el teléfono no tiene minijuego de radio.
+**Cuándo:** después del paso 7, cuando la radio queda `disponible`. La radio la juega **la app**: la jugadora la sintoniza en el teléfono. **El juego no manda nada en este paso**; solo se entera.
 
-```sh
-curl -X PUT $BASE/api/v1/salas/BACALAR/puzzles/radio \
-	-H "Authorization: Bearer $TOKEN_JUEGO" \
-	-H 'Content-Type: application/json' \
-	-d '{"datos": {"sintonizada": true}}'
-```
-
-Respuesta `200 OK`:
-
-<!-- respuesta: puzzle -->
-```json
-{"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}}
-```
-
-Y por WebSocket, en este orden:
-
-<!-- respuesta: ws -->
-```json
-{"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}}}
-{"type": "descubrimiento.nuevo", "payload": {"clave": "coordenada_a", "datos": {"tipo": "ascension_recta", "valor": "137"}, "origen": "servidor"}}
-```
-
-**Qué hacer:** el servidor crea `coordenada_a`, la ascensión recta. Su `valor` es **texto** (`"137"`), no número. Si el juego la muestra, léela de aquí y no la escribas en el código. Repetir el aviso responde `200` con el mismo estado y no crea nada nuevo.
-
-**Errores:**
-
-| Respuesta | Cuándo | Qué hacer |
-|---|---|---|
-| `409` con `"codigo": "puzzle_bloqueado"` | La radio sigue bloqueada: no llegó `pescador_dialogo_completo` | Manda el paso 7 y vuelve a mandar este |
-| `400` `Datos inválidos` | `datos` no es exactamente `{"sintonizada": true}` (por ejemplo `"true"` o `{"iniciado": true}`) | Corrige el cuerpo. La radio no acepta `iniciado` |
-
-Cuerpo real del `409`:
+La app avisa que abrió la radio y que la sintonizó. Si el juego manda ese aviso con su token, recibe `403` (los cuatro puzzles los avisa solo la app):
 
 <!-- respuesta: error -->
 ```json
 {
-  "timestamp": "2026-11-06T15:45:32.291122Z",
-  "status": 409,
-  "error": "Conflict",
-  "codigo": "puzzle_bloqueado",
-  "message": "El puzzle 'radio' está bloqueado: todavía no se cumplen sus requisitos",
+  "timestamp": "2026-11-08T15:39:38.400910Z",
+  "status": 403,
+  "error": "Forbidden",
+  "codigo": "puzzle_solo_app",
+  "message": "Los puzzles los avisa la app; el juego no puede reportar 'radio'",
   "path": "/api/v1/salas/BACALAR/puzzles/radio",
   "details": []
 }
 ```
 
+Lo que el juego recibe por WebSocket cuando la app abre la radio y cuando la sintoniza, en este orden:
+
+<!-- respuesta: ws -->
+```json
+{"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "en_curso", "datos": {"iniciado": true}}}
+{"type": "puzzle.actualizado", "payload": {"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}}}
+{"type": "descubrimiento.nuevo", "payload": {"clave": "coordenada_a", "datos": {"tipo": "ascension_recta", "valor": "137"}, "origen": "servidor"}}
+```
+
+**Qué hacer:** el juego reacciona a `puzzle.actualizado` de `radio` (`en_curso`: la jugadora está en la radio; `resuelto`: ya la sintonizó). Al resolverse, el servidor crea `coordenada_a`, la ascensión recta. Su `valor` es **texto** (`"137"`), no número. Si el juego la muestra, léela de aquí y no la escribas en el código. Si el juego se conecta después, lee el estado de la radio en `GET estado`.
+
 ```csharp
 // No compilado.
-IEnumerator RadioSintonizada()
+void AlRecibirPuzzleActualizado(string puzzle, string estado)
 {
-    yield return Enviar("PUT", "/api/v1/salas/" + Codigo + "/puzzles/radio", "{\"datos\":{\"sintonizada\":true}}", true,
-        (status, cuerpo) =>
-        {
-            if (status == 200) return;
-            var error = JsonUtility.FromJson<ErrorApi>(cuerpo);
-            if (status == 409 && error.codigo == "puzzle_bloqueado")
-                Debug.LogWarning("La radio sigue bloqueada: ¿se mandó pescador_dialogo_completo?");
-            else ManejarError(status, cuerpo);
-        });
+    if (puzzle == "radio" && estado == "resuelto")
+        Progreso.RadioSintonizada = true;   // la jugadora la sintonizó en el teléfono
 }
 ```
 
@@ -780,7 +753,7 @@ El token sirve solo para su sala y solo mientras la sala esté viva (`esperando_
 
 **Qué hacer con un `401`.** El token ya no sirve: la sala se cerró, venció o el token está mal. Borra la sesión guardada y vuelve al menú de elegir pueblo. Un `401` puede llegar aunque no haya llegado `sala.cerrada` (por ejemplo, si la sala venció mientras tu WebSocket estaba caído); trátalo igual.
 
-**Qué hacer con un `403`.** El token es válido pero no te deja hacer eso: es de otra sala, o es el de la app en una ruta del juego, o mandaste una clave que solo crea el servidor. Es un error de programación, no de la jugadora: regístralo en el log y no reintentes.
+**Qué hacer con un `403`.** El token es válido pero no te deja hacer eso: es de otra sala, es el de la app en una ruta del juego, mandaste una clave que solo crea el servidor, o avisaste un puzzle (`puzzle_solo_app`), que solo avisa la app. Es un error de programación, no de la jugadora: regístralo en el log y no reintentes.
 
 ## 6. Estados de un puzzle
 
@@ -795,7 +768,7 @@ Un puzzle solo avanza, nunca regresa. El servidor lo pasa de `bloqueado` a `disp
 
 | Puzzle | Quién lo juega | Pasa a `disponible` cuando | Al resolverse el servidor crea |
 |---|---|---|---|
-| `radio` | El juego | Existe `pescador_dialogo_completo` | `coordenada_a` = `{"tipo": "ascension_recta", "valor": "137"}` |
+| `radio` | La app | Existe `pescador_dialogo_completo` | `coordenada_a` = `{"tipo": "ascension_recta", "valor": "137"}` |
 | `photo` | La app | Existen `pieza_1`, `pieza_2` y `pieza_3` | `coordenada_b` = `{"tipo": "declinacion", "valor": "+042"}` |
 | `lookout` | La app | `photo` está `resuelto` y existe `lookout_enabled` | `observatorio_visible` |
 | `observatory` | La app | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` y existe `observatory_enabled` | `magnetar_localizado` |
@@ -803,8 +776,8 @@ Un puzzle solo avanza, nunca regresa. El servidor lo pasa de `bloqueado` a `disp
 | Si el estado es… | El juego hace… |
 |---|---|
 | `radio` `bloqueado` | Nada. Falta el diálogo del pescador (paso 7) |
-| `radio` `disponible` | Deja que la jugadora sintonice la radio. Al lograrlo, manda el paso 8 |
-| `radio` `resuelto` | Muestra la coordenada AR si el juego la usa. No vuelvas a mandar el paso 8 |
+| `radio` `disponible` o `en_curso` | Espera: la jugadora la sintoniza en el teléfono. Puedes mostrar "Revisa tu libreta" |
+| `radio` `resuelto` | Muestra la coordenada AR si el juego la usa. Pon `radio_sintonizada` en `true` |
 | `photo` `bloqueado` | Faltan piezas. Sigue el paso 9 |
 | `photo` `disponible` o `en_curso` | Espera: la jugadora la arma en el teléfono. Puedes mostrar "Revisa tu libreta" |
 | `photo` `resuelto` | Foto reconstruida. Deja subir a la cima del faro |
@@ -888,7 +861,7 @@ Decide según el código de cierre:
 
 | Bandera de Unity | Cómo se relaciona con el backend |
 |---|---|
-| `radio_sintonizada` | El juego la pone en `true` cuando la jugadora sintoniza la radio y, en ese momento, manda el paso 8. Al recibir `puzzle.actualizado` de `radio` en `resuelto` o al leer `GET estado`, debe quedar en `true` |
+| `radio_sintonizada` | El juego la pone en `true` cuando recibe `puzzle.actualizado` de `radio` en `resuelto` (la jugadora la sintonizó en el teléfono) o al leer `GET estado`. El juego **no** manda nada al backend por esta bandera |
 | `photo_quantity` | Cuántas piezas recogió la jugadora. El juego la aumenta y manda `pieza_1`, `pieza_2` y `pieza_3` (paso 9). Al reconectar, cuenta las claves `pieza_*` en `descubrimientos` |
 | `lente_limpio` | **Decisión pendiente de Unity (C2).** El backend no la manda: no hay avisos intermedios del mirador, solo `lookout` resuelto |
 | `obs_encontrado` | **Decisión pendiente de Unity (C2).** Igual que `lente_limpio` |
@@ -918,7 +891,7 @@ Todos los errores REST traen el mismo cuerpo JSON. Lee `status` y `codigo` para 
 }
 ```
 
-`codigo` **siempre viene**: vale `null` salvo en `puzzle_bloqueado` y `clave_solo_juego`. `details` solo trae elementos en errores de validación (`[{"field": "clave", "message": "..."}]`).
+`codigo` **siempre viene**: vale `null` salvo en `puzzle_bloqueado`, `clave_solo_juego` y `puzzle_solo_app`. `details` solo trae elementos en errores de validación (`[{"field": "clave", "message": "..."}]`).
 
 | HTTP | `codigo` | Cuándo | Qué hacer |
 |---|---|---|---|
@@ -1083,9 +1056,6 @@ public class VestigiaCliente : MonoBehaviour
 
     public IEnumerator RegistrarDescubrimiento(string clave) =>
         Enviar("POST", "/api/v1/salas/" + Codigo + "/descubrimientos", "{\"clave\":\"" + clave + "\"}", true, SoloErrores);
-
-    public IEnumerator RadioSintonizada() =>
-        Enviar("PUT", "/api/v1/salas/" + Codigo + "/puzzles/radio", "{\"datos\":{\"sintonizada\":true}}", true, SoloErrores);
 
     public IEnumerator CerrarSala()
     {
@@ -1255,10 +1225,10 @@ El orden entre la escena y las piezas no es obligatorio para el backend: las pie
 - [ ] Muestro cuándo el teléfono se conecta y se desconecta.
 - [ ] Mando `PUT escena` con `pueblo`, `faro`, `observatorio` y `desenlace` en el momento de cada cambio.
 - [ ] Mando `pescador_dialogo_completo` al terminar el diálogo con el pescador.
-- [ ] Mando `PUT radio {"datos": {"sintonizada": true}}` al sintonizar la radio, y manejo el `409` `puzzle_bloqueado`.
+- [ ] No mando `PUT` de ningún puzzle (los cuatro los avisa la app): escucho `puzzle.actualizado` de `radio` y pongo `radio_sintonizada` cuando llega `resuelto`.
 - [ ] Mando `pieza_1`, `pieza_2` y `pieza_3`, una por cada pieza recogida.
 - [ ] Mando `lookout_enabled` al llegar a la cima del faro y `observatory_enabled` al llegar al observatorio.
-- [ ] Reacciono a `photo`, `lookout` y `observatory` en `resuelto` y a `magnetar_localizado`.
+- [ ] Reacciono a `radio`, `photo`, `lookout` y `observatory` en `resuelto` y a `magnetar_localizado`.
 - [ ] Leo las coordenadas como texto desde los descubrimientos; no las escribo en el código.
 - [ ] Reconecto con espera creciente y no reconecto con `1000`, `4001` ni `4009`.
 - [ ] Un `401` (o `sala.cerrada`) borra la sesión y vuelve al menú.
@@ -1271,7 +1241,7 @@ El orden entre la escena y las piezas no es obligatorio para el backend: las pie
 
 | Síntoma | Causa | Solución |
 |---|---|---|
-| `409` `puzzle_bloqueado` al mandar la radio | No se mandó `pescador_dialogo_completo` antes | Mándalo y repite el aviso de la radio |
+| `403` `puzzle_solo_app` | El juego mandó un `PUT` de puzzle | No lo mandes: los cuatro puzzles los avisa la app. Escucha `puzzle.actualizado` por el WebSocket |
 | `400 JSON malformado o ilegible` | Comillas sin escapar en el string de C#, `"true"` en vez de `true`, o una clave repetida | Revisa el JSON exacto que envías con `Debug.Log` (sin el token) |
 | `400` `no es una escena válida` | Escena con mayúscula o acento (`"Faro"`, `"introducción"`) | Usa los valores de la tabla del paso 6 |
 | `400` `Datos inválidos` en una clave | `pieza-1`, `Pieza_1` o `pieza 1` | Solo minúsculas, dígitos y guion bajo: `pieza_1` |

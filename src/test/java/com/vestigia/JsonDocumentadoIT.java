@@ -257,7 +257,7 @@ class JsonDocumentadoIT {
 		reales.put("descubrimiento", ok(enviar("POST", "/api/v1/salas/" + PUEBLO + "/descubrimientos",
 				"{\"clave\":\"pescador_dialogo_completo\"}", juego), 201));
 		reales.put("puzzle", ok(enviar("PUT", "/api/v1/salas/" + PUEBLO + "/puzzles/radio",
-				"{\"datos\":{\"sintonizada\":true}}", juego), 200));
+				"{\"datos\":{\"sintonizada\":true}}", app), 200));
 		guardar(reales, wsJuego.siguienteDeTipo("descubrimiento.nuevo"));
 		guardar(reales, wsJuego.siguienteDeTipo("puzzle.actualizado"));
 

@@ -35,7 +35,7 @@ Las respuestas de esta página salieron de correr el backend real. Los tokens es
 |---|---|
 | `400` | JSON malformado, campo obligatorio vacío, código fuera del catálogo, id de puzzle desconocido o aviso de puzzle inválido |
 | `401` | Falta el token, el token no existe o su sala ya terminó |
-| `403` | El token es válido pero de otra sala, la clave de descubrimiento la genera el servidor, la app manda una clave del juego (`codigo: "clave_solo_juego"`) o el rol no puede hacer esa operación |
+| `403` | El token es válido pero de otra sala, la clave de descubrimiento la genera el servidor, la app manda una clave del juego (`codigo: "clave_solo_juego"`), el juego avisa un puzzle (`codigo: "puzzle_solo_app"`) o el rol no puede hacer esa operación |
 | `404` | No hay sala en curso con ese código |
 | `409` | Conflicto de estado: pueblo ocupado, sala con app ya enlazada o puzzle bloqueado (`codigo: "puzzle_bloqueado"`) |
 | `500` | Error interno. El cuerpo no trae detalles |
@@ -255,7 +255,7 @@ El límite de `datos` lo fijaron los agentes que construyeron el paso, a raíz d
 
 ## `PUT /salas/{codigo}/puzzles/{puzzle}`
 
-Juego o app, con el token de esa sala. Avisa que un puzzle empezó o se completó. Quien juega el puzzle decide cuándo se completó: el servidor solo revisa que el aviso tenga la forma correcta y que el puzzle no esté bloqueado. No mide ni valida números.
+**Solo la app**, con el token de esa sala. Avisa que un puzzle empezó o se completó. Los cuatro puzzles se juegan en el teléfono y quien los juega decide cuándo se completaron: el servidor solo revisa que el aviso tenga la forma correcta y que el puzzle no esté bloqueado. No mide ni valida números. El juego no avisa puzzles: con su token recibe `403` (`codigo: "puzzle_solo_app"`) y se entera de cada cambio por el WebSocket (`puzzle.actualizado`) y por los descubrimientos resultado.
 
 ```sh
 curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
@@ -273,15 +273,15 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
 
 | Puzzle | Lo juega | `datos` válidos | Resultado al resolverse (origen `servidor`) |
 |---|---|---|---|
-| `radio` | El juego | `{"sintonizada": true}` | `coordenada_a` con `{"tipo": "ascension_recta", "valor": "137"}` |
+| `radio` | La app | `{"iniciado": true}` o `{"sintonizada": true}` | `coordenada_a` con `{"tipo": "ascension_recta", "valor": "137"}` |
 | `photo` | La app | `{"iniciado": true}` o `{"completada": true}` | `coordenada_b` con `{"tipo": "declinacion", "valor": "+042"}` |
 | `lookout` | La app | `{"iniciado": true}` o `{"completada": true}` | `observatorio_visible` con `{}` |
 | `observatory` | La app | `{"iniciado": true}` o `{"completada": true}` | `magnetar_localizado` con `{}` |
 
-- **Solo `true`.** `datos` debe tener exactamente una de esas claves y su valor debe ser el booleano `true`. El texto `"true"`, `1`, `false`, `null`, una clave de más, un objeto vacío o `datos` ausente responden `400`. `iniciado` no existe en `radio`.
-- **`iniciado`.** La app lo manda al abrir `photo`, `lookout` u `observatory`. El puzzle pasa de `disponible` a `en_curso` y las métricas pueden medir cuánto tardó. No es obligatorio: `completada` también resuelve un puzzle `disponible`.
+- **Solo `true`.** `datos` debe tener exactamente una de esas claves y su valor debe ser el booleano `true`. El texto `"true"`, `1`, `false`, `null`, una clave de más, un objeto vacío o `datos` ausente responden `400`.
+- **`iniciado`.** La app lo manda al abrir `radio`, `photo`, `lookout` u `observatory`. El puzzle pasa de `disponible` a `en_curso` y las métricas pueden medir cuánto tardó. No es obligatorio: `completada` también resuelve un puzzle `disponible`.
 - **Coordenadas.** `valor` es texto para conservar el signo y los ceros (`"+042"`, no `42`). Los valores salen de las propiedades `vestigia.puzzles.coordenadas.ar` y `vestigia.puzzles.coordenadas.dec`. La app los muestra desde `GET estado`, no los lleva escritos.
-- Cualquier rol puede reportar cualquier puzzle. La tabla dice quién lo juega en el diseño, pero el servidor no lo exige.
+- **Solo la app.** El token del juego recibe `403` con `codigo: "puzzle_solo_app"` en los cuatro puzzles, aunque el aviso sea válido. `radio` se muestra a la app cuando el juego registra `pescador_dialogo_completo` (pasa a `disponible`); antes está `bloqueado` y responde `409`.
 
 **Cómo cambia el estado.** Un aviso solo mueve el puzzle hacia adelante:
 
@@ -303,6 +303,7 @@ curl -X PUT http://localhost:8080/api/v1/salas/BACALAR/puzzles/photo \
 | `400` | El id del puzzle no es `radio`, `photo`, `lookout` ni `observatory`, en minúsculas. Incluye los ids viejos `fotografia`, `mirador` y `observatorio` | `'fotografia' no es un puzzle válido. Usa uno de: radio, photo, lookout, observatory` |
 | `401` | Sin token, token inválido o sala terminada | Igual que en `GET estado` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
+| `403` | Token del juego, en cualquier puzzle | `Los puzzles los avisa la app; el juego no puede reportar 'radio'`, con `"codigo": "puzzle_solo_app"` |
 | `409` | El puzzle está `bloqueado` | `El puzzle 'radio' está bloqueado: todavía no se cumplen sus requisitos`, con `"codigo": "puzzle_bloqueado"` |
 
 Un id de puzzle desconocido responde `400` y no `404`, igual que una escena desconocida: la ruta existe y lo que está mal es un valor que manda el cliente.
@@ -314,10 +315,11 @@ Un id de puzzle desconocido responde `400` y no `404`, igual que una escena desc
 3. `datos` falta o es `null` (`400`, `details` con `es obligatorio`).
 4. El id del puzzle no existe (`400` con la lista de ids).
 5. `datos` no es un aviso válido para ese puzzle, incluido un valor que no es objeto (`400`, `details` con la forma esperada).
-6. La sala terminó entre el token y la escritura (`401`).
-7. El puzzle está `bloqueado` (`409`).
+6. El token es del juego (`403`, `codigo: "puzzle_solo_app"`).
+7. La sala terminó entre el token y la escritura (`401`).
+8. El puzzle está `bloqueado` (`409`).
 
-Por eso `PUT /puzzles/fotografia` con `{}` responde el `400` de `datos`, y con `{"datos": {"completada": true}}` el del id. Un aviso mal formado da `400` aunque el puzzle esté bloqueado.
+Por eso `PUT /puzzles/fotografia` con `{}` responde el `400` de `datos`, y con `{"datos": {"completada": true}}` el del id. Un aviso mal formado da `400` aunque el puzzle esté bloqueado, y también aunque el token sea del juego: primero se revisa el id y la forma, después el rol.
 
 Respuesta real de un `409`:
 
@@ -329,6 +331,21 @@ Respuesta real de un `409`:
   "error": "Conflict",
   "codigo": "puzzle_bloqueado",
   "message": "El puzzle 'radio' está bloqueado: todavía no se cumplen sus requisitos",
+  "path": "/api/v1/salas/BACALAR/puzzles/radio",
+  "details": []
+}
+```
+
+Respuesta real de un `403` cuando el juego avisa un puzzle:
+
+<!-- respuesta: error -->
+```json
+{
+  "timestamp": "2026-11-08T15:39:38.400910Z",
+  "status": 403,
+  "error": "Forbidden",
+  "codigo": "puzzle_solo_app",
+  "message": "Los puzzles los avisa la app; el juego no puede reportar 'radio'",
   "path": "/api/v1/salas/BACALAR/puzzles/radio",
   "details": []
 }

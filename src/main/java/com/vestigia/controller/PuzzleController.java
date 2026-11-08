@@ -28,7 +28,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/salas/{codigo}/puzzles")
-@Tag(name = "Puzzles", description = "Avisos de que un puzzle empezó o se completó")
+@Tag(name = "Puzzles", description = "Avisos de la app de que un puzzle empezó o se completó")
 public class PuzzleController {
 
 	private final PuzzleService puzzleService;
@@ -38,8 +38,10 @@ public class PuzzleController {
 	}
 
 	@PutMapping("/{puzzle}")
-	@Operation(summary = "Reporta un puzzle (juego o app)", description = "radio acepta {\"sintonizada\": true}; "
-			+ "photo, lookout y observatory aceptan {\"iniciado\": true} o {\"completada\": true}. Solo vale el "
+	@Operation(summary = "Reporta un puzzle (solo la app)", description = "Los cuatro puzzles se juegan en la app y "
+			+ "solo ella los avisa: el token del juego recibe 403 con codigo puzzle_solo_app. radio acepta "
+			+ "{\"iniciado\": true} o {\"sintonizada\": true}; photo, lookout y observatory aceptan "
+			+ "{\"iniciado\": true} o {\"completada\": true}. Solo vale el "
 			+ "booleano true y exactamente una clave. Un aviso solo mueve el puzzle hacia adelante; repetir uno que "
 			+ "ya no lo mueve responde 200 con el estado actual. Al resolverse, el servidor crea el descubrimiento "
 			+ "resultado (coordenada_a, coordenada_b, observatorio_visible o magnetar_localizado) y habilita los "
@@ -50,7 +52,7 @@ public class PuzzleController {
 							examples = {
 									@ExampleObject(name = "photo, lookout u observatory completado",
 											value = EjemplosOpenApi.AVISO_COMPLETADA),
-									@ExampleObject(name = "photo, lookout u observatory abierto",
+									@ExampleObject(name = "radio, photo, lookout u observatory abierto",
 											value = EjemplosOpenApi.AVISO_INICIADO),
 									@ExampleObject(name = "radio sintonizada", value = EjemplosOpenApi.AVISO_SINTONIZADA) })))
 	@Parameter(name = "codigo", in = ParameterIn.PATH, required = true, description = "Código de la sala",
@@ -65,9 +67,10 @@ public class PuzzleController {
 	@ApiResponse(responseCode = "401", description = "Falta el token, es inválido o la sala ya terminó o venció",
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
 					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_401)))
-	@ApiResponse(responseCode = "403", description = "El token es de otra sala",
-			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
-					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_403_OTRA_SALA)))
+	@ApiResponse(responseCode = "403", description = "El token es de otra sala, o es el del juego (codigo: puzzle_solo_app)",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class), examples = {
+					@ExampleObject(name = "Token de otra sala", value = EjemplosOpenApi.ERROR_403_OTRA_SALA),
+					@ExampleObject(name = "El juego no avisa puzzles", value = EjemplosOpenApi.ERROR_403_PUZZLE_SOLO_APP) }))
 	@ApiResponse(responseCode = "409", description = "El puzzle está bloqueado (codigo: puzzle_bloqueado)",
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
 					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_409_BLOQUEADO)))

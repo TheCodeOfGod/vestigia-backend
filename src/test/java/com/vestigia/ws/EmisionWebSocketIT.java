@@ -80,7 +80,9 @@ class EmisionWebSocketIT {
 
 		descubrir("TECATE", "pescador_dialogo_completo", juego);
 		sala.reciben(descubrimiento("pescador_dialogo_completo", "{}", "juego"), puzzle("radio", "disponible", "{}"));
-		reportar("TECATE", "radio", "sintonizada", juego);
+		reportar("TECATE", "radio", "iniciado", app);
+		sala.reciben(puzzle("radio", "en_curso", "{'iniciado':true}"));
+		reportar("TECATE", "radio", "sintonizada", app);
 		sala.reciben(puzzle("radio", "resuelto", "{'sintonizada':true}"),
 				descubrimiento("coordenada_a", "{'tipo':'ascension_recta','valor':'137'}", "servidor"));
 		descubrir("TECATE", "pieza_1", juego);
@@ -116,11 +118,11 @@ class EmisionWebSocketIT {
 		String juego = api.tokenJuego("TEMACAPULIN");
 		String app = api.tokenApp("TEMACAPULIN");
 		descubrir("TEMACAPULIN", "pescador_dialogo_completo", juego);
-		reportar("TEMACAPULIN", "radio", "sintonizada", juego);
+		reportar("TEMACAPULIN", "radio", "sintonizada", app);
 		Conectados sala = conectar(juego, app);
 
 		assertThat(descubrir("TEMACAPULIN", "pescador_dialogo_completo", juego)).isEqualTo(200);
-		assertThat(reportar("TEMACAPULIN", "radio", "sintonizada", juego)).isEqualTo(200);
+		assertThat(reportar("TEMACAPULIN", "radio", "sintonizada", app)).isEqualTo(200);
 		assertThat(api.enviar("PUT", "/api/v1/salas/TEMACAPULIN/escena", "{\"escena\":\"introduccion\"}", juego)
 				.statusCode()).isEqualTo(200);
 		assertThat(descubrir("TEMACAPULIN", "pieza_1", app)).isEqualTo(403);

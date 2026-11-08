@@ -71,7 +71,7 @@ class PuzzlesIT {
 		assertThat(descubrir("COSALA", "pescador_dialogo_completo", juego).statusCode()).isEqualTo(201);
 		assertThat(estados("COSALA")).containsExactly("radio:disponible", "photo:bloqueado", "lookout:bloqueado",
 				"observatory:bloqueado");
-		HttpResponse<String> radio = reportar("COSALA", "radio", SINTONIZADA, juego);
+		HttpResponse<String> radio = reportar("COSALA", "radio", SINTONIZADA, app);
 		assertThat(radio.statusCode()).isEqualTo(200);
 		assertThat(api.cuerpo(radio)).isEqualTo(json.readTree(
 				"{\"puzzle\":\"radio\",\"estado\":\"resuelto\",\"datos\":{\"sintonizada\":true}}"));
@@ -120,7 +120,7 @@ class PuzzlesIT {
 
 		assertThat(eventos("COSALA")).containsExactly("sala.creada:juego", "app.unida:app",
 				"descubrimiento.registrado:juego", "puzzle.habilitado:servidor",
-				"puzzle.resuelto:juego", "descubrimiento.registrado:servidor",
+				"puzzle.resuelto:app", "descubrimiento.registrado:servidor",
 				"descubrimiento.registrado:juego", "descubrimiento.registrado:juego",
 				"descubrimiento.registrado:juego", "puzzle.habilitado:servidor",
 				"puzzle.iniciado:app", "puzzle.resuelto:app", "descubrimiento.registrado:servidor",
@@ -158,7 +158,7 @@ class PuzzlesIT {
 		String app = api.tokenApp("COTIJA");
 		descubrir("COTIJA", "lookout_enabled", juego);
 		descubrir("COTIJA", "observatory_enabled", juego);
-		radioResuelta("COTIJA", juego);
+		radioResuelta("COTIJA", juego, app);
 		piezas("COTIJA", juego);
 		assertThat(estados("COTIJA")).containsExactly("radio:resuelto", "photo:disponible", "lookout:bloqueado",
 				"observatory:bloqueado");
@@ -177,7 +177,7 @@ class PuzzlesIT {
 	void banderasDespuesDeSusRequisitos() throws Exception {
 		String juego = api.tokenJuego("COZUMEL");
 		String app = api.tokenApp("COZUMEL");
-		radioResuelta("COZUMEL", juego);
+		radioResuelta("COZUMEL", juego, app);
 		piezas("COZUMEL", juego);
 		reportar("COZUMEL", "photo", COMPLETADA, app);
 		assertThat(estados("COZUMEL")).contains("lookout:bloqueado");
@@ -205,7 +205,7 @@ class PuzzlesIT {
 		assertThat(estados("CREEL")).containsExactly("radio:bloqueado", "photo:resuelto", "lookout:resuelto",
 				"observatory:bloqueado");
 
-		radioResuelta("CREEL", juego);
+		radioResuelta("CREEL", juego, app);
 
 		assertThat(estados("CREEL")).containsExactly("radio:resuelto", "photo:resuelto", "lookout:resuelto",
 				"observatory:disponible");
@@ -248,13 +248,13 @@ class PuzzlesIT {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ? AND clave = 'coordenada_b'",
 				Integer.class, salaViva("CORDOBA"))).isEqualTo(1);
 
-		radioResuelta("CORDOBA", juego);
-		assertThat(respuesta(reportar("CORDOBA", "radio", SINTONIZADA, juego)))
+		radioResuelta("CORDOBA", juego, app);
+		assertThat(respuesta(reportar("CORDOBA", "radio", SINTONIZADA, app)))
 				.isEqualTo("200:resuelto:{\"sintonizada\":true}");
 	}
 
 	@Test
-	@DisplayName("Solo el booleano true: texto \"true\", 1, false, null, claves extra, objeto vacío, datos que no es objeto o datos ausente dan 400 con details en datos y no cambian nada; iniciado en radio también")
+	@DisplayName("Solo el booleano true: texto \"true\", 1, false, null, claves extra, objeto vacío, datos que no es objeto o datos ausente dan 400 con details en datos y no cambian nada; completada en radio también")
 	void soloTrue() throws Exception {
 		String juego = api.tokenJuego("COCULA");
 		String app = api.tokenApp("COCULA");
@@ -279,12 +279,10 @@ class PuzzlesIT {
 			assertThat(respuesta.statusCode()).as(cuerpo).isEqualTo(400);
 			assertThat(api.cuerpo(respuesta).get("details").get(0).get("field").asString()).isEqualTo("datos");
 		}
-		for (String datos : List.of(INICIADO, COMPLETADA)) {
-			HttpResponse<String> respuesta = reportar("COCULA", "radio", datos, juego);
-			assertThat(respuesta.statusCode()).as("radio " + datos).isEqualTo(400);
-			assertThat(api.cuerpo(respuesta).get("details").get(0).get("message").asString())
-					.isEqualTo("en radio debe ser exactamente {\"sintonizada\": true}");
-		}
+		HttpResponse<String> radio = reportar("COCULA", "radio", COMPLETADA, app);
+		assertThat(radio.statusCode()).as("radio " + COMPLETADA).isEqualTo(400);
+		assertThat(api.cuerpo(radio).get("details").get(0).get("message").asString())
+				.isEqualTo("en radio debe ser exactamente {\"sintonizada\": true} o {\"iniciado\": true}");
 
 		assertThat(estados("COCULA")).containsExactly("radio:disponible", "photo:disponible", "lookout:bloqueado",
 				"observatory:bloqueado");
@@ -343,14 +341,14 @@ class PuzzlesIT {
 						.as(clave).isEqualTo(403);
 			}
 		}
-		assertThat(reportar("ESPITA", "radio", SINTONIZADA, juego).statusCode()).isEqualTo(409);
+		assertThat(reportar("ESPITA", "radio", SINTONIZADA, app).statusCode()).isEqualTo(409);
 		assertThat(reportar("ESPITA", "observatory", COMPLETADA, app).statusCode()).isEqualTo(409);
-		assertThat(reportar("ESPITA", "radio", "{\"sintonizada\":true,\"valor\":\"999\"}", juego).statusCode())
+		assertThat(reportar("ESPITA", "radio", "{\"sintonizada\":true,\"valor\":\"999\"}", app).statusCode())
 				.isEqualTo(400);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM descubrimientos WHERE sala_id = ?", Integer.class, sala))
 				.isZero();
 
-		radioResuelta("ESPITA", juego);
+		radioResuelta("ESPITA", juego, app);
 		assertThat(api.enviar("POST", "/api/v1/salas/ESPITA/descubrimientos", "{\"clave\":\"coordenada_a\"}", app)
 				.statusCode()).isEqualTo(403);
 		assertThat(jdbc.queryForObject(
@@ -363,7 +361,7 @@ class PuzzlesIT {
 	void coordenadasComoTexto() throws Exception {
 		String juego = api.tokenJuego("FRONTERA");
 		String app = api.tokenApp("FRONTERA");
-		radioResuelta("FRONTERA", juego);
+		radioResuelta("FRONTERA", juego, app);
 		piezas("FRONTERA", juego);
 		reportar("FRONTERA", "photo", COMPLETADA, app);
 
@@ -387,11 +385,12 @@ class PuzzlesIT {
 	@DisplayName("Resolver un puzzle actualiza ultima_actividad y renueva expira_en; repetir el aviso también renueva, sin guardar eventos")
 	void resolverRenuevaLaExpiracion() throws Exception {
 		String juego = api.tokenJuego("GUACHOCHI");
+		String app = api.tokenApp("GUACHOCHI");
 		descubrir("GUACHOCHI", "pescador_dialogo_completo", juego);
 
 		reloj.avanzar(Duration.ofHours(1));
 		Instant antes = reloj.instant();
-		reportar("GUACHOCHI", "radio", SINTONIZADA, juego);
+		reportar("GUACHOCHI", "radio", SINTONIZADA, app);
 		assertThat(actividad("GUACHOCHI")).allSatisfy(t -> assertThat(t).isBetween(antes, antes.plusSeconds(5)));
 		assertThat(expiraEn("GUACHOCHI")).isBetween(antes.plus(Duration.ofHours(2)),
 				antes.plus(Duration.ofHours(2)).plusSeconds(5));
@@ -399,7 +398,7 @@ class PuzzlesIT {
 		int eventosAntes = eventos("GUACHOCHI").size();
 		reloj.avanzar(Duration.ofHours(1));
 		Instant repetido = reloj.instant();
-		assertThat(reportar("GUACHOCHI", "radio", SINTONIZADA, juego).statusCode()).isEqualTo(200);
+		assertThat(reportar("GUACHOCHI", "radio", SINTONIZADA, app).statusCode()).isEqualTo(200);
 		assertThat(expiraEn("GUACHOCHI")).isBetween(repetido.plus(Duration.ofHours(2)),
 				repetido.plus(Duration.ofHours(2)).plusSeconds(5));
 		assertThat(eventos("GUACHOCHI")).hasSize(eventosAntes);
@@ -409,12 +408,13 @@ class PuzzlesIT {
 	@DisplayName("Los errores reales de PUT puzzles traen codigo null en 400, 401, 403, 404 y 405, y puzzle_bloqueado en el 409")
 	void codigoEnLosErrores() throws Exception {
 		String juego = api.tokenJuego("GUADALUPE");
+		String app = api.tokenApp("GUADALUPE");
 		String otraSala = api.tokenJuego("GUERRERO");
 
 		Map<String, HttpResponse<String>> errores = new LinkedHashMap<>();
-		errores.put("400 datos", reportar("GUADALUPE", "photo", "{\"completada\":1}", juego));
-		errores.put("400 json", api.enviar("PUT", "/api/v1/salas/GUADALUPE/puzzles/photo", "{\"datos\":", juego));
-		errores.put("400 puzzle", reportar("GUADALUPE", "fotografia", COMPLETADA, juego));
+		errores.put("400 datos", reportar("GUADALUPE", "photo", "{\"completada\":1}", app));
+		errores.put("400 json", api.enviar("PUT", "/api/v1/salas/GUADALUPE/puzzles/photo", "{\"datos\":", app));
+		errores.put("400 puzzle", reportar("GUADALUPE", "fotografia", COMPLETADA, app));
 		errores.put("401", reportar("GUADALUPE", "photo", COMPLETADA, null));
 		errores.put("403", reportar("GUADALUPE", "photo", COMPLETADA, otraSala));
 		errores.put("404", api.enviar("GET", "/api/v1/salas/GUADALUPE/no-existe", null, null));
@@ -426,13 +426,72 @@ class PuzzlesIT {
 			assertThat(cuerpo.has("codigo")).as(caso).isTrue();
 			assertThat(cuerpo.get("codigo").isNull()).as(caso).isTrue();
 		});
-		HttpResponse<String> bloqueado = reportar("GUADALUPE", "photo", COMPLETADA, juego);
+		HttpResponse<String> bloqueado = reportar("GUADALUPE", "photo", COMPLETADA, app);
 		assertThat(bloqueado.statusCode()).isEqualTo(409);
 		assertThat(api.cuerpo(bloqueado)).isEqualTo(json.readTree(String.format("""
 				{"timestamp": %s, "status": 409, "error": "Conflict", "codigo": "puzzle_bloqueado",
 				 "message": "El puzzle 'photo' está bloqueado: todavía no se cumplen sus requisitos",
 				 "path": "/api/v1/salas/GUADALUPE/puzzles/photo", "details": []}
 				""", api.cuerpo(bloqueado).get("timestamp"))));
+	}
+
+	@Test
+	@DisplayName("La radio la juega la app: {iniciado: true} la pone en_curso y {sintonizada: true} la resuelve y crea coordenada_a con origen servidor; repetir avisos no cambia nada")
+	void laRadioLaJuegaLaApp() throws Exception {
+		String juego = api.tokenJuego("XICO");
+		String app = api.tokenApp("XICO");
+		assertThat(reportar("XICO", "radio", INICIADO, app).statusCode()).as("bloqueada hasta hablar con el pescador")
+				.isEqualTo(409);
+		descubrir("XICO", "pescador_dialogo_completo", juego);
+		assertThat(estados("XICO")).contains("radio:disponible");
+
+		HttpResponse<String> iniciada = reportar("XICO", "radio", INICIADO, app);
+		assertThat(iniciada.statusCode()).isEqualTo(200);
+		assertThat(api.cuerpo(iniciada))
+				.isEqualTo(json.readTree("{\"puzzle\":\"radio\",\"estado\":\"en_curso\",\"datos\":{\"iniciado\":true}}"));
+		HttpResponse<String> sintonizada = reportar("XICO", "radio", SINTONIZADA, app);
+		assertThat(sintonizada.statusCode()).isEqualTo(200);
+		assertThat(api.cuerpo(sintonizada)).isEqualTo(
+				json.readTree("{\"puzzle\":\"radio\",\"estado\":\"resuelto\",\"datos\":{\"sintonizada\":true}}"));
+		assertThat(eventos("XICO")).containsExactly("sala.creada:juego", "app.unida:app",
+				"descubrimiento.registrado:juego", "puzzle.habilitado:servidor", "puzzle.iniciado:app",
+				"puzzle.resuelto:app", "descubrimiento.registrado:servidor");
+
+		int eventosAntes = eventos("XICO").size();
+		assertThat(reportar("XICO", "radio", INICIADO, app).statusCode()).isEqualTo(200);
+		assertThat(reportar("XICO", "radio", SINTONIZADA, app).statusCode()).isEqualTo(200);
+		assertThat(fila("XICO", "radio")).isEqualTo("resuelto:{\"sintonizada\": true}");
+		assertThat(eventos("XICO")).hasSize(eventosAntes);
+		JsonNode estado = api.cuerpo(api.enviar("GET", "/api/v1/salas/XICO/estado", null, juego));
+		assertThat(estado.get("descubrimientos").valueStream().filter(d -> d.get("clave").asString().equals("coordenada_a"))
+				.map(d -> d.get("origen").asString() + ":" + d.get("datos"))).containsExactly(
+						"servidor:{\"tipo\":\"ascension_recta\",\"valor\":\"137\"}");
+	}
+
+	@Test
+	@DisplayName("El juego no avisa puzzles: PUT de los cuatro con su token da 403 con codigo puzzle_solo_app, aunque el puzzle esté disponible, y no cambia nada; con el token de la app sí avanza")
+	void elJuegoNoAvisaPuzzles() throws Exception {
+		String juego = api.tokenJuego("XICOTEPEC");
+		String app = api.tokenApp("XICOTEPEC");
+		descubrir("XICOTEPEC", "pescador_dialogo_completo", juego);
+		piezas("XICOTEPEC", juego);
+		List<String> estadosAntes = estados("XICOTEPEC");
+		List<String> eventosAntes = eventos("XICOTEPEC");
+
+		for (Map.Entry<String, String> caso : Map.of("radio", SINTONIZADA, "photo", COMPLETADA, "lookout", INICIADO,
+				"observatory", COMPLETADA).entrySet()) {
+			HttpResponse<String> respuesta = reportar("XICOTEPEC", caso.getKey(), caso.getValue(), juego);
+			assertThat(respuesta.statusCode()).as(caso.getKey()).isEqualTo(403);
+			assertThat(api.cuerpo(respuesta)).isEqualTo(json.readTree(String.format("""
+					{"timestamp": %s, "status": 403, "error": "Forbidden", "codigo": "puzzle_solo_app",
+					 "message": "Los puzzles los avisa la app; el juego no puede reportar '%s'",
+					 "path": "/api/v1/salas/XICOTEPEC/puzzles/%s", "details": []}
+					""", api.cuerpo(respuesta).get("timestamp"), caso.getKey(), caso.getKey())));
+		}
+		assertThat(estados("XICOTEPEC")).isEqualTo(estadosAntes);
+		assertThat(eventos("XICOTEPEC")).isEqualTo(eventosAntes);
+		assertThat(reportar("XICOTEPEC", "radio", SINTONIZADA, app).statusCode()).isEqualTo(200);
+		assertThat(reportar("XICOTEPEC", "photo", COMPLETADA, app).statusCode()).isEqualTo(200);
 	}
 
 	@Test
@@ -490,9 +549,10 @@ class PuzzlesIT {
 		}
 	}
 
-	private void radioResuelta(String codigo, String juego) throws Exception {
+	/** El juego registra al pescador; la app sintoniza la radio. */
+	private void radioResuelta(String codigo, String juego, String app) throws Exception {
 		descubrir(codigo, "pescador_dialogo_completo", juego);
-		assertThat(reportar(codigo, "radio", SINTONIZADA, juego).statusCode()).isEqualTo(200);
+		assertThat(reportar(codigo, "radio", SINTONIZADA, app).statusCode()).isEqualTo(200);
 	}
 
 	/** {@code status:estado:datos} de la respuesta de PUT puzzles, o {@code status:message} si es un error. */
