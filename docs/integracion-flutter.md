@@ -4,6 +4,17 @@ Esta guía es para quien programa **la app móvil en Flutter (Dart)**, la libret
 
 > **Antes de copiar cualquier comando:** todos usan la variable `BASE` con la dirección del backend. Escribe primero `export BASE=http://localhost:8080` en tu terminal. Si el backend corre en otro puerto (por ejemplo `18081`), usa ese número: `export BASE=http://localhost:18081`. Ver la sección 2.1.
 
+> **Servidor de pruebas en Railway (ya desplegado).** Puedes probar sin levantar nada en tu computadora:
+>
+> - REST: `https://vestigia-backend-production-745d.up.railway.app/api/v1`
+> - WebSocket: `wss://vestigia-backend-production-745d.up.railway.app/ws`
+> - Swagger UI (contratos y ejemplos): `https://vestigia-backend-production-745d.up.railway.app/swagger-ui/index.html`
+> - Para los comandos de esta guía: `export BASE=https://vestigia-backend-production-745d.up.railway.app`
+>
+> Es **un solo servidor compartido por todo el equipo**. Un pueblo solo puede tener una sala viva: si `POST /salas` responde `409`, otra persona lo está usando; elige otro de `GET /api/v1/pueblos?disponibles=true`. Cuando termines, cierra tu sala con `DELETE /api/v1/salas/{codigo}` para liberar el pueblo (si no, expira sola a las 2 horas sin actividad).
+>
+> Flutter nativo no manda `Origin`, así que no tiene restricción de CORS. En producción la URL es `https://`, por lo que Android y iOS no piden ningún permiso extra de tráfico sin cifrar. Usa esta URL tanto en emulador como en teléfono físico.
+
 Cada respuesta de ejemplo salió de correr el backend real. Los tokens están recortados (`MdKqZU8pVUJn…`). Los fragmentos de Dart están marcados como **no compilados**: se escribieron para Flutter 3 con Dart 3, pero no se compilaron en un proyecto de Flutter.
 
 **Índice**
@@ -42,9 +53,9 @@ Desde ahí, la app muestra en la **libreta** lo que pasa en el juego: la escena,
 | Entorno | URL base |
 |---|---|
 | Local | `http://localhost:8080` en la computadora que corre el backend (o el puerto que use quien lo levantó) |
-| Producción | Por definir. Raúl la entrega cuando el backend esté desplegado |
+| Producción (Railway) | `https://vestigia-backend-production-745d.up.railway.app` |
 
-Todas las rutas REST empiezan con `/api/v1`. El WebSocket está en `/ws`, en el mismo servidor: `ws://…/ws` en local y `wss://…/ws` en producción.
+Todas las rutas REST empiezan con `/api/v1`. El WebSocket está en `/ws`, en el mismo servidor: `ws://…/ws` en local y `wss://vestigia-backend-production-745d.up.railway.app/ws` en producción.
 
 Desde el teléfono, `localhost` **no** es tu computadora:
 

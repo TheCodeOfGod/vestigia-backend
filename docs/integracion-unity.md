@@ -4,6 +4,17 @@ Esta guía es para quien programa **el juego de PC en Unity (C#)**. Explica, pas
 
 > **Antes de copiar cualquier comando:** todos usan la variable `BASE` con la dirección del backend. Escribe primero `export BASE=http://localhost:8080` en tu terminal. Si el backend corre en otro puerto (por ejemplo `18081`), usa ese número: `export BASE=http://localhost:18081`. Ver la sección 2.1.
 
+> **Servidor de pruebas en Railway (ya desplegado).** Puedes probar sin levantar nada en tu computadora:
+>
+> - REST: `https://vestigia-backend-production-745d.up.railway.app/api/v1`
+> - WebSocket: `wss://vestigia-backend-production-745d.up.railway.app/ws`
+> - Swagger UI (contratos y ejemplos): `https://vestigia-backend-production-745d.up.railway.app/swagger-ui/index.html`
+> - Para los comandos de esta guía: `export BASE=https://vestigia-backend-production-745d.up.railway.app`
+>
+> Es **un solo servidor compartido por todo el equipo**. Un pueblo solo puede tener una sala viva: si `POST /salas` responde `409`, otra persona lo está usando; elige otro de `GET /api/v1/pueblos?disponibles=true`. Cuando termines, cierra tu sala con `DELETE /api/v1/salas/{codigo}` para liberar el pueblo (si no, expira sola a las 2 horas sin actividad).
+>
+> Unity no manda `Origin`, así que no tiene restricción de CORS. Usa `wss://` (con TLS) y `https://` en producción.
+
 Cada respuesta de ejemplo salió de correr el backend real. Los tokens están recortados (`K8srOIYIL0jr…`). Los fragmentos de C# están marcados como **no compilados**: se escribieron para Unity 2021 o posterior, pero no se compilaron en un proyecto de Unity.
 
 **Índice**
@@ -45,9 +56,9 @@ El juego también **escucha**: el teléfono resuelve la fotografía, el mirador 
 | Entorno | URL base |
 |---|---|
 | Local | `http://localhost:8080` (o el puerto que use quien levantó el backend) |
-| Producción | Por definir. Raúl la entrega cuando el backend esté desplegado |
+| Producción (Railway) | `https://vestigia-backend-production-745d.up.railway.app` |
 
-Todas las rutas REST empiezan con `/api/v1`. El WebSocket está en `/ws`, en el mismo servidor: `ws://localhost:8080/ws` en local y `wss://…/ws` en producción.
+Todas las rutas REST empiezan con `/api/v1`. El WebSocket está en `/ws`, en el mismo servidor: `ws://localhost:8080/ws` en local y `wss://vestigia-backend-production-745d.up.railway.app/ws` en producción.
 
 En los comandos de esta guía la URL base está en la variable `BASE`. Defínela una vez en tu terminal y, si tu backend corre en otro puerto, cambia solo el número de esta línea:
 

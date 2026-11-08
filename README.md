@@ -12,6 +12,19 @@ Backend de **Vestigia**, el proyecto integrador del grupo IDGS101N de la Univers
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | Tablas, ciclo de vida de una sala y qué se guarda de cada token |
 | [`docs/despliegue.md`](docs/despliegue.md) | Despliegue en Railway |
 
+## Servidor desplegado
+
+El backend corre en Railway y se puede probar sin levantar nada:
+
+| | URL |
+|---|---|
+| REST | `https://vestigia-backend-production-745d.up.railway.app/api/v1` |
+| WebSocket | `wss://vestigia-backend-production-745d.up.railway.app/ws` |
+| Swagger UI | `https://vestigia-backend-production-745d.up.railway.app/swagger-ui/index.html` |
+| Salud | `https://vestigia-backend-production-745d.up.railway.app/actuator/health` |
+
+Es un solo servidor compartido por el equipo: un pueblo solo puede tener una sala viva, así que quien termine de probar debe cerrar su sala con `DELETE /api/v1/salas/{codigo}`.
+
 ## Cómo funciona
 
 Todo gira alrededor de la **sala**, que identifica una partida con el nombre de un Pueblo Mágico en mayúsculas, sin acentos y de una sola palabra (por ejemplo `BACALAR`). El catálogo de pueblos es fijo y vive en la base de datos.
