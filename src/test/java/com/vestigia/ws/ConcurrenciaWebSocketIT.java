@@ -183,7 +183,7 @@ class ConcurrenciaWebSocketIT {
 	 */
 	private void esperarJobBloqueado(CompletableFuture<Void> job) {
 		long limite = System.nanoTime() + Duration.ofSeconds(5).toNanos();
-		while (jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
+		while (nuevaFotoDeActividad() && jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
 				+ " AND datname = current_database() AND query ILIKE '%expira_en<%' AND query ILIKE '%for %update%'",
 				Integer.class) == 0) {
 			if (job.isDone()) {
@@ -201,6 +201,17 @@ class ConcurrenciaWebSocketIT {
 				.isLessThan(limite);
 			Thread.onSpinWait();
 		}
+	}
+
+	/**
+	 * Esta consulta corre dentro de la transacción de la prueba, y Postgres toma una sola foto de pg_stat_activity por
+	 * transacción: si el job aún no había conectado en la primera consulta, la foto lo mostraba sin consulta y nunca se
+	 * actualizaba. Descartar la foto en cada vuelta hace que se vea al job cuando llega al candado. Devuelve true para
+	 * usarse dentro de la condición del ciclo.
+	 */
+	private boolean nuevaFotoDeActividad() {
+		jdbc.execute("SELECT pg_stat_clear_snapshot()");
+		return true;
 	}
 
 	/** Un auth detenido entre validar el token en la base y registrar la conexión, como el handler. */
