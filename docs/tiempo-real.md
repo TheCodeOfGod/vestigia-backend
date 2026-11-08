@@ -2,6 +2,8 @@
 
 Guía para quien integra el juego (Unity) o la app (Flutter). El backend avisa por WebSocket lo que cambia en la sala para que el otro dispositivo se entere sin preguntar. Las escrituras siguen yendo por REST (`docs/api.md`): por el WebSocket el cliente solo manda `auth`.
 
+**Servidor en Railway para probar:** `wss://vestigia-backend-production-745d.up.railway.app/ws`. En local, `ws://localhost:8080/ws`. Unity y Flutter nativo no mandan `Origin`; un navegador sí, y su origen debe estar en `CORS_ALLOWED_ORIGINS`.
+
 Es un WebSocket simple, sin STOMP ni SockJS. Cada mensaje es un texto JSON con la forma:
 
 <!-- respuesta: ws -->
