@@ -4,6 +4,17 @@ Esta guía es para quien programa **la PWA de Vestigia en React con Vite (TypeSc
 
 > **Antes de copiar cualquier comando:** todos usan la variable `BASE` con la dirección del backend. Escribe primero `export BASE=http://localhost:8080` en tu terminal. Si el backend corre en otro puerto (por ejemplo `18081`), usa ese número: `export BASE=http://localhost:18081`. Ver la sección 2.1.
 
+> **Servidor de pruebas en Railway (ya desplegado).** Puedes probar sin levantar nada en tu computadora:
+>
+> - REST: `https://vestigia-backend-production-745d.up.railway.app/api/v1`
+> - WebSocket: `wss://vestigia-backend-production-745d.up.railway.app/ws`
+> - Swagger UI (contratos y ejemplos): `https://vestigia-backend-production-745d.up.railway.app/swagger-ui/index.html`
+> - Para los comandos de esta guía: `export BASE=https://vestigia-backend-production-745d.up.railway.app`
+>
+> Es **un solo servidor compartido por todo el equipo**. Un pueblo solo puede tener una sala viva: si `POST /salas` responde `409`, otra persona lo está usando; elige otro de `GET /api/v1/pueblos?disponibles=true`. Cuando termines, cierra tu sala con `DELETE /api/v1/salas/{codigo}` para liberar el pueblo (si no, expira sola a las 2 horas sin actividad).
+>
+> La PWA sí manda `Origin`. Corriendo en `http://localhost:5173` o `http://localhost:4173` ya puede llamar a este servidor. Si la sirves desde otra URL, pásasela a Raúl para agregarla a `CORS_ALLOWED_ORIGINS`. Con la URL real, `VITE_API_URL={URL}` (sin `/` al final).
+
 Cada respuesta de ejemplo salió de correr el backend real. El cliente de la sección 10, el componente del paso 4 y la declaración de `VITE_API_URL` del paso 1 se comprobaron con `tsc --noEmit` (TypeScript 6.0.3, modo estricto) usando los tipos de React 19 y Vite de la PWA. La regla de caché de la sección 9 es un fragmento de configuración y no se comprobó aparte.
 
 **Índice**
@@ -43,7 +54,7 @@ Hoy lo único que puede pedirle al backend es el **catálogo de pueblos** (los n
 | Entorno | URL base |
 |---|---|
 | Local | `http://localhost:8080` (o el puerto que use quien levantó el backend) |
-| Producción | Por definir. Raúl la entrega cuando el backend esté desplegado |
+| Producción (Railway) | `https://vestigia-backend-production-745d.up.railway.app` |
 
 Todas las rutas REST empiezan con `/api/v1`. La PWA guarda la URL base en la variable de Vite `VITE_API_URL` (paso 1 de la sección 4); nunca la escribas en el código.
 
@@ -124,7 +135,7 @@ Si el origen está permitido, la respuesta trae `Access-Control-Allow-Origin: ht
 | # | Tema | Cómo está hoy |
 |---|---|---|
 | P7 | Archivo de partidas terminadas | **No existe.** Falta decidir qué muestra, cómo se identifica una sala y quién puede verla (sección 4) |
-| O1 | URL del backend en producción | Por definir: el backend todavía no está desplegado |
+| O1 | URL del backend en producción | ✅ `https://vestigia-backend-production-745d.up.railway.app` |
 | O3 | ¿La PWA sigue llamando a `/api/salas`? | El código de la PWA todavía lo llama, pero el backend ya no lo tiene: responde `404` (sección 12) |
 | — | `/actuator/health` desde el navegador | No tiene CORS. Si la PWA necesita leerlo desde el navegador en otro origen, hay que pedírselo a Raúl |
 | 🟡 | `codigo` en los errores | Siempre viene en el cuerpo de error; vale `null` en todo lo que usa la PWA |
@@ -185,7 +196,7 @@ Hay dos formas de trabajar en local:
 | Directo al backend | `http://localhost:8080` | El navegador llama a `http://localhost:8080/api/v1/...` | Hace falta. `5173` y `4173` ya están permitidos |
 | Proxy de Vite | vacía | El navegador llama a `/api/v1/...` en el mismo origen y `vite dev` lo reenvía (`server.proxy` con `'/api': 'http://localhost:8080'`) | No hace falta. Solo funciona con `vite dev`, no con `vite preview` ni en producción |
 
-En producción, `VITE_API_URL` es la URL pública del backend, que todavía está por definir. Se fija al compilar (`vite build`): si cambia, hay que volver a compilar.
+En producción, `VITE_API_URL` es la URL pública del backend: `https://vestigia-backend-production-745d.up.railway.app`. Se fija al compilar (`vite build`): si cambia, hay que volver a compilar.
 
 **Errores:** si `VITE_API_URL` está mal, `fetch` falla sin respuesta (sección 8). Revisa en la consola del navegador a qué URL fue la petición.
 
