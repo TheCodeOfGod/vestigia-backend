@@ -1,6 +1,7 @@
 package com.vestigia.ws;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -166,7 +167,7 @@ class ConcurrenciaWebSocketIT {
 					job.completeExceptionally(ex);
 				}
 			});
-			esperarJobBloqueado();
+			esperarJobBloqueado(job);
 		});
 		job.get(10, TimeUnit.SECONDS);
 
@@ -180,14 +181,37 @@ class ConcurrenciaWebSocketIT {
 	 * Espera a que la consulta del job ({@code SELECT ... WHERE ... expira_en < ? FOR ... UPDATE}) esté detenida por un
 	 * candado de fila. Si el que espera es el job programado de Spring y no el de la prueba, la carrera es la misma.
 	 */
-	private void esperarJobBloqueado() {
+	private void esperarJobBloqueado(CompletableFuture<Void> job) {
 		long limite = System.nanoTime() + Duration.ofSeconds(5).toNanos();
-		while (jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
+		while (nuevaFotoDeActividad() && jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
 				+ " AND datname = current_database() AND query ILIKE '%expira_en<%' AND query ILIKE '%for %update%'",
 				Integer.class) == 0) {
-			assertThat(System.nanoTime()).as("el job espera el candado de la sala antes de 5 s").isLessThan(limite);
+			if (job.isDone()) {
+				try {
+					job.getNow(null);
+					fail("el job terminó sin esperar el candado de la sala");
+				}
+				catch (Exception ex) {
+					fail("el job falló antes de esperar el candado de la sala", ex);
+				}
+			}
+			assertThat(System.nanoTime()).as("el job espera el candado de la sala antes de 5 s; consultas con candado: "
+					+ jdbc.queryForList("SELECT wait_event_type, wait_event, state, left(query, 160) AS query"
+							+ " FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()"))
+				.isLessThan(limite);
 			Thread.onSpinWait();
 		}
+	}
+
+	/**
+	 * Esta consulta corre dentro de la transacción de la prueba, y Postgres toma una sola foto de pg_stat_activity por
+	 * transacción: si el job aún no había conectado en la primera consulta, la foto lo mostraba sin consulta y nunca se
+	 * actualizaba. Descartar la foto en cada vuelta hace que se vea al job cuando llega al candado. Devuelve true para
+	 * usarse dentro de la condición del ciclo.
+	 */
+	private boolean nuevaFotoDeActividad() {
+		jdbc.execute("SELECT pg_stat_clear_snapshot()");
+		return true;
 	}
 
 	/** Un auth detenido entre validar el token en la base y registrar la conexión, como el handler. */
