@@ -8,7 +8,7 @@
 #   scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR
 #
 # Recorre la partida completa con curl y jq: health, crear sala, unirse, escenas, banderas del juego, los cuatro
-# puzzles, estado y cierre. Sin pueblo, toma uno libre de GET /api/v1/pueblos?disponibles=true.
+# puzzles (los cuatro los avisa la app), estado y cierre. Sin pueblo, toma uno libre de GET /api/v1/pueblos?disponibles=true.
 #
 # Si un paso falla, se detiene, dice cuál y sale con código 1. Pase lo que pase, al salir cierra la sala que creó
 # (DELETE con el token del juego), para no dejar un pueblo ocupado. La sala queda como historial en estado finalizada.
@@ -209,7 +209,8 @@ escena pueblo
 descubrimiento pescador_dialogo_completo
 estado_puzzle radio disponible
 ok "radio disponible"
-puzzle radio sintonizada "$TOKEN_JUEGO" juego resuelto
+puzzle radio iniciado "$TOKEN_APP" app en_curso
+puzzle radio sintonizada "$TOKEN_APP" app resuelto
 
 descubrimiento pieza_1
 descubrimiento pieza_2

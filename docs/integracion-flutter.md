@@ -38,7 +38,7 @@ Cada respuesta de ejemplo salió de correr el backend real. Los tokens están re
 
 La app es la libreta de Janeth. La jugadora elige un pueblo en el juego de PC; ese nombre es el **código de sala**, y lo escribe en la app para enlazar el teléfono con la partida.
 
-Desde ahí, la app muestra en la **libreta** lo que pasa en el juego: la escena, las piezas encontradas, las coordenadas, los puzzles resueltos. Cuando un puzzle del teléfono se habilita, aparece una **burbuja que pulsa**; al tocarla se abre el puzzle. La app juega tres puzzles: la fotografía (`photo`), el mirador (`lookout`) y el observatorio (`observatory`, con el giroscopio). Al terminar cada uno le avisa al backend, y el juego de PC reacciona. La radio la juega el juego: la app solo muestra su estado.
+Desde ahí, la app muestra en la **libreta** lo que pasa en el juego: la escena, las piezas encontradas, las coordenadas, los puzzles resueltos. Cuando un puzzle del teléfono se habilita, aparece una **burbuja que pulsa**; al tocarla se abre el puzzle. La app juega los cuatro puzzles: la radio (`radio`), la fotografía (`photo`), el mirador (`lookout`) y el observatorio (`observatory`, con el giroscopio). La radio aparece cuando la jugadora habla con el pescador en el juego. Al terminar cada puzzle la app le avisa al backend, y el juego de PC reacciona. **Solo la app avisa puzzles**: el juego no lo hace.
 
 ```
  Inicio ─▶ Código de sala ─▶ LIBRETA ─────────────────────▶ burbuja que pulsa ─▶ Puzzle ─────────────────▶ LIBRETA ─▶ … ─▶ Fin
@@ -147,13 +147,11 @@ Si responde `409`, el pueblo ya tiene una sala de una prueba anterior. Ciérrala
 		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "lookout_enabled"}'
 	```
 
-3. Para habilitar el observatorio (`observatory`), **después** de que la app resuelva `lookout`: el pescador, la radio (que crea `coordenada_a`) y la llegada al observatorio.
+3. Para habilitar el observatorio (`observatory`), **después** de que la app resuelva `lookout`: el pescador y la llegada al observatorio. La radio (que crea `coordenada_a`) la resuelve la app (paso 8), no el juego.
 
 	```sh
 	curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
 		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "pescador_dialogo_completo"}'
-	curl -X PUT $BASE/api/v1/salas/TAPALPA/puzzles/radio \
-		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"datos": {"sintonizada": true}}'
 	curl -X POST $BASE/api/v1/salas/TAPALPA/descubrimientos \
 		-H "Authorization: Bearer $TOKEN_JUEGO" -H 'Content-Type: application/json' -d '{"clave": "observatory_enabled"}'
 	```
@@ -220,8 +218,8 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 |---|---|---|
 | Unirse a la sala | `POST /api/v1/salas/{codigo}/unirse` | La jugadora escribe el código |
 | Ver el estado | `GET /api/v1/salas/{codigo}/estado` | Al abrir la libreta, tras cada reconexión y cuando dudes |
-| Avisar que abrió un puzzle | `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}` con `{"datos": {"iniciado": true}}` | Al abrir `photo`, `lookout` u `observatory` |
-| Avisar que completó un puzzle | `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}` con `{"datos": {"completada": true}}` | Al completar `photo`, `lookout` u `observatory` |
+| Avisar que abrió un puzzle | `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}` con `{"datos": {"iniciado": true}}` | Al abrir `radio`, `photo`, `lookout` u `observatory` |
+| Avisar que completó un puzzle | `PUT /api/v1/salas/{codigo}/puzzles/{puzzle}` con `{"datos": {"completada": true}}` (en `radio`, `{"datos": {"sintonizada": true}}`) | Al completar `radio`, `photo`, `lookout` u `observatory` |
 | Tiempo real | WebSocket `/ws`: manda `auth`; recibe `auth.ok`, `dispositivo.conectado`, `dispositivo.desconectado`, `puzzle.actualizado`, `descubrimiento.nuevo`, `escena.cambiada`, `sala.cerrada` y `error` | Desde que se une hasta que la sala se cierra |
 
 **Lo que la app no debe usar:**
@@ -231,7 +229,6 @@ Estas reglas ya funcionan así, pero Raúl todavía puede cambiarlas. Si cambian
 | `PUT /api/v1/salas/{codigo}/escena` | `403` `Solo el juego puede cambiar la escena` |
 | `DELETE /api/v1/salas/{codigo}` | `403` `Solo el juego puede cerrar la sala` |
 | `POST /api/v1/salas` | **No da error**: crearía una sala nueva y ocuparía un pueblo. Es solo del juego |
-| `PUT /api/v1/salas/{codigo}/puzzles/radio` | **No da error**: el backend no revisa qué rol avisa cada puzzle. Resolvería la radio, que juega el juego |
 | `POST /api/v1/salas/{codigo}/descubrimientos` con `pieza_1`, `pieza_2`, `pieza_3`, `pescador_dialogo_completo`, `lookout_enabled` u `observatory_enabled` | `403` con `"codigo": "clave_solo_juego"`: esas claves las manda solo el juego. La app no registra descubrimientos; avisa sus puzzles con `PUT puzzles` |
 | `POST /api/v1/salas/{codigo}/descubrimientos` con `coordenada_a`, `coordenada_b`, `observatorio_visible` o `magnetar_localizado` | `403`: esas claves las crea el servidor |
 | Cualquier ruta con el token de otra sala | `403` `El token no pertenece a esta sala` |
@@ -484,7 +481,7 @@ El detalle de cada mensaje está en la sección 7.
 
 ### Paso 6. Mostrar la burbuja que pulsa
 
-**Cuándo:** un puzzle del teléfono (`photo`, `lookout` u `observatory`) pasa a `disponible`. Llega este mensaje:
+**Cuándo:** un puzzle del teléfono (`radio`, `photo`, `lookout` u `observatory`) pasa a `disponible`. Llega este mensaje:
 
 <!-- respuesta: ws -->
 ```json
@@ -495,7 +492,7 @@ El detalle de cada mensaje está en la sección 7.
 
 | Puzzle | Burbuja |
 |---|---|
-| `radio` | **No tiene burbuja.** La juega el juego; la libreta solo muestra su estado |
+| `radio` | Pulsa cuando está `disponible`: aparece cuando el juego registra al pescador |
 | `photo` | Pulsa cuando está `disponible` |
 | `lookout` | Pulsa cuando está `disponible` |
 | `observatory` | Pulsa cuando está `disponible` |
@@ -504,7 +501,7 @@ Si la jugadora abrió un puzzle y salió sin terminarlo, queda `en_curso`. Suger
 
 ```dart
 // No compilado.
-const puzzlesDelTelefono = ['photo', 'lookout', 'observatory'];
+const puzzlesDelTelefono = ['radio', 'photo', 'lookout', 'observatory'];
 
 String? puzzleDeLaBurbuja(EstadoSala estado) {
   for (final id in puzzlesDelTelefono) {
@@ -519,7 +516,7 @@ bool burbujaPulsa(EstadoSala estado, String id) => estado.puzzles[id]?.estado ==
 
 ### Paso 7. Abrir un puzzle: avisar `iniciado`
 
-**Cuándo:** la jugadora toca la burbuja y se abre `photo`, `lookout` u `observatory`. Manda el aviso al abrir la pantalla del puzzle, no al terminarlo. La radio no tiene `iniciado`.
+**Cuándo:** la jugadora toca la burbuja y se abre `radio`, `photo`, `lookout` u `observatory`. Manda el aviso al abrir la pantalla del puzzle, no al terminarlo.
 
 ```sh
 curl -X PUT $BASE/api/v1/salas/TAPALPA/puzzles/photo \
@@ -542,7 +539,7 @@ Respuesta `200 OK`:
 | Respuesta | Cuándo | Qué hacer |
 |---|---|---|
 | `409` con `"codigo": "puzzle_bloqueado"` | El puzzle sigue bloqueado | No abras el puzzle: la burbuja no debió aparecer. Pide el estado (paso 4) |
-| `400` `Datos inválidos` | `datos` no es exactamente `{"iniciado": true}`, o mandaste `iniciado` a `radio` | Corrige el cuerpo |
+| `400` `Datos inválidos` | `datos` no es exactamente `{"iniciado": true}` | Corrige el cuerpo |
 | `401` | La sala terminó | Igual que en el paso 4 |
 
 ### Paso 8. Completar un puzzle: avisar `completada` una sola vez
@@ -575,9 +572,21 @@ Y por WebSocket, a la app y al juego, en este orden:
 
 | Puzzle | Qué juega la jugadora en la app | Resultado que crea el servidor | Qué muestra la libreta |
 |---|---|---|---|
+| `radio` | Sintoniza la radio (el aviso se llama `sintonizada`, no `completada`) | `coordenada_a` con `{"tipo": "ascension_recta", "valor": "137"}` | "Radio sintonizada. AR 137°" |
 | `photo` | Une las tres piezas de la fotografía que encontró el juego | `coordenada_b` con `{"tipo": "declinacion", "valor": "+042"}` | "Foto reconstruida. DEC +042°" |
 | `lookout` | Limpia el lente y alinea la vista del mirador | `observatorio_visible` | "Mirador resuelto" |
 | `observatory` | Apunta el teléfono al cielo con el giroscopio | `magnetar_localizado` | "Magnetar localizado" |
+
+**La radio se avisa distinto:** su aviso de completado se llama `sintonizada`, y el de abrirla es el mismo `iniciado`. Los dos van con el token de la app:
+
+```sh
+curl -X PUT $BASE/api/v1/salas/TAPALPA/puzzles/radio \
+	-H "Authorization: Bearer $TOKEN_APP" \
+	-H 'Content-Type: application/json' \
+	-d '{"datos": {"sintonizada": true}}'
+```
+
+La respuesta es `{"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}}` y el servidor crea `coordenada_a`. Si la radio sigue bloqueada, responde `409` `puzzle_bloqueado`: todavía no llegó `pescador_dialogo_completo` del juego.
 
 **Cuándo se completa cada puzzle (valores de la app).** Viven en la app, no en el backend. Son del prototipo y pueden cambiar con las pruebas y el arte final (C5):
 
@@ -596,7 +605,7 @@ Y por WebSocket, a la app y al juego, en este orden:
 | Respuesta | Cuándo | Qué hacer |
 |---|---|---|
 | `409` con `"codigo": "puzzle_bloqueado"` | El puzzle sigue bloqueado | No debería pasar si la burbuja salió de un `disponible`. Pide el estado |
-| `400` `Datos inválidos` | `datos` no es exactamente `{"completada": true}` (`"true"`, `1`, una clave de más) | Corrige el cuerpo |
+| `400` `Datos inválidos` | `datos` no es exactamente `{"completada": true}` (`"true"`, `1`, una clave de más). En `radio` es `{"sintonizada": true}` | Corrige el cuerpo |
 | `401` | La sala terminó | Igual que en el paso 4 |
 | Sin respuesta | Sin red | Reintenta el mismo aviso con espera. Repetirlo es seguro: un puzzle `resuelto` responde `200` sin cambios |
 
@@ -710,18 +719,17 @@ Un puzzle solo avanza, nunca regresa. El servidor lo pasa de `bloqueado` a `disp
 
 | Puzzle | Quién lo juega | Pasa a `disponible` cuando | Al resolverse el servidor crea |
 |---|---|---|---|
-| `radio` | El juego | Existe `pescador_dialogo_completo` | `coordenada_a` = `{"tipo": "ascension_recta", "valor": "137"}` |
+| `radio` | La app | Existe `pescador_dialogo_completo` | `coordenada_a` = `{"tipo": "ascension_recta", "valor": "137"}` |
 | `photo` | La app | Existen `pieza_1`, `pieza_2` y `pieza_3` | `coordenada_b` = `{"tipo": "declinacion", "valor": "+042"}` |
 | `lookout` | La app | `photo` está `resuelto` y existe `lookout_enabled` | `observatorio_visible` |
 | `observatory` | La app | Existen `coordenada_a` y `coordenada_b`, `lookout` está `resuelto` y existe `observatory_enabled` | `magnetar_localizado` |
 
 | Si el estado es… | La app hace… |
 |---|---|
-| `radio` en cualquier estado | Solo lo muestra en la libreta. Sin burbuja ni avisos |
-| `photo`, `lookout` u `observatory` `bloqueado` | Nada. Sin burbuja |
-| `photo`, `lookout` u `observatory` `disponible` | Muestra la burbuja pulsando. Al tocarla abre el puzzle y manda `iniciado` |
-| `photo`, `lookout` u `observatory` `en_curso` | La jugadora lo abrió. Deja que lo reabra; al completarlo manda `completada` |
-| `photo`, `lookout` u `observatory` `resuelto` | Quita la burbuja y muestra el resultado en la libreta. No mandes nada más |
+| `radio`, `photo`, `lookout` u `observatory` `bloqueado` | Nada. Sin burbuja |
+| `radio`, `photo`, `lookout` u `observatory` `disponible` | Muestra la burbuja pulsando. Al tocarla abre el puzzle y manda `iniciado` |
+| `radio`, `photo`, `lookout` u `observatory` `en_curso` | La jugadora lo abrió. Deja que lo reabra; al completarlo manda `completada` |
+| `radio`, `photo`, `lookout` u `observatory` `resuelto` | Quita la burbuja y muestra el resultado en la libreta. No mandes nada más |
 
 ## 7. Tiempo real
 
@@ -831,7 +839,7 @@ Todos los errores REST traen el mismo cuerpo JSON. Lee `status` y `codigo` para 
 | Contar las piezas de la foto | Cuento las claves `pieza_1`, `pieza_2` y `pieza_3` en `descubrimientos` |
 | Volver a la partida después de cerrar la app | Leo el token del almacenamiento seguro, pido `GET estado` y, si da `200`, conecto el WebSocket. Si da `401`, borro la sesión |
 | Reintentar un aviso que falló por red | Lo repito igual: todas las escrituras se pueden repetir sin duplicar nada |
-| Saber qué burbuja mostrar al abrir la libreta | Busco en `puzzles` de `GET estado` el de `photo`, `lookout` u `observatory` que esté `disponible` o `en_curso` |
+| Saber qué burbuja mostrar al abrir la libreta | Busco en `puzzles` de `GET estado` el de `radio`, `photo`, `lookout` u `observatory` que esté `disponible` o `en_curso` |
 | Saber si la partida terminó | Llega `sala.cerrada`, o cualquier petición responde `401` |
 | Ver los mensajes del WebSocket sin la app | Abro `$BASE/prueba-ws.html`, pego el token de la app y pulso Conectar |
 | Probar una ruta a mano | Uso `curl` como en la sección 4, o Swagger en `$BASE/swagger-ui/index.html` |
@@ -1098,14 +1106,14 @@ ListenableBuilder(
 - [ ] Abro el WebSocket, mando `auth` en menos de 5 s y pido `GET estado` después de cada `auth.ok`.
 - [ ] La libreta muestra la escena, el pescador, la radio, las piezas, las coordenadas, el mirador, el observatorio y si la PC está conectada.
 - [ ] Leo la AR y la DEC de `coordenada_a` y `coordenada_b` como texto; no están escritas en la app.
-- [ ] La burbuja pulsa con `photo`, `lookout` u `observatory` en `disponible`; la radio no tiene burbuja.
+- [ ] La burbuja pulsa con `radio`, `photo`, `lookout` u `observatory` en `disponible`.
 - [ ] Al abrir un puzzle mando `{"datos": {"iniciado": true}}`.
-- [ ] Al completarlo mando `{"datos": {"completada": true}}` una sola vez, y reintento si falla la red.
+- [ ] Al completarlo mando `{"datos": {"completada": true}}` una sola vez (en la radio, `{"datos": {"sintonizada": true}}`), y reintento si falla la red.
 - [ ] La orientación del giroscopio no sale del teléfono.
 - [ ] Reconecto con espera creciente y no reconecto con `1000`, `4001` ni `4009`.
 - [ ] `sala.cerrada` o un `401` borran la sesión y muestran el cierre.
 - [ ] Al abrir la app recupero una partida guardada si sigue viva.
-- [ ] La app no manda escena, cierre, radio, piezas, pescador ni banderas (las claves del juego darían `403` `clave_solo_juego`).
+- [ ] La app no manda escena, cierre, piezas, pescador ni banderas (las claves del juego darían `403` `clave_solo_juego`).
 - [ ] Probé el recorrido completo con `curl` haciendo de juego, o con el juego real.
 
 ## 12. Errores comunes

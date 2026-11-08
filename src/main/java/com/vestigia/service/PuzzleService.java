@@ -24,14 +24,16 @@ import com.vestigia.model.SalaModel;
 import com.vestigia.repository.PuzzleEstadoRepository;
 
 /**
- * Los avisos de los clientes sobre los cuatro puzzles. Quien juega el puzzle dice cuándo empezó o se completó; el
- * servidor valida la forma del aviso y el orden (que el puzzle no esté bloqueado), lo guarda y crea el resultado. No
- * mide ni valida números.
+ * Los avisos de la app sobre los cuatro puzzles: los cuatro se juegan en el teléfono. La app dice cuándo empezó o se
+ * completó cada uno; el servidor valida la forma del aviso y el orden (que el puzzle no esté bloqueado), lo guarda y
+ * crea el resultado. El juego no avisa puzzles: su token recibe 403. No mide ni valida números.
  */
 @Service
 public class PuzzleService {
 
 	private static final String PUZZLE_BLOQUEADO = "puzzle_bloqueado";
+
+	private static final String PUZZLE_SOLO_APP = "puzzle_solo_app";
 
 	private static final String PUZZLES = Arrays.stream(Puzzle.values())
 			.map(Enum::name)
@@ -55,9 +57,9 @@ public class PuzzleService {
 
 	}
 
-	/** La radio la resuelve el juego y no tiene en_curso; los puzzles de la app se inician y se completan. */
+	/** Los cuatro puzzles los juega la app: se inician y se completan. La radio se completa con {@code sintonizada}. */
 	private static final Map<Puzzle, Set<Aviso>> AVISOS = new EnumMap<>(Map.of(
-			Puzzle.radio, EnumSet.of(Aviso.sintonizada),
+			Puzzle.radio, EnumSet.of(Aviso.sintonizada, Aviso.iniciado),
 			Puzzle.photo, EnumSet.of(Aviso.completada, Aviso.iniciado),
 			Puzzle.lookout, EnumSet.of(Aviso.completada, Aviso.iniciado),
 			Puzzle.observatory, EnumSet.of(Aviso.completada, Aviso.iniciado)));
@@ -97,12 +99,17 @@ public class PuzzleService {
 	 * aviso que ya no lo mueve (en_curso más iniciado, o resuelto más cualquiera) responde el estado actual y solo
 	 * renueva la sala. Al resolver, en la misma transacción, crea el resultado con origen servidor, que recalcula los
 	 * puzzles dependientes. Las escrituras de la sala se serializan con el bloqueo de su fila, así que dos avisos
-	 * simultáneos resuelven una sola vez.
+	 * simultáneos resuelven una sola vez. Solo la app avisa puzzles: el token del juego recibe 403 con
+	 * {@code puzzle_solo_app}, después de validar el id y la forma del aviso.
 	 */
 	@Transactional
 	public Sala.Puzzle reportar(SalaService.Credencial credencial, String id, Object datos) {
 		Puzzle puzzle = puzzle(id);
 		Aviso aviso = aviso(puzzle, datos);
+		if (credencial.rol() != SalaService.Rol.app) {
+			throw new ApiException(HttpStatus.FORBIDDEN, PUZZLE_SOLO_APP,
+					"Los puzzles los avisa la app; el juego no puede reportar '" + puzzle + "'", List.of());
+		}
 		SalaModel sala = actividad.bloquear(credencial.salaId());
 		PuzzleEstadoModel fila = puzzles.findById(new PuzzleEstadoModel.Clave(sala.getId(), puzzle))
 				.orElseThrow(() -> new IllegalStateException("La sala " + sala.getId()

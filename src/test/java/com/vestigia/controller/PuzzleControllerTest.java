@@ -135,13 +135,13 @@ class PuzzleControllerTest {
 	void avisoInvalidoDa400ConDetails() throws Exception {
 		when(puzzleService.reportar(any(), eq("radio"), any())).thenThrow(new ApiException(HttpStatus.BAD_REQUEST,
 				null, "Datos inválidos",
-				List.of(new ApiException.Detalle("datos", "en radio debe ser exactamente {\"sintonizada\": true}"))));
+				List.of(new ApiException.Detalle("datos", "en radio debe ser exactamente {\"sintonizada\": true} o {\"iniciado\": true}"))));
 
 		enviar("radio", "{\"datos\":{\"iniciado\":true}}").andExpect(status().isBadRequest())
 				.andExpect(content().string(containsString("\"codigo\":null")))
 				.andExpect(jsonPath("$.details[0].field").value("datos"))
 				.andExpect(jsonPath("$.details[0].message")
-						.value("en radio debe ser exactamente {\"sintonizada\": true}"));
+						.value("en radio debe ser exactamente {\"sintonizada\": true} o {\"iniciado\": true}"));
 	}
 
 	@Test

@@ -110,6 +110,8 @@ Ejemplos reales:
 {"type": "sala.cerrada", "payload": {"estado": "finalizada"}}
 ```
 
+**Quién avisa los puzzles.** Los cuatro puzzles, la radio incluida, los avisa la app por REST. El juego no los avisa (su token recibe `403` con `codigo: "puzzle_solo_app"`) y se entera por estos mensajes.
+
 **Resolver un puzzle** emite, en este orden, `puzzle.actualizado` con `resuelto`, `descubrimiento.nuevo` del resultado y un `puzzle.actualizado` con `disponible` por cada puzzle que se habilita. Por ejemplo, `PUT /puzzles/photo` con `{"completada": true}`, con `lookout_enabled` ya registrado:
 
 <!-- respuesta: ws -->
