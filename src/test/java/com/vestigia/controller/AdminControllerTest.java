@@ -30,13 +30,15 @@ import org.springframework.web.server.ResponseStatusException;
 import com.vestigia.config.JacksonConfig;
 import com.vestigia.dto.SesionIniciada;
 import com.vestigia.dto.Usuario;
+import com.vestigia.model.SalaModel;
 import com.vestigia.model.UsuarioModel;
+import com.vestigia.service.AdminSalaService;
 import com.vestigia.service.ApiException;
 import com.vestigia.service.AuthService;
 import com.vestigia.service.SalaService;
 import com.vestigia.service.UsuarioService;
 
-@WebMvcTest({ AuthController.class, UsuarioController.class })
+@WebMvcTest({ AuthController.class, UsuarioController.class, AdminSalaController.class })
 @Import(JacksonConfig.class)
 class AdminControllerTest {
 
@@ -56,6 +58,9 @@ class AdminControllerTest {
 
 	@MockitoBean
 	private SalaService salaService;
+
+	@MockitoBean
+	private AdminSalaService adminSalaService;
 
 	@BeforeEach
 	void sesionValida() {
@@ -173,6 +178,31 @@ class AdminControllerTest {
 				.when(usuarioService).eliminar(ID);
 		mockMvc.perform(delete("/api/v1/admin/usuarios/" + ID).header("Authorization", "Bearer sesion"))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	@DisplayName("Las rutas de salas de admin dan 401 sin sesión y pasan el estado y el límite al servicio")
+	void salasDeAdmin() throws Exception {
+		UUID sala = UUID.fromString("0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21");
+		mockMvc.perform(get("/api/v1/admin/salas")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/api/v1/admin/salas/" + sala)).andExpect(status().isUnauthorized());
+		mockMvc.perform(delete("/api/v1/admin/salas/" + sala).header("Authorization", "Bearer de-una-sala"))
+				.andExpect(status().isUnauthorized());
+
+		when(adminSalaService.listar(SalaModel.Estado.activa, 5)).thenReturn(List.of());
+		mockMvc.perform(get("/api/v1/admin/salas?estado=activa&limite=5").header("Authorization", "Bearer sesion"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(0));
+		verify(adminSalaService).listar(SalaModel.Estado.activa, 5);
+
+		mockMvc.perform(get("/api/v1/admin/salas?estado=terminada").header("Authorization", "Bearer sesion"))
+				.andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/admin/salas/no-es-uuid").header("Authorization", "Bearer sesion"))
+				.andExpect(status().isBadRequest());
+
+		mockMvc.perform(delete("/api/v1/admin/salas/" + sala).header("Authorization", "Bearer sesion"))
+				.andExpect(status().isNoContent());
+		verify(adminSalaService).cerrar(sala, ID);
 	}
 
 }

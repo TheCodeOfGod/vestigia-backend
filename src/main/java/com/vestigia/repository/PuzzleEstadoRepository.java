@@ -1,5 +1,6 @@
 package com.vestigia.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,5 +11,7 @@ import com.vestigia.model.PuzzleEstadoModel;
 public interface PuzzleEstadoRepository extends JpaRepository<PuzzleEstadoModel, PuzzleEstadoModel.Clave> {
 
 	List<PuzzleEstadoModel> findByClaveSalaId(UUID salaId);
+
+	List<PuzzleEstadoModel> findByClaveSalaIdIn(Collection<UUID> salaIds);
 
 }

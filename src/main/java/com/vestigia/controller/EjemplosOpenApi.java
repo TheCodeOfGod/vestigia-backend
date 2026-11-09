@@ -212,4 +212,47 @@ final class EjemplosOpenApi {
 			"message": "Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo", \
 			"path": "/api/v1/auth/login", "details": []}""";
 
+	static final String SALA_RESUMEN = """
+			{"id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21", "codigo": "BACALAR", "estado": "activa", \
+			"escena_actual": "faro", "puzzles_resueltos": 1, "puzzles_total": 4, "app_unida": true, \
+			"dispositivos": {"juego": true, "app": true}, "creada_en": "2026-11-08T22:40:00.000000Z", \
+			"ultima_actividad": "2026-11-08T23:05:00.000000Z", "expira_en": "2026-11-09T01:05:00.000000Z"}""";
+
+	static final String SALAS_ADMIN = "[" + SALA_RESUMEN + "]";
+
+	static final String SALA_ADMIN = """
+			{
+			  "id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21",
+			  "codigo": "BACALAR",
+			  "estado": "activa",
+			  "escena_actual": "faro",
+			  "puzzles": [
+			    {"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}},
+			    {"puzzle": "photo", "estado": "disponible", "datos": {}},
+			    {"puzzle": "lookout", "estado": "bloqueado", "datos": {}},
+			    {"puzzle": "observatory", "estado": "bloqueado", "datos": {}}
+			  ],
+			  "descubrimientos": [
+			    {"clave": "pescador_dialogo_completo", "datos": {}, "origen": "juego", \
+			"creado_en": "2026-11-08T22:50:00.000000Z"}
+			  ],
+			  "dispositivos": {"juego": true, "app": true},
+			  "app_unida": true,
+			  "creada_en": "2026-11-08T22:40:00.000000Z",
+			  "ultima_actividad": "2026-11-08T23:05:00.000000Z",
+			  "expira_en": "2026-11-09T01:05:00.000000Z",
+			  "eventos": [
+			    {"tipo": "sala.creada", "origen": "juego", "payload": {"codigo": "BACALAR"}, "creado_en": "2026-11-08T22:40:00.000000Z"}
+			  ]
+			}""";
+
+	static final String ERROR_400_ESTADO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 400, "error": "Bad Request", "codigo": null, \
+			"message": "Valor inválido para 'estado'", "path": "/api/v1/admin/salas", "details": []}""";
+
+	static final String ERROR_404_SALA = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 404, "error": "Not Found", "codigo": null, \
+			"message": "No existe la sala 0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21", \
+			"path": "/api/v1/admin/salas/0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21", "details": []}""";
+
 }

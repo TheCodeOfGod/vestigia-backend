@@ -86,7 +86,9 @@ class JsonDocumentadoIT {
 			Map.entry("GET /api/v1/auth/yo", "usuario"),
 			Map.entry("GET /api/v1/admin/usuarios", "usuarios"),
 			Map.entry("POST /api/v1/admin/usuarios", "usuario"),
-			Map.entry("PUT /api/v1/admin/usuarios/{id}", "usuario"));
+			Map.entry("PUT /api/v1/admin/usuarios/{id}", "usuario"),
+			Map.entry("GET /api/v1/admin/salas", "salas-admin"),
+			Map.entry("GET /api/v1/admin/salas/{id}", "sala-admin"));
 
 	/** Las respuestas reales se piden una vez para toda la clase. */
 	private static Map<String, JsonNode> reales;
@@ -254,7 +256,7 @@ class JsonDocumentadoIT {
 		Map<String, JsonNode> reales = new HashMap<>();
 		reales.put("health", ok(enviar("GET", "/actuator/health", null, null), 200));
 		reales.put("pueblos", ok(enviar("GET", "/api/v1/pueblos?disponibles=true", null, null), 200));
-		sesionAdminReal(reales);
+		String admin = sesionAdminReal(reales);
 
 		JsonNode creada = ok(enviar("POST", "/api/v1/salas", "{\"codigo\":\"" + PUEBLO + "\"}", null), 201);
 		reales.put("sala-creada", creada);
@@ -291,6 +293,18 @@ class JsonDocumentadoIT {
 		assertThat(estado.get("descubrimientos")).as("el estado de referencia trae descubrimientos").isNotEmpty();
 		reales.put("estado", estado);
 
+		JsonNode listado = ok(enviar("GET", "/api/v1/admin/salas?estado=activa", null, admin), 200);
+		reales.put("salas-admin", listado);
+		JsonNode suya = null;
+		for (JsonNode sala : listado) {
+			if (sala.get("codigo").asString().equals(PUEBLO)) {
+				suya = sala;
+			}
+		}
+		assertThat(suya).as("la sala de referencia sale en el listado de admin").isNotNull();
+		reales.put("sala-admin", ok(enviar("GET", "/api/v1/admin/salas/" + suya.get("id").asString(), null, admin), 200));
+		jdbc.update("delete from usuarios where correo = 'documentacion@vestigia.site'");
+
 		wsApp.cerrar();
 		guardar(reales, wsJuego.siguienteDeTipo("dispositivo.desconectado"));
 		assertThat(enviar("DELETE", "/api/v1/salas/" + PUEBLO, null, juego).statusCode()).isEqualTo(204);
@@ -299,22 +313,17 @@ class JsonDocumentadoIT {
 		return reales;
 	}
 
-	/** Crea un admin, abre sesión con él y guarda las respuestas de auth y de usuarios. Lo borra al terminar. */
-	private void sesionAdminReal(Map<String, JsonNode> reales) throws Exception {
+	/** Crea un admin, abre sesión con él y guarda las respuestas de auth y de usuarios. Devuelve el token: sigue abierto y quien lo recibe borra al admin. */
+	private String sesionAdminReal(Map<String, JsonNode> reales) throws Exception {
 		usuarios.crear(new CrearUsuarioRequest("Documentación", "documentacion@vestigia.site", "contraseña-larga",
 				UsuarioModel.Rol.admin));
-		try {
-			JsonNode sesion = ok(enviar("POST", "/api/v1/auth/login",
-					"{\"correo\":\"documentacion@vestigia.site\",\"password\":\"contraseña-larga\"}", null), 200);
-			reales.put("sesion", sesion);
-			String token = sesion.get("token").asString();
-			reales.put("usuario", ok(enviar("GET", "/api/v1/auth/yo", null, token), 200));
-			reales.put("usuarios", ok(enviar("GET", "/api/v1/admin/usuarios", null, token), 200));
-			assertThat(enviar("POST", "/api/v1/auth/logout", null, token).statusCode()).isEqualTo(204);
-		}
-		finally {
-			jdbc.update("delete from usuarios where correo = 'documentacion@vestigia.site'");
-		}
+		JsonNode sesion = ok(enviar("POST", "/api/v1/auth/login",
+				"{\"correo\":\"documentacion@vestigia.site\",\"password\":\"contraseña-larga\"}", null), 200);
+		reales.put("sesion", sesion);
+		String token = sesion.get("token").asString();
+		reales.put("usuario", ok(enviar("GET", "/api/v1/auth/yo", null, token), 200));
+		reales.put("usuarios", ok(enviar("GET", "/api/v1/admin/usuarios", null, token), 200));
+		return token;
 	}
 
 	private static void guardar(Map<String, JsonNode> reales, JsonNode mensaje) {

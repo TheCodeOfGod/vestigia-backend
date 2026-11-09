@@ -109,7 +109,7 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 | `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
 | `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` | PWA (admin) | Inicia, cierra y consulta la sesión de administración | ✅ 9a |
 | `GET/POST /admin/usuarios`, `PUT/DELETE /admin/usuarios/{id}` | PWA (admin) | Administra los usuarios | ✅ 9a |
-| `GET /admin/salas`, `GET /admin/salas/{codigo}`, `DELETE /admin/salas/{codigo}` | PWA (admin) | Ver todas las salas y su detalle, y forzar el cierre de una | ⏳ 9b |
+| `GET /admin/salas`, `GET /admin/salas/{id}`, `DELETE /admin/salas/{id}` | PWA (admin) | Ver todas las salas y su detalle, y forzar el cierre de una. Van por `id` porque un código se reutiliza | ✅ 9b |
 
 ## 6. Tiempo real (`/ws`)
 
@@ -245,9 +245,9 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `docs/despliegue.md` gana el mapeo de variables desde el Postgres de Railway, las decisiones pendientes (Swagger, página de prueba, O10, P9) y la lista "Primer despliegue: pasos para Raúl". Los nombres de Railway quedan marcados por verificar.
   - `ci.yml` corre también en `push` a `main`, que es lo que espera Railway con "Wait for CI". El workflow nuevo `salud-produccion.yml` revisa `/actuator/health` de la URL real tras cada despliegue (O2), con `scripts/esperar-health.sh`.
   - Evidencia en `docs/pruebas/paso-7-railway.md`.
-- [ ] **Paso 9: Administración de la PWA.** Se parte en dos entregas, cada una con su rama, PR y pruebas:
+- [x] **Paso 9: Administración de la PWA.** Se parte en dos entregas, cada una con su rama, PR y pruebas:
   - [x] 9a. `V4__usuarios_y_sesiones_admin.sql`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` y `GET/POST/PUT/DELETE /admin/usuarios`. `AdminInterceptor` aparte del de salas, BCrypt, sesión de 8 horas, límite de intentos por correo en memoria, no se puede quitar al último admin activo y administrador inicial por variables de entorno.
-  - [ ] 9b. `GET /admin/salas`, `GET /admin/salas/{codigo}` y `DELETE /admin/salas/{codigo}` (cierre forzado, emite `sala.cerrada`).
+  - [x] 9b. `GET /admin/salas` (filtro `estado`, `limite`), `GET /admin/salas/{id}` (con bitácora) y `DELETE /admin/salas/{id}` (cierre forzado idempotente, emite `sala.cerrada`). Por `id` y no por código, porque el código de una sala terminada se reutiliza.
 
 ## 11. Pendientes
 
