@@ -389,16 +389,68 @@ Cuando se decida, esta guía se actualiza con la ruta, su JSON y sus errores.
 
 ## 5. Autenticación
 
-La PWA **no usa token**. Las únicas rutas que necesita son públicas.
+Hay **dos** tipos de pantalla.
 
-- No pidas, no guardes y no mandes el encabezado `Authorization`.
-- No guardes tokens del juego o de la app en `localStorage` ni en ningún otro lado: son de cada partida y no son de la PWA.
-- Si alguna vez recibes `401` o `403` en una ruta de la PWA, es que llamaste a una ruta que no le toca (sección 3) o que tu origen no está en CORS (paso 6).
+- **Las públicas** (la lista de pueblos) no usan token: no mandes `Authorization`.
+- **Las de administración** (Usuarios y Salas) piden iniciar sesión con una cuenta. El detalle de cada ruta está en `docs/api.md`, sección "Sesión y administración".
 
-| Respuesta | Qué significa para la PWA | Qué hacer |
+Nunca guardes ni mandes el token de una sala (juego o app) desde la PWA: son de cada partida y no sirven en `/admin`.
+
+### Iniciar sesión
+
+```js
+const base = import.meta.env.VITE_API_URL; // https://…/api/v1
+
+async function iniciarSesion(correo, password) {
+  const r = await fetch(`${base}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correo, password }),
+  });
+  const cuerpo = await r.json();
+  if (r.status === 401) throw new Error('Correo o contraseña incorrectos');
+  if (r.status === 429) throw new Error('Demasiados intentos, espera unos minutos');
+  if (!r.ok) throw new Error(cuerpo.message);
+  sessionStorage.setItem('vestigia.sesion', JSON.stringify(cuerpo)); // { token, expira_en, usuario }
+  return cuerpo;
+}
+```
+
+Guardar el token en `sessionStorage` lo conserva al recargar y lo pierde al cerrar la pestaña. La sesión dura 8 horas y no se renueva.
+
+### Llamar a las rutas de administración
+
+```js
+async function api(ruta, opciones = {}) {
+  const sesion = JSON.parse(sessionStorage.getItem('vestigia.sesion') ?? 'null');
+  const r = await fetch(`${base}${ruta}`, {
+    ...opciones,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sesion && { Authorization: `Bearer ${sesion.token}` }),
+      ...opciones.headers,
+    },
+  });
+  if (r.status === 401) {
+    sessionStorage.removeItem('vestigia.sesion');
+    window.location.assign('/login');
+  }
+  return r;
+}
+```
+
+Al abrir la PWA, si hay un token guardado, llama a `GET /auth/yo`: `200` es que sigue vigente y `401` que hay que volver a `/login`.
+
+| Respuesta | Qué significa | Qué hacer |
 |---|---|---|
-| `401` | Llamaste una ruta con candado (salas) | No la uses. La PWA solo usa `GET /api/v1/pueblos` |
+| `401` en `/admin/**` o `/auth/yo` | Sin sesión, sesión vencida, o mandaste un token de sala | Borra la sesión y manda a `/login` |
+| `401` en `/auth/login` | Correo o contraseña incorrectos | Muestra el mensaje; no distingas cuál falló |
+| `429` en `/auth/login` | Cinco intentos fallidos con ese correo | Pide esperar unos minutos |
+| `403` | El rol no tiene permiso | Muestra "No tienes permiso"; no cierres la sesión |
 | `403` con texto `Invalid CORS request` | Tu origen no está permitido | Paso 6 |
+| `409` con `codigo: "correo_duplicado"` o `"ultimo_admin"` | Regla del backend | Muestra el `message` |
+
+Proteger una ruta en React (`RutaProtegida`) solo evita pantallas vacías. Lo que protege de verdad es el backend, que revisa el token en cada petición a `/admin`.
 
 ## 6. Estados de un puzzle
 

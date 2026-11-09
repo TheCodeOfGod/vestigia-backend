@@ -39,6 +39,17 @@ La plantilla de Postgres de Railway publica sus datos como variables del servici
 - Usa el host de la red privada de Railway, no el proxy público de la base **(por verificar en Railway)**. Si solo funcionara el público y pidiera SSL, agrega `?sslmode=require` al final de `DB_URL`.
 - No copies la contraseña a mano en el panel ni la pegues en un chat o en el repo: la variable de referencia la toma del servicio de Postgres.
 
+### Primer administrador
+
+El inicio de sesión de la PWA necesita al menos un usuario, y crear usuarios exige ser admin. Para el primero, define en el servicio del backend:
+
+| Variable | Valor |
+|---|---|
+| `ADMIN_BOOTSTRAP_EMAIL` | El correo del primer administrador |
+| `ADMIN_BOOTSTRAP_PASSWORD` | Su contraseña, de 8 a 72 caracteres |
+
+Al arrancar, si la tabla `usuarios` está vacía y las dos variables existen, el backend crea un administrador llamado `Administrador`. Si ya hay algún usuario no hace nada, así que dejarlas puestas no pisa cambios. Una vez que entres y crees las cuentas del equipo, conviene **borrar la contraseña de la variable**. Escríbela directo en el panel de Railway: no la pegues en el chat ni en el repo.
+
 ### Variables opcionales
 
 Spring Boot lee cualquier propiedad como variable de entorno (en mayúsculas, con `_` en lugar de `.` y sin `-`). Estas sirven para las decisiones de la sección siguiente. Hoy no se define ninguna.
@@ -48,6 +59,7 @@ Spring Boot lee cualquier propiedad como variable de entorno (en mayúsculas, co
 | `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` | Apagan `/v3/api-docs` y Swagger UI (`404` con el cuerpo de error uniforme). El resto de la API sigue igual | ✅ |
 | `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false` | Deja de servir los archivos estáticos: `/prueba-ws.html` da `404`. Swagger UI no se ve afectado (tiene su propio manejador) | ✅ |
 | `SERVER_FORWARD_HEADERS_STRATEGY=native` o `framework` | El backend toma el esquema y el host de las cabeceras `X-Forwarded-*` del proxy de Railway (ver O10) | ✅ con cabeceras simuladas |
+| `VESTIGIA_AUTH_SESION`, `VESTIGIA_AUTH_INTENTOS_MAX`, `VESTIGIA_AUTH_INTENTOS_VENTANA` | Vigencia de la sesión de administración (`PT8H`) y el límite de intentos fallidos de inicio de sesión por correo (5 en `PT15M`) | No hizo falta |
 | `VESTIGIA_SALAS_EXPIRACION`, `VESTIGIA_PUZZLES_COORDENADAS_AR`, … | Las propiedades de `vestigia.*` del README | No hizo falta |
 
 ## Decisiones de Raúl antes de publicar la URL

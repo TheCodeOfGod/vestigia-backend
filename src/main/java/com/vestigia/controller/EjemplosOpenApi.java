@@ -155,4 +155,61 @@ final class EjemplosOpenApi {
 	private EjemplosOpenApi() {
 	}
 
+	static final String LOGIN = """
+			{"correo": "raul@vestigia.site", "password": "una-contraseña-larga"}""";
+
+	static final String USUARIO = """
+			{"id": "5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", "nombre": "Raúl", "correo": "raul@vestigia.site", \
+			"rol": "admin", "activo": true, "creado_en": "2026-11-08T23:10:00.000000Z"}""";
+
+	static final String SESION = "{\"token\": \"Zk3o1x0b8QmD…\", \"expira_en\": \"2026-11-09T07:10:00.000000Z\", "
+			+ "\"usuario\": " + USUARIO + "}";
+
+	static final String USUARIOS = "[" + USUARIO + "]";
+
+	static final String CREAR_USUARIO = """
+			{"nombre": "María", "correo": "maria@vestigia.site", "password": "otra-contraseña", "rol": "admin"}""";
+
+	static final String ACTUALIZAR_USUARIO = """
+			{"activo": false}""";
+
+	static final String ERROR_400_USUARIO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 400, "error": "Bad Request", "codigo": null, \
+			"message": "Datos inválidos", "path": "/api/v1/admin/usuarios", \
+			"details": [{"field": "password", "message": "debe tener de 8 a 72 caracteres"}]}""";
+
+	static final String ERROR_401_LOGIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 401, "error": "Unauthorized", "codigo": null, \
+			"message": "Correo o contraseña incorrectos", "path": "/api/v1/auth/login", "details": []}""";
+
+	static final String ERROR_401_ADMIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 401, "error": "Unauthorized", "codigo": null, \
+			"message": "Sesión inválida o vencida: vuelve a iniciar sesión", "path": "/api/v1/admin/usuarios", \
+			"details": []}""";
+
+	static final String ERROR_403_ADMIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 403, "error": "Forbidden", "codigo": null, \
+			"message": "Se necesita el rol admin", "path": "/api/v1/admin/usuarios", "details": []}""";
+
+	static final String ERROR_404_USUARIO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 404, "error": "Not Found", "codigo": null, \
+			"message": "No existe el usuario 5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", \
+			"path": "/api/v1/admin/usuarios/5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", "details": []}""";
+
+	static final String ERROR_409_CORREO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 409, "error": "Conflict", \
+			"codigo": "correo_duplicado", "message": "Ya hay un usuario con ese correo", \
+			"path": "/api/v1/admin/usuarios", "details": [{"field": "correo", "message": "ya está registrado"}]}""";
+
+	static final String ERROR_409_ULTIMO_ADMIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 409, "error": "Conflict", \
+			"codigo": "ultimo_admin", "message": "No se puede quitar al último administrador activo", \
+			"path": "/api/v1/admin/usuarios/5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", "details": []}""";
+
+	static final String ERROR_429_LOGIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 429, "error": "Too Many Requests", \
+			"codigo": "demasiados_intentos", \
+			"message": "Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo", \
+			"path": "/api/v1/auth/login", "details": []}""";
+
 }

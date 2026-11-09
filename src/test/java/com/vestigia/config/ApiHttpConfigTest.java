@@ -18,6 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vestigia.service.AuthService;
+import com.vestigia.service.UsuarioService;
 import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.PuzzleService;
 import com.vestigia.service.SalaService;
@@ -32,6 +34,12 @@ class ApiHttpConfigTest {
 
 	@MockitoBean
 	private SalaService salaService;
+
+	@MockitoBean
+	private AuthService authService;
+
+	@MockitoBean
+	private UsuarioService usuarioService;
 
 	@MockitoBean
 	private DescubrimientoService descubrimientoService;

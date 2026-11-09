@@ -36,6 +36,7 @@ import com.vestigia.dto.Sala;
 import com.vestigia.model.PuzzleEstadoModel;
 import com.vestigia.dto.SalaCreada;
 import com.vestigia.model.SalaModel;
+import com.vestigia.service.AuthService;
 import com.vestigia.service.SalaService;
 
 @WebMvcTest({ SalaController.class, PuebloController.class })
@@ -46,6 +47,9 @@ class SalaControllerTest {
 
 	@MockitoBean
 	private SalaService salaService;
+
+	@MockitoBean
+	private AuthService authService;
 
 	@Test
 	void crearResponde201ConCodigoEstadoYToken() throws Exception {
