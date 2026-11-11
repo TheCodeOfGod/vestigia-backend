@@ -402,6 +402,120 @@ curl -X DELETE http://localhost:8080/api/v1/salas/BACALAR \
 | `403` | Token de la app | `Solo el juego puede cerrar la sala` |
 | `403` | Token de otra sala | `El token no pertenece a esta sala` |
 
+## Sesión y administración (PWA)
+
+Estas rutas son para la PWA de administración y **no** las usan el juego ni la app. Piden un token distinto al de las salas: el de una **sesión de administración**, que devuelve `POST /auth/login`. Se manda igual, en `Authorization: Bearer <token>`.
+
+- Los dos tipos de token no se mezclan. Un token de sala en una ruta de administración da `401`, y un token de administración en una ruta de sala (`/salas/{codigo}/...`) también.
+- La sesión dura **8 horas** y no se renueva. Pasado ese tiempo, o tras `logout`, el token da `401` y hay que iniciar sesión otra vez.
+- Desactivar a un usuario, o cambiarle la contraseña, cierra sus sesiones abiertas.
+- Hoy el único rol es `admin`. Las rutas de `/admin` responden `403` a un rol sin permiso, cuando existan otros.
+- El primer administrador no se crea por la API: lo crea el backend al arrancar con las variables `ADMIN_BOOTSTRAP_EMAIL` y `ADMIN_BOOTSTRAP_PASSWORD` si no hay ningún usuario (ver `docs/despliegue.md`).
+
+## `POST /auth/login`
+
+Público. Inicia sesión con correo y contraseña.
+
+<!-- peticion -->
+```json
+{"correo": "raul@vestigia.site", "password": "una-contraseña-larga"}
+```
+
+El correo se recorta y se pasa a minúsculas. Respuesta `200`:
+
+<!-- respuesta: sesion -->
+```json
+{
+  "token": "Zk3o1x0b8QmD…",
+  "expira_en": "2026-11-09T07:10:00.000000Z",
+  "usuario": {
+    "id": "5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11",
+    "nombre": "Raúl",
+    "correo": "raul@vestigia.site",
+    "rol": "admin",
+    "activo": true,
+    "creado_en": "2026-11-08T23:10:00.000000Z"
+  }
+}
+```
+
+| Estado | Cuándo |
+|---|---|
+| `400` | Falta `correo` o `password` |
+| `401` | Correo desconocido, contraseña incorrecta o usuario desactivado. Es el mismo mensaje en los tres casos: `Correo o contraseña incorrectos` |
+| `429` | Cinco intentos fallidos con el mismo correo en 15 minutos. `codigo: "demasiados_intentos"`. Pasados los 15 minutos se puede intentar de nuevo |
+
+## `POST /auth/logout` y `GET /auth/yo`
+
+Con la sesión en `Authorization`. `POST /auth/logout` responde `204` sin cuerpo y borra la sesión. `GET /auth/yo` responde `200` con el usuario dueño del token; sirve para comprobar, al abrir la PWA, que el token guardado sigue vigente.
+
+<!-- respuesta: usuario -->
+```json
+{
+  "id": "5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11",
+  "nombre": "Raúl",
+  "correo": "raul@vestigia.site",
+  "rol": "admin",
+  "activo": true,
+  "creado_en": "2026-11-08T23:10:00.000000Z"
+}
+```
+
+Sin token, con un token desconocido o con uno vencido, responden `401`.
+
+## `GET /admin/usuarios`
+
+Solo admin. Lista los usuarios, del más antiguo al más nuevo. Nunca trae contraseñas.
+
+<!-- respuesta: usuarios -->
+```json
+[
+  {
+    "id": "5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11",
+    "nombre": "Raúl",
+    "correo": "raul@vestigia.site",
+    "rol": "admin",
+    "activo": true,
+    "creado_en": "2026-11-08T23:10:00.000000Z"
+  }
+]
+```
+
+## `POST /admin/usuarios`
+
+Solo admin. Crea un usuario y responde `201` con el usuario (mismo JSON que `GET /auth/yo`).
+
+<!-- peticion -->
+```json
+{"nombre": "María", "correo": "maria@vestigia.site", "password": "otra-contraseña", "rol": "admin"}
+```
+
+La contraseña lleva de 8 a 72 caracteres y se guarda con BCrypt; no se puede volver a leer. El correo es único sin importar mayúsculas.
+
+| Estado | Cuándo |
+|---|---|
+| `400` | Falta un campo, el correo no es válido, la contraseña no tiene de 8 a 72 caracteres o el rol no existe. `details` dice cuál |
+| `409` | Ya hay un usuario con ese correo. `codigo: "correo_duplicado"` |
+
+## `PUT /admin/usuarios/{id}`
+
+Solo admin. Cambia un usuario. Cada campo es opcional y el que falta no se toca: `nombre`, `rol`, `activo` y `password`. El correo no cambia. Responde `200` con el usuario ya cambiado.
+
+<!-- peticion -->
+```json
+{"activo": false}
+```
+
+| Estado | Cuándo |
+|---|---|
+| `400` | Un campo es inválido (nombre vacío, contraseña fuera de 8 a 72 caracteres, rol desconocido, `activo` que no es booleano) |
+| `404` | No existe ese usuario |
+| `409` | Dejaría al sistema sin administradores activos. `codigo: "ultimo_admin"` |
+
+## `DELETE /admin/usuarios/{id}`
+
+Solo admin. Elimina el usuario y sus sesiones. Responde `204`. Da `404` si no existe y `409` con `codigo: "ultimo_admin"` si es el único administrador activo.
+
 ## Limitaciones conocidas
 
 - **URLs que rechaza el servidor HTTP.** Tomcat, el servidor que lleva el backend, rechaza algunas URLs antes de que lleguen a la aplicación: una barra codificada (`%2F`), un byte nulo (`%00`), un escape inválido (`%zz`) o una URL demasiado larga. Responde `400` con una página HTML de Tomcat, no con el cuerpo de error en JSON. Ningún cliente de Vestigia necesita esos caracteres: los códigos de sala son solo letras y los ids de puzzle son fijos.

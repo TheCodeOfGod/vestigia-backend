@@ -66,6 +66,7 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
 | Swagger UI y `/v3/api-docs` en producción | Raúl decidió el 2026-11-06 dejarlos públicos en producción por ahora. Se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. El Paso 7 comprobó en la imagen que se apagan sin cambiar código, con `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` (D-Swagger en `docs/despliegue.md`) | ✅ |
 | Página de prueba `/prueba-ws.html` en producción | Raúl decidió el 2026-11-06 dejarla pública en producción por ahora. Se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. El Paso 7 comprobó que se quita sin cambiar código con `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`, que no afecta a Swagger UI (D-Prueba) | ✅ |
+| Usuarios de administración de la PWA | Cuentas con correo y contraseña (BCrypt, dependencia `spring-security-crypto` aprobada por Raúl el 2026-11-08) que inician sesión en `POST /auth/login`. Token opaco de sesión de 8 horas, sin renovación, en `Authorization: Bearer`; solo se guarda su hash. Rutas nuevas bajo `/auth` y `/admin`; las de salas no cambian y los dos tipos de token no se mezclan. Límite de 5 intentos fallidos por correo en 15 minutos (429). El primer admin sale de `ADMIN_BOOTSTRAP_EMAIL` y `ADMIN_BOOTSTRAP_PASSWORD` | ✅ (aprobado por Raúl; la dependencia queda anotada para el equipo) |
 | Quién manda cada clave de descubrimiento (P8) | `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` y `observatory_enabled` las manda solo el juego. Con el token de la app, `POST /descubrimientos` responde `403` con `codigo: "clave_solo_juego"`, aunque la clave ya exista, sin tocar la sala. Decidido por Raúl e implementado el 2026-11-07 (`DescubrimientoService.CLAVES_DEL_JUEGO`). No cubre `PUT puzzles` (ver P8b) | ✅ |
 | `POST /salas` y `unirse` sin token (P9) | Por diseño: así obtienen su token el juego y la app. Aceptado por Raúl | ✅ |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
@@ -106,6 +107,9 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 | `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. Las claves del juego solo con el token del juego (P8) | ✅ 3a |
 | `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ✅ 3a |
 | `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
+| `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` | PWA (admin) | Inicia, cierra y consulta la sesión de administración | ✅ 9a |
+| `GET/POST /admin/usuarios`, `PUT/DELETE /admin/usuarios/{id}` | PWA (admin) | Administra los usuarios | ✅ 9a |
+| `GET /admin/salas`, `GET /admin/salas/{codigo}`, `DELETE /admin/salas/{codigo}` | PWA (admin) | Ver todas las salas y su detalle, y forzar el cierre de una | ⏳ 9b |
 
 ## 6. Tiempo real (`/ws`)
 
@@ -241,6 +245,9 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `docs/despliegue.md` gana el mapeo de variables desde el Postgres de Railway, las decisiones pendientes (Swagger, página de prueba, O10, P9) y la lista "Primer despliegue: pasos para Raúl". Los nombres de Railway quedan marcados por verificar.
   - `ci.yml` corre también en `push` a `main`, que es lo que espera Railway con "Wait for CI". El workflow nuevo `salud-produccion.yml` revisa `/actuator/health` de la URL real tras cada despliegue (O2), con `scripts/esperar-health.sh`.
   - Evidencia en `docs/pruebas/paso-7-railway.md`.
+- [ ] **Paso 9: Administración de la PWA.** Se parte en dos entregas, cada una con su rama, PR y pruebas:
+  - [x] 9a. `V4__usuarios_y_sesiones_admin.sql`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` y `GET/POST/PUT/DELETE /admin/usuarios`. `AdminInterceptor` aparte del de salas, BCrypt, sesión de 8 horas, límite de intentos por correo en memoria, no se puede quitar al último admin activo y administrador inicial por variables de entorno.
+  - [ ] 9b. `GET /admin/salas`, `GET /admin/salas/{codigo}` y `DELETE /admin/salas/{codigo}` (cierre forzado, emite `sala.cerrada`).
 
 ## 11. Pendientes
 
