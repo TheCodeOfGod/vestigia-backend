@@ -218,7 +218,8 @@ final class EjemplosOpenApi {
 			"dispositivos": {"juego": true, "app": true}, "creada_en": "2026-11-08T22:40:00.000000Z", \
 			"ultima_actividad": "2026-11-08T23:05:00.000000Z", "expira_en": "2026-11-09T01:05:00.000000Z"}""";
 
-	static final String SALAS_ADMIN = "[" + SALA_RESUMEN + "]";
+	static final String SALAS_ADMIN = "{\"contenido\": [" + SALA_RESUMEN
+			+ "], \"pagina\": 0, \"tamano\": 20, \"total\": 1, \"total_paginas\": 1}";
 
 	static final String SALA_ADMIN = """
 			{

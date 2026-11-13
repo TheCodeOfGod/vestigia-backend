@@ -26,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.dto.PaginaSalas;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaResumen;
 import com.vestigia.model.DescubrimientoModel;
@@ -71,7 +72,7 @@ class AdminSalaServiceTest {
 				puzzle(viva, PuzzleEstadoModel.Puzzle.photo, PuzzleEstadoModel.Estado.disponible),
 				puzzle(esperando, PuzzleEstadoModel.Puzzle.radio, PuzzleEstadoModel.Estado.bloqueado)));
 
-		List<SalaResumen> resumen = servicio.listar(null, null);
+		List<SalaResumen> resumen = servicio.listar(null, null, null).contenido();
 
 		assertThat(resumen).extracting(SalaResumen::codigo).containsExactly("BACALAR", "TULUM");
 		assertThat(resumen.get(0).puzzlesResueltos()).isEqualTo(1);
@@ -83,22 +84,34 @@ class AdminSalaServiceTest {
 	}
 
 	@Test
-	@DisplayName("El límite vale 100 por defecto y se acota entre 1 y 500; con estado filtra por él")
-	void limiteYFiltro() {
+	@DisplayName("La página empieza en 0 y no baja de ahí; el tamaño vale 20 por defecto y se acota entre 1 y 100")
+	void paginaYTamano() {
 		when(salas.findAll(any(Pageable.class))).thenReturn(Page.empty());
-		when(salas.findByEstado(eq(SalaModel.Estado.activa), any(Pageable.class))).thenReturn(List.of());
-		ArgumentCaptor<Pageable> pagina = ArgumentCaptor.forClass(Pageable.class);
+		ArgumentCaptor<Pageable> pedida = ArgumentCaptor.forClass(Pageable.class);
 
-		servicio.listar(null, null);
-		servicio.listar(null, 9999);
-		servicio.listar(null, -3);
-		servicio.listar(SalaModel.Estado.activa, 7);
+		servicio.listar(null, null, null);
+		servicio.listar(null, 3, 9999);
+		servicio.listar(null, -2, -3);
 
-		verify(salas, org.mockito.Mockito.times(3)).findAll(pagina.capture());
-		assertThat(pagina.getAllValues()).extracting(Pageable::getPageSize).containsExactly(100, 500, 1);
-		ArgumentCaptor<Pageable> filtrada = ArgumentCaptor.forClass(Pageable.class);
-		verify(salas).findByEstado(eq(SalaModel.Estado.activa), filtrada.capture());
-		assertThat(filtrada.getValue().getPageSize()).isEqualTo(7);
+		verify(salas, org.mockito.Mockito.times(3)).findAll(pedida.capture());
+		assertThat(pedida.getAllValues()).extracting(Pageable::getPageSize).containsExactly(20, 100, 1);
+		assertThat(pedida.getAllValues()).extracting(Pageable::getPageNumber).containsExactly(0, 3, 0);
+	}
+
+	@Test
+	@DisplayName("Con estado filtra por él y la respuesta trae el total y el número de páginas")
+	void filtroYTotales() {
+		when(salas.findByEstado(eq(SalaModel.Estado.activa), any(Pageable.class)))
+				.thenReturn(new PageImpl<>(List.of(viva), org.springframework.data.domain.PageRequest.of(1, 1), 3));
+		when(puzzles.findByClaveSalaIdIn(any())).thenReturn(List.of());
+
+		PaginaSalas respuesta = servicio.listar(SalaModel.Estado.activa, 1, 1);
+
+		assertThat(respuesta.contenido()).extracting(SalaResumen::codigo).containsExactly("BACALAR");
+		assertThat(respuesta.pagina()).isEqualTo(1);
+		assertThat(respuesta.tamano()).isEqualTo(1);
+		assertThat(respuesta.total()).isEqualTo(3);
+		assertThat(respuesta.totalPaginas()).isEqualTo(3);
 	}
 
 	@Test

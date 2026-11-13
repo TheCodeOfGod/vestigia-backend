@@ -247,7 +247,7 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - Evidencia en `docs/pruebas/paso-7-railway.md`.
 - [x] **Paso 9: Administración de la PWA.** Se parte en dos entregas, cada una con su rama, PR y pruebas:
   - [x] 9a. `V4__usuarios_y_sesiones_admin.sql`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` y `GET/POST/PUT/DELETE /admin/usuarios`. `AdminInterceptor` aparte del de salas, BCrypt, sesión de 8 horas, límite de intentos por correo en memoria, no se puede quitar al último admin activo y administrador inicial por variables de entorno.
-  - [x] 9b. `GET /admin/salas` (filtro `estado`, `limite`), `GET /admin/salas/{id}` (con bitácora) y `DELETE /admin/salas/{id}` (cierre forzado idempotente, emite `sala.cerrada`). Por `id` y no por código, porque el código de una sala terminada se reutiliza.
+  - [x] 9b. `GET /admin/salas` (filtro `estado`, paginado con `pagina` y `tamano`), `GET /admin/salas/{id}` (con bitácora) y `DELETE /admin/salas/{id}` (cierre forzado idempotente, emite `sala.cerrada`). Por `id` y no por código, porque el código de una sala terminada se reutiliza.
 
 ## 11. Pendientes
 

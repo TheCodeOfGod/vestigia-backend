@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.dto.PaginaSalas;
 import com.vestigia.dto.Sala;
 import com.vestigia.dto.SalaAdmin;
 import com.vestigia.dto.SalaResumen;
@@ -28,9 +30,9 @@ import com.vestigia.repository.SalaRepository;
 @Service
 public class AdminSalaService {
 
-	public static final int LIMITE_POR_DEFECTO = 100;
+	public static final int TAMANO_POR_DEFECTO = 20;
 
-	public static final int LIMITE_MAXIMO = 500;
+	public static final int TAMANO_MAXIMO = 100;
 
 	private final SalaRepository salas;
 
@@ -54,15 +56,21 @@ public class AdminSalaService {
 		this.presencia = presencia;
 	}
 
-	/** Las salas más nuevas primero, con el filtro de estado si viene. {@code limite} se acota a 1..500. */
+	/**
+	 * Una página de salas, las más nuevas primero, con el filtro de estado si viene. {@code pagina} cuenta desde 0 y
+	 * no baja de 0; {@code tamano} se acota a 1..100.
+	 */
 	@Transactional(readOnly = true)
-	public List<SalaResumen> listar(SalaModel.Estado estado, Integer limite) {
-		int tope = limite == null ? LIMITE_POR_DEFECTO : Math.max(1, Math.min(limite, LIMITE_MAXIMO));
-		PageRequest pagina = PageRequest.of(0, tope, Sort.by(Sort.Direction.DESC, "creadaEn").and(Sort.by("id")));
-		List<SalaModel> encontradas = estado == null ? salas.findAll(pagina).getContent()
-				: salas.findByEstado(estado, pagina);
-		Map<UUID, List<PuzzleEstadoModel>> puzzlesPorSala = puzzlesDe(encontradas.stream().map(SalaModel::getId).toList());
-		return encontradas.stream().map(s -> resumen(s, puzzlesPorSala.getOrDefault(s.getId(), List.of()))).toList();
+	public PaginaSalas listar(SalaModel.Estado estado, Integer pagina, Integer tamano) {
+		int numero = pagina == null ? 0 : Math.max(0, pagina);
+		int tope = tamano == null ? TAMANO_POR_DEFECTO : Math.max(1, Math.min(tamano, TAMANO_MAXIMO));
+		PageRequest peticion = PageRequest.of(numero, tope, Sort.by(Sort.Direction.DESC, "creadaEn").and(Sort.by("id")));
+		Page<SalaModel> encontradas = estado == null ? salas.findAll(peticion) : salas.findByEstado(estado, peticion);
+		Map<UUID, List<PuzzleEstadoModel>> puzzlesPorSala = puzzlesDe(
+				encontradas.getContent().stream().map(SalaModel::getId).toList());
+		List<SalaResumen> contenido = encontradas.getContent().stream()
+				.map(s -> resumen(s, puzzlesPorSala.getOrDefault(s.getId(), List.of()))).toList();
+		return new PaginaSalas(contenido, numero, tope, encontradas.getTotalElements(), encontradas.getTotalPages());
 	}
 
 	@Transactional(readOnly = true)

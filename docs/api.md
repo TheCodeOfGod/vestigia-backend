@@ -520,25 +520,31 @@ Solo admin. Elimina el usuario y sus sesiones. Responde `204`. Da `404` si no ex
 
 Solo admin. Lista todas las salas, vivas y terminadas, de la más nueva a la más antigua. Un mismo código puede aparecer varias veces: la sala vigente y las que ya terminaron (el pueblo se reutiliza). Por eso las salas se piden por `id`, no por código.
 
-Parámetros opcionales: `estado` (`esperando_app`, `activa`, `finalizada` o `expirada`) y `limite` (de 1 a 500; si falta, 100). Un `estado` que no existe da `400`.
+Parámetros opcionales: `estado` (`esperando_app`, `activa`, `finalizada` o `expirada`), `pagina` (desde 0; si falta, 0) y `tamano` (de 1 a 100; si falta, 20). Un `estado` que no existe da `400`. La respuesta trae `total` (las salas que cumplen el filtro) y `total_paginas`. Una `pagina` más allá de la última devuelve `contenido` vacío.
 
 <!-- respuesta: salas-admin -->
 ```json
-[
-  {
-    "id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21",
-    "codigo": "BACALAR",
-    "estado": "activa",
-    "escena_actual": "faro",
-    "puzzles_resueltos": 1,
-    "puzzles_total": 4,
-    "app_unida": true,
-    "dispositivos": {"juego": true, "app": true},
-    "creada_en": "2026-11-08T22:40:00.000000Z",
-    "ultima_actividad": "2026-11-08T23:05:00.000000Z",
-    "expira_en": "2026-11-09T01:05:00.000000Z"
-  }
-]
+{
+  "contenido": [
+    {
+      "id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21",
+      "codigo": "BACALAR",
+      "estado": "activa",
+      "escena_actual": "faro",
+      "puzzles_resueltos": 1,
+      "puzzles_total": 4,
+      "app_unida": true,
+      "dispositivos": {"juego": true, "app": true},
+      "creada_en": "2026-11-08T22:40:00.000000Z",
+      "ultima_actividad": "2026-11-08T23:05:00.000000Z",
+      "expira_en": "2026-11-09T01:05:00.000000Z"
+    }
+  ],
+  "pagina": 0,
+  "tamano": 20,
+  "total": 1,
+  "total_paginas": 1
+}
 ```
 
 ## `GET /admin/salas/{id}`

@@ -72,9 +72,9 @@ class AdminSalasIT {
 			api.enviar("POST", "/api/v1/salas/" + PUEBLO + "/descubrimientos", "{\"clave\":\"pescador_dialogo_completo\"}",
 					juego);
 
-			HttpResponse<String> listado = api.enviar("GET", "/api/v1/admin/salas?estado=activa", null, admin);
+			HttpResponse<String> listado = api.enviar("GET", "/api/v1/admin/salas?estado=activa&tamano=100", null, admin);
 			assertThat(listado.statusCode()).isEqualTo(200);
-			JsonNode sala = buscar(api.cuerpo(listado), PUEBLO);
+			JsonNode sala = buscar(api.cuerpo(listado).get("contenido"), PUEBLO);
 			assertThat(sala.get("estado").asString()).isEqualTo("activa");
 			assertThat(sala.get("app_unida").asBoolean()).isTrue();
 			assertThat(sala.get("puzzles_total").asInt()).isEqualTo(4);
@@ -97,13 +97,35 @@ class AdminSalasIT {
 	}
 
 	@Test
+	@DisplayName("El listado se pagina: una sala por página, con el total y las páginas que hay")
+	void listadoPaginado() throws Exception {
+		String juego = api.tokenJuego(PUEBLO);
+		try {
+			JsonNode primera = api.cuerpo(api.enviar("GET", "/api/v1/admin/salas?tamano=1&pagina=0", null, admin));
+			assertThat(primera.get("contenido").size()).isEqualTo(1);
+			assertThat(primera.get("pagina").asInt()).isZero();
+			assertThat(primera.get("tamano").asInt()).isEqualTo(1);
+			assertThat(primera.get("total").asLong()).isGreaterThanOrEqualTo(1);
+			assertThat(primera.get("total_paginas").asLong()).isEqualTo(primera.get("total").asLong());
+
+			JsonNode fuera = api.cuerpo(api.enviar("GET",
+					"/api/v1/admin/salas?tamano=1&pagina=" + primera.get("total").asLong(), null, admin));
+			assertThat(fuera.get("contenido")).isEmpty();
+			assertThat(fuera.get("total").asLong()).isEqualTo(primera.get("total").asLong());
+		}
+		finally {
+			api.enviar("DELETE", "/api/v1/salas/" + PUEBLO, null, juego);
+		}
+	}
+
+	@Test
 	@DisplayName("El admin cierra la sala: queda finalizada, el pueblo se libera, los tokens dan 401 y ambos dispositivos reciben sala.cerrada")
 	void cierreForzado() throws Exception {
 		String juego = api.tokenJuego(PUEBLO);
 		String app = api.tokenApp(PUEBLO);
 		ClienteWs wsJuego = ClienteWs.autenticado(port, json, juego);
 		ClienteWs wsApp = ClienteWs.autenticado(port, json, app);
-		String id = buscar(api.cuerpo(api.enviar("GET", "/api/v1/admin/salas?estado=activa", null, admin)), PUEBLO)
+		String id = buscar(api.cuerpo(api.enviar("GET", "/api/v1/admin/salas?estado=activa&tamano=100", null, admin)).get("contenido"), PUEBLO)
 				.get("id").asString();
 
 		assertThat(api.enviar("DELETE", "/api/v1/admin/salas/" + id, null, admin).statusCode()).isEqualTo(204);

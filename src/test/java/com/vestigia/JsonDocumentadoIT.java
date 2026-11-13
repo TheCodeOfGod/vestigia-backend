@@ -293,10 +293,10 @@ class JsonDocumentadoIT {
 		assertThat(estado.get("descubrimientos")).as("el estado de referencia trae descubrimientos").isNotEmpty();
 		reales.put("estado", estado);
 
-		JsonNode listado = ok(enviar("GET", "/api/v1/admin/salas?estado=activa", null, admin), 200);
+		JsonNode listado = ok(enviar("GET", "/api/v1/admin/salas?estado=activa&tamano=100", null, admin), 200);
 		reales.put("salas-admin", listado);
 		JsonNode suya = null;
-		for (JsonNode sala : listado) {
+		for (JsonNode sala : listado.get("contenido")) {
 			if (sala.get("codigo").asString().equals(PUEBLO)) {
 				suya = sala;
 			}

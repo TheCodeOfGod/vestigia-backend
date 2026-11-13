@@ -181,7 +181,7 @@ class AdminControllerTest {
 	}
 
 	@Test
-	@DisplayName("Las rutas de salas de admin dan 401 sin sesión y pasan el estado y el límite al servicio")
+	@DisplayName("Las rutas de salas de admin dan 401 sin sesión y pasan el estado, la página y el tamaño al servicio")
 	void salasDeAdmin() throws Exception {
 		UUID sala = UUID.fromString("0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21");
 		mockMvc.perform(get("/api/v1/admin/salas")).andExpect(status().isUnauthorized());
@@ -189,11 +189,14 @@ class AdminControllerTest {
 		mockMvc.perform(delete("/api/v1/admin/salas/" + sala).header("Authorization", "Bearer de-una-sala"))
 				.andExpect(status().isUnauthorized());
 
-		when(adminSalaService.listar(SalaModel.Estado.activa, 5)).thenReturn(List.of());
-		mockMvc.perform(get("/api/v1/admin/salas?estado=activa&limite=5").header("Authorization", "Bearer sesion"))
+		when(adminSalaService.listar(SalaModel.Estado.activa, 2, 5))
+				.thenReturn(new com.vestigia.dto.PaginaSalas(List.of(), 2, 5, 11, 3));
+		mockMvc.perform(get("/api/v1/admin/salas?estado=activa&pagina=2&tamano=5").header("Authorization", "Bearer sesion"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.length()").value(0));
-		verify(adminSalaService).listar(SalaModel.Estado.activa, 5);
+				.andExpect(jsonPath("$.contenido.length()").value(0))
+				.andExpect(jsonPath("$.total").value(11))
+				.andExpect(jsonPath("$.total_paginas").value(3));
+		verify(adminSalaService).listar(SalaModel.Estado.activa, 2, 5);
 
 		mockMvc.perform(get("/api/v1/admin/salas?estado=terminada").header("Authorization", "Bearer sesion"))
 				.andExpect(status().isBadRequest());

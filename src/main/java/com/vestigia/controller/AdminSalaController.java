@@ -1,6 +1,5 @@
 package com.vestigia.controller;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -16,15 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 import com.vestigia.config.AdminInterceptor;
 import com.vestigia.config.SeguridadConfig;
 import com.vestigia.controller.ApiExceptionHandler.ErrorBody;
+import com.vestigia.dto.PaginaSalas;
 import com.vestigia.dto.SalaAdmin;
-import com.vestigia.dto.SalaResumen;
 import com.vestigia.model.SalaModel;
 import com.vestigia.service.AdminSalaService;
 import com.vestigia.service.AuthService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -50,12 +48,12 @@ public class AdminSalaController {
 	@GetMapping
 	@Operation(summary = "Lista las salas (admin)", description = "De la más nueva a la más antigua, vivas y terminadas. "
 			+ "Un mismo código puede aparecer varias veces: la sala vigente y las que ya terminaron. Usa el id para "
-			+ "pedir el detalle. Sin el parámetro limite vienen 100; el máximo es 500.",
+			+ "pedir el detalle. Viene paginado: pagina (desde 0) y tamano (de 1 a 100; por defecto 20). La respuesta trae el total.",
 			security = @SecurityRequirement(name = SeguridadConfig.ESQUEMA_ADMIN))
 	@ApiResponse(responseCode = "200", description = "Resumen de cada sala",
-			content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = SalaResumen.class)),
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaginaSalas.class),
 					examples = @ExampleObject(value = EjemplosOpenApi.SALAS_ADMIN)))
-	@ApiResponse(responseCode = "400", description = "estado no es esperando_app, activa, finalizada ni expirada, o limite no es un número",
+	@ApiResponse(responseCode = "400", description = "estado no es esperando_app, activa, finalizada ni expirada, o pagina o tamano no son un número",
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
 					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_400_ESTADO)))
 	@ApiResponse(responseCode = "401", description = NO_SESION,
@@ -64,10 +62,11 @@ public class AdminSalaController {
 	@ApiResponse(responseCode = "403", description = NO_ADMIN,
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorBody.class),
 					examples = @ExampleObject(value = EjemplosOpenApi.ERROR_403_ADMIN)))
-	public List<SalaResumen> listar(
+	public PaginaSalas listar(
 			@Parameter(description = "Solo las salas en ese estado", example = "activa") @RequestParam(required = false) SalaModel.Estado estado,
-			@Parameter(description = "Cuántas salas devolver, de 1 a 500", example = "100") @RequestParam(required = false) Integer limite) {
-		return adminSalaService.listar(estado, limite);
+			@Parameter(description = "Número de página, desde 0", example = "0") @RequestParam(required = false) Integer pagina,
+			@Parameter(description = "Salas por página, de 1 a 100 (por defecto 20)", example = "20") @RequestParam(required = false) Integer tamano) {
+		return adminSalaService.listar(estado, pagina, tamano);
 	}
 
 	@GetMapping("/{id}")
