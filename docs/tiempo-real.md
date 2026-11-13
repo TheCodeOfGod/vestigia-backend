@@ -98,7 +98,7 @@ Cada escritura REST que cambia algo emite sus mensajes **después de confirmarse
 | `puzzle.actualizado` | Juego y app | Cada cambio de estado de un puzzle: `bloqueado` → `disponible` (por un descubrimiento o un puzzle resuelto), `disponible` → `en_curso` (`iniciado`) y → `resuelto` (`completada` o `sintonizada`) | `{puzzle, estado, datos}`, igual que `PUT /puzzles` y `GET estado` |
 | `descubrimiento.nuevo` | Juego y app | `POST /descubrimientos` con una clave nueva, y el resultado que crea el servidor al resolver un puzzle | `{clave, datos, origen}`; `origen` es `juego`, `app` o `servidor` |
 | `escena.cambiada` | **Solo la app** | `PUT /escena` con una escena distinta de la actual | `{escena, anterior}` |
-| `sala.cerrada` | Juego y app | `DELETE /salas/{codigo}` o el job que expira la sala | `{estado}`: `finalizada` o `expirada`. Después el servidor cierra la conexión con `1000` |
+| `sala.cerrada` | Juego y app | `DELETE /salas/{codigo}`, el cierre forzado de un administrador (`DELETE /admin/salas/{id}`, desde la PWA) o el job que expira la sala | `{estado}`: `finalizada` o `expirada`. Después el servidor cierra la conexión con `1000`. Con `finalizada` no se distingue si cerró el juego o un administrador |
 
 Ejemplos reales:
 

@@ -706,7 +706,7 @@ y el servidor cierra las conexiones con el código `1000`.
 
 | Respuesta | Cuándo | Qué hacer |
 |---|---|---|
-| `401` | La sala ya estaba cerrada o venció | Bórrala igual de tu lado: ya terminó |
+| `401` | La sala ya estaba cerrada (por ti o por un administrador) o venció | Bórrala igual de tu lado: ya terminó |
 | `403` `Solo el juego puede cerrar la sala` | Usaste el token de la app | Usa el del juego |
 
 ```csharp
@@ -751,7 +751,7 @@ void BorrarSesion()
 
 El token sirve solo para su sala y solo mientras la sala esté viva (`esperando_app` o `activa`). Si nadie escribe nada en 2 horas, la sala vence.
 
-**Qué hacer con un `401`.** El token ya no sirve: la sala se cerró, venció o el token está mal. Borra la sesión guardada y vuelve al menú de elegir pueblo. Un `401` puede llegar aunque no haya llegado `sala.cerrada` (por ejemplo, si la sala venció mientras tu WebSocket estaba caído); trátalo igual.
+**Qué hacer con un `401`.** El token ya no sirve: la sala se cerró (tú o un administrador), venció o el token está mal. Borra la sesión guardada y vuelve al menú de elegir pueblo. Un `401` puede llegar aunque no haya llegado `sala.cerrada` (por ejemplo, si la sala venció mientras tu WebSocket estaba caído); trátalo igual. Las rutas `/auth/*` y `/admin/*` son de la PWA de administración y usan otro tipo de sesión: el token de una sala no sirve ahí ni el de un administrador sirve en `/salas/{codigo}/**`; no las llames desde aquí.
 
 **Qué hacer con un `403`.** El token es válido pero no te deja hacer eso: es de otra sala, es el de la app en una ruta del juego, mandaste una clave que solo crea el servidor, o avisaste un puzzle (`puzzle_solo_app`), que solo avisa la app. Es un error de programación, no de la jugadora: regístralo en el log y no reintentes.
 
@@ -813,7 +813,7 @@ Cada mensaje es un texto JSON `{"type": "...", "payload": {...}}`.
 | `dispositivo.desconectado` | El teléfono perdió su conexión | Muestra un aviso discreto. No detengas la partida |
 | `puzzle.actualizado` | Un puzzle cambió de estado | Actualiza ese puzzle y aplica la tabla de la sección 6 |
 | `descubrimiento.nuevo` | Se registró un descubrimiento nuevo (también los tuyos) | Reacciona a `coordenada_a`, `coordenada_b`, `observatorio_visible` y `magnetar_localizado` |
-| `sala.cerrada` | La sala se cerró (`finalizada`) o expiró (`expirada`) | Borra la sesión y vuelve al menú. No reconectes |
+| `sala.cerrada` | La sala se cerró (`finalizada`) o expiró (`expirada`). Puede llegar sin que tú hayas llamado a `DELETE`: un administrador puede cerrar la sala a la fuerza desde la PWA y llega `finalizada` | Borra la sesión y vuelve al menú. No reconectes |
 | `error` | Mandaste algo que no es `auth` o un `auth` repetido | Regístralo en el log. La conexión sigue abierta |
 
 El juego **no** recibe `escena.cambiada`: ese mensaje es solo para la app.
