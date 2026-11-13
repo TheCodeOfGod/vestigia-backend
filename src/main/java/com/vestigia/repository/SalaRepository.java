@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -20,6 +22,8 @@ public interface SalaRepository extends JpaRepository<SalaModel, UUID> {
 
 	@Query("select s.codigo from SalaModel s where s.estado in :estados")
 	List<String> findCodigosByEstadoIn(Collection<Estado> estados);
+
+	Page<SalaModel> findByEstado(Estado estado, Pageable pageable);
 
 	Optional<SalaModel> findByCodigoAndEstadoIn(String codigo, Collection<Estado> estados);
 

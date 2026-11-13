@@ -516,6 +516,72 @@ Solo admin. Cambia un usuario. Cada campo es opcional y el que falta no se toca:
 
 Solo admin. Elimina el usuario y sus sesiones. Responde `204`. Da `404` si no existe y `409` con `codigo: "ultimo_admin"` si es el único administrador activo.
 
+## `GET /admin/salas`
+
+Solo admin. Lista todas las salas, vivas y terminadas, de la más nueva a la más antigua. Un mismo código puede aparecer varias veces: la sala vigente y las que ya terminaron (el pueblo se reutiliza). Por eso las salas se piden por `id`, no por código.
+
+Parámetros opcionales: `estado` (`esperando_app`, `activa`, `finalizada` o `expirada`), `pagina` (desde 0; si falta, 0) y `tamano` (de 1 a 100; si falta, 20). Un `estado` que no existe da `400`. La respuesta trae `total` (las salas que cumplen el filtro) y `total_paginas`. Una `pagina` más allá de la última devuelve `contenido` vacío.
+
+<!-- respuesta: salas-admin -->
+```json
+{
+  "contenido": [
+    {
+      "id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21",
+      "codigo": "BACALAR",
+      "estado": "activa",
+      "escena_actual": "faro",
+      "puzzles_resueltos": 1,
+      "puzzles_total": 4,
+      "app_unida": true,
+      "dispositivos": {"juego": true, "app": true},
+      "creada_en": "2026-11-08T22:40:00.000000Z",
+      "ultima_actividad": "2026-11-08T23:05:00.000000Z",
+      "expira_en": "2026-11-09T01:05:00.000000Z"
+    }
+  ],
+  "pagina": 0,
+  "tamano": 20,
+  "total": 1,
+  "total_paginas": 1
+}
+```
+
+## `GET /admin/salas/{id}`
+
+Solo admin. El detalle de una sala, viva o terminada: escena, puzzles, descubrimientos, dispositivos conectados y la bitácora completa. No trae tokens ni hashes. Da `400` si el `id` no es un UUID y `404` si no existe.
+
+<!-- respuesta: sala-admin -->
+```json
+{
+  "id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21",
+  "codigo": "BACALAR",
+  "estado": "activa",
+  "escena_actual": "faro",
+  "puzzles": [
+    {"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}},
+    {"puzzle": "photo", "estado": "disponible", "datos": {}},
+    {"puzzle": "lookout", "estado": "bloqueado", "datos": {}},
+    {"puzzle": "observatory", "estado": "bloqueado", "datos": {}}
+  ],
+  "descubrimientos": [
+    {"clave": "pescador_dialogo_completo", "datos": {}, "origen": "juego", "creado_en": "2026-11-08T22:50:00.000000Z"}
+  ],
+  "dispositivos": {"juego": true, "app": true},
+  "app_unida": true,
+  "creada_en": "2026-11-08T22:40:00.000000Z",
+  "ultima_actividad": "2026-11-08T23:05:00.000000Z",
+  "expira_en": "2026-11-09T01:05:00.000000Z",
+  "eventos": [
+    {"tipo": "sala.creada", "origen": "juego", "payload": {"codigo": "BACALAR"}, "creado_en": "2026-11-08T22:40:00.000000Z"}
+  ]
+}
+```
+
+## `DELETE /admin/salas/{id}`
+
+Solo admin. Cierra una sala a la fuerza, por ejemplo una que quedó atascada. Si está viva pasa a `finalizada`, su código queda libre, los tokens del juego y de la app dejan de servir (`401`) y los dos dispositivos reciben `sala.cerrada` por WebSocket, que se cierra con `1000`. La bitácora guarda `sala.finalizada` con origen `servidor` y `{"cerrada_por": "admin", "usuario": "<id>"}`. Responde `204`. Si la sala ya había terminado no cambia nada y también responde `204`; si no existe, `404`.
+
 ## Limitaciones conocidas
 
 - **URLs que rechaza el servidor HTTP.** Tomcat, el servidor que lleva el backend, rechaza algunas URLs antes de que lleguen a la aplicación: una barra codificada (`%2F`), un byte nulo (`%00`), un escape inválido (`%zz`) o una URL demasiado larga. Responde `400` con una página HTML de Tomcat, no con el cuerpo de error en JSON. Ningún cliente de Vestigia necesita esos caracteres: los códigos de sala son solo letras y los ids de puzzle son fijos.

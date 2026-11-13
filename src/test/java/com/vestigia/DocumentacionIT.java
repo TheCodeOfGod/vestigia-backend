@@ -60,7 +60,7 @@ class DocumentacionIT {
 			}
 		}
 
-		assertThat(reales).hasSize(15);
+		assertThat(reales).hasSize(18);
 		assertThat(operaciones(apiDocs()).keySet()).isEqualTo(reales);
 	}
 

@@ -450,6 +450,13 @@ Al abrir la PWA, si hay un token guardado, llama a `GET /auth/yo`: `200` es que 
 | `403` con texto `Invalid CORS request` | Tu origen no está permitido | Paso 6 |
 | `409` con `codigo: "correo_duplicado"` o `"ultimo_admin"` | Regla del backend | Muestra el `message` |
 
+### Pantalla Salas
+
+- El listado sale de `GET /admin/salas`, paginado: pide `?pagina=0&tamano=20` y lee `contenido`, `total` y `total_paginas` (el tamaño máximo es 100). Para "En partida" pide `?estado=activa` y `?estado=esperando_app` y suma el `total` de cada una; para "Libres", usa `GET /pueblos?disponibles=true` (público).
+- Un código puede repetirse en el listado (la sala vigente y las ya terminadas). Identifica cada fila por `id`.
+- El detalle y el cierre usan ese `id`: `GET /admin/salas/{id}` y `DELETE /admin/salas/{id}`. Cerrar una sala ya terminada también da `204`, así que no hace falta ocultar el botón por eso.
+- Trata una respuesta vacía o con error como lista vacía; no leas `.length` de algo que puede ser `null`.
+
 Proteger una ruta en React (`RutaProtegida`) solo evita pantallas vacías. Lo que protege de verdad es el backend, que revisa el token en cada petición a `/admin`.
 
 ## 6. Estados de un puzzle
