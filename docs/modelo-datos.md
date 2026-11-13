@@ -19,6 +19,8 @@ Una migración que ya se aplicó no se edita. Cualquier cambio va en una migraci
 | `puzzles_estado` | `PuzzleEstadoModel` | Una fila por sala y puzzle |
 | `descubrimientos` | `DescubrimientoModel` | Lo que aparece en la libreta |
 | `eventos` | `EventoModel` | Bitácora para las métricas del plan de pruebas. Una fila por escritura exitosa |
+| `usuarios` | `UsuarioModel` | Cuentas de administración de la PWA. Nada que ver con las salas |
+| `sesiones_admin` | `SesionAdminModel` | Una fila por sesión abierta con `POST /auth/login` |
 
 Las entidades no declaran relaciones JPA entre sí. `puzzles_estado` y `descubrimientos` guardan `sala_id` y se consultan por esa columna.
 
@@ -142,6 +144,15 @@ Cada evento también se publica dentro de la transacción como evento de aplicac
 - Las columnas `CHAR(64)` llevan `@JdbcTypeCode(SqlTypes.CHAR)`. Sin esa anotación, la validación del esquema falla porque Hibernate espera `VARCHAR`.
 - Todas las fechas son `Instant` en UTC. El backend las toma de un `Clock` inyectado (bean en `TiempoConfig`), no de `now()` de Postgres.
 
+### `usuarios` y `sesiones_admin` (`V4__usuarios_y_sesiones_admin.sql`)
+
+| Tabla | Columnas |
+|---|---|
+| `usuarios` | `id` UUID, `nombre`, `correo` (único y siempre en minúsculas, lo exige un `CHECK`), `password_hash` (BCrypt), `rol` (`CHECK` en `admin`), `activo`, `creado_en` |
+| `sesiones_admin` | `token_hash` CHAR(64) (clave primaria), `usuario_id` (borra en cascada), `creada_en`, `expira_en` |
+
+Borrar un usuario borra sus sesiones. Un job por hora (`vestigia.auth.limpieza`) elimina las vencidas. Una sesión vencida ya no autentica aunque su fila siga ahí. El límite de intentos fallidos de inicio de sesión vive **en memoria**, por correo, y se pierde al reiniciar, igual que las sesiones de WebSocket: otra razón de la instancia única.
+
 ## Ciclo de vida de una sala
 
 ```
@@ -178,3 +189,4 @@ Cada escritura exitosa renueva `ultima_actividad` y `expira_en` con la misma dur
 - El token determina la sala y el rol: si su hash coincide con `token_juego_hash`, el rol es `juego`; si coincide con `token_app_hash`, es `app`.
 - Un token deja de servir cuando su sala deja de estar viva o cuando su `expira_en` ya pasó, aunque el job todavía no la haya marcado.
 - Ni el token ni el encabezado `Authorization` se escriben en los logs.
+- Las sesiones de administración usan el mismo formato de token (32 bytes aleatorios, solo se guarda el SHA-256) pero viven en `sesiones_admin` y duran 8 horas. No sirven en las rutas de sala, y los tokens de sala no sirven en las de administración.

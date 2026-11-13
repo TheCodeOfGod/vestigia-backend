@@ -31,9 +31,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Import(PostgresTestConfig.class)
 class DocumentacionIT {
 
-	/** Rutas que no piden token: crear, unirse y pueblos. */
+	/** Rutas que no piden token: crear, unirse, pueblos e iniciar sesión. */
 	private static final Set<String> PUBLICAS = Set.of("POST /api/v1/salas", "POST /api/v1/salas/{codigo}/unirse",
-			"GET /api/v1/pueblos");
+			"GET /api/v1/pueblos", "POST /api/v1/auth/login");
 
 	@LocalServerPort
 	private int port;
@@ -60,7 +60,7 @@ class DocumentacionIT {
 			}
 		}
 
-		assertThat(reales).hasSize(8);
+		assertThat(reales).hasSize(18);
 		assertThat(operaciones(apiDocs()).keySet()).isEqualTo(reales);
 	}
 
@@ -94,17 +94,24 @@ class DocumentacionIT {
 	}
 
 	@Test
-	@DisplayName("Las rutas con token declaran el esquema Bearer y las públicas no; el esquema es HTTP bearer")
+	@DisplayName("Las rutas protegidas declaran su esquema Bearer (sala o sesión de admin) y las públicas ninguno")
 	void seguridadBearer() throws Exception {
 		JsonNode docs = apiDocs();
 
-		JsonNode esquema = docs.path("components").path("securitySchemes").path("token");
-		assertThat(esquema.path("type").asString()).isEqualTo("http");
-		assertThat(esquema.path("scheme").asString()).isEqualTo("bearer");
+		for (String nombre : List.of("token", "sesion_admin")) {
+			JsonNode esquema = docs.path("components").path("securitySchemes").path(nombre);
+			assertThat(esquema.path("type").asString()).as(nombre).isEqualTo("http");
+			assertThat(esquema.path("scheme").asString()).as(nombre).isEqualTo("bearer");
+		}
 		operaciones(docs).forEach((nombre, operacion) -> {
-			boolean conToken = operacion.path("security").toString().contains("\"token\"");
-			assertThat(conToken).as(nombre).isEqualTo(!PUBLICAS.contains(nombre));
-			if (conToken) {
+			String seguridad = operacion.path("security").toString();
+			boolean admin = nombre.contains("/api/v1/admin/") || nombre.equals("POST /api/v1/auth/logout")
+					|| nombre.equals("GET /api/v1/auth/yo");
+			boolean conToken = seguridad.contains("\"token\"");
+			boolean conSesion = seguridad.contains("\"sesion_admin\"");
+			assertThat(conToken).as(nombre + " token de sala").isEqualTo(!PUBLICAS.contains(nombre) && !admin);
+			assertThat(conSesion).as(nombre + " sesión de admin").isEqualTo(admin);
+			if (conToken || conSesion) {
 				assertThat(operacion.path("responses").has("401")).as(nombre + " documenta 401").isTrue();
 				assertThat(operacion.path("responses").has("403")).as(nombre + " documenta 403").isTrue();
 			}

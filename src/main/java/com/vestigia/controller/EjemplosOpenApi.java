@@ -155,4 +155,105 @@ final class EjemplosOpenApi {
 	private EjemplosOpenApi() {
 	}
 
+	static final String LOGIN = """
+			{"correo": "raul@vestigia.site", "password": "una-contraseña-larga"}""";
+
+	static final String USUARIO = """
+			{"id": "5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", "nombre": "Raúl", "correo": "raul@vestigia.site", \
+			"rol": "admin", "activo": true, "creado_en": "2026-11-08T23:10:00.000000Z"}""";
+
+	static final String SESION = "{\"token\": \"Zk3o1x0b8QmD…\", \"expira_en\": \"2026-11-09T07:10:00.000000Z\", "
+			+ "\"usuario\": " + USUARIO + "}";
+
+	static final String USUARIOS = "[" + USUARIO + "]";
+
+	static final String CREAR_USUARIO = """
+			{"nombre": "María", "correo": "maria@vestigia.site", "password": "otra-contraseña", "rol": "admin"}""";
+
+	static final String ACTUALIZAR_USUARIO = """
+			{"activo": false}""";
+
+	static final String ERROR_400_USUARIO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 400, "error": "Bad Request", "codigo": null, \
+			"message": "Datos inválidos", "path": "/api/v1/admin/usuarios", \
+			"details": [{"field": "password", "message": "debe tener de 8 a 72 caracteres"}]}""";
+
+	static final String ERROR_401_LOGIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 401, "error": "Unauthorized", "codigo": null, \
+			"message": "Correo o contraseña incorrectos", "path": "/api/v1/auth/login", "details": []}""";
+
+	static final String ERROR_401_ADMIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 401, "error": "Unauthorized", "codigo": null, \
+			"message": "Sesión inválida o vencida: vuelve a iniciar sesión", "path": "/api/v1/admin/usuarios", \
+			"details": []}""";
+
+	static final String ERROR_403_ADMIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 403, "error": "Forbidden", "codigo": null, \
+			"message": "Se necesita el rol admin", "path": "/api/v1/admin/usuarios", "details": []}""";
+
+	static final String ERROR_404_USUARIO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 404, "error": "Not Found", "codigo": null, \
+			"message": "No existe el usuario 5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", \
+			"path": "/api/v1/admin/usuarios/5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", "details": []}""";
+
+	static final String ERROR_409_CORREO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 409, "error": "Conflict", \
+			"codigo": "correo_duplicado", "message": "Ya hay un usuario con ese correo", \
+			"path": "/api/v1/admin/usuarios", "details": [{"field": "correo", "message": "ya está registrado"}]}""";
+
+	static final String ERROR_409_ULTIMO_ADMIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 409, "error": "Conflict", \
+			"codigo": "ultimo_admin", "message": "No se puede quitar al último administrador activo", \
+			"path": "/api/v1/admin/usuarios/5b0c1f3e-7d0b-4f5e-9a39-2f0f5e8f6a11", "details": []}""";
+
+	static final String ERROR_429_LOGIN = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 429, "error": "Too Many Requests", \
+			"codigo": "demasiados_intentos", \
+			"message": "Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo", \
+			"path": "/api/v1/auth/login", "details": []}""";
+
+	static final String SALA_RESUMEN = """
+			{"id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21", "codigo": "BACALAR", "estado": "activa", \
+			"escena_actual": "faro", "puzzles_resueltos": 1, "puzzles_total": 4, "app_unida": true, \
+			"dispositivos": {"juego": true, "app": true}, "creada_en": "2026-11-08T22:40:00.000000Z", \
+			"ultima_actividad": "2026-11-08T23:05:00.000000Z", "expira_en": "2026-11-09T01:05:00.000000Z"}""";
+
+	static final String SALAS_ADMIN = "{\"contenido\": [" + SALA_RESUMEN
+			+ "], \"pagina\": 0, \"tamano\": 20, \"total\": 1, \"total_paginas\": 1}";
+
+	static final String SALA_ADMIN = """
+			{
+			  "id": "0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21",
+			  "codigo": "BACALAR",
+			  "estado": "activa",
+			  "escena_actual": "faro",
+			  "puzzles": [
+			    {"puzzle": "radio", "estado": "resuelto", "datos": {"sintonizada": true}},
+			    {"puzzle": "photo", "estado": "disponible", "datos": {}},
+			    {"puzzle": "lookout", "estado": "bloqueado", "datos": {}},
+			    {"puzzle": "observatory", "estado": "bloqueado", "datos": {}}
+			  ],
+			  "descubrimientos": [
+			    {"clave": "pescador_dialogo_completo", "datos": {}, "origen": "juego", \
+			"creado_en": "2026-11-08T22:50:00.000000Z"}
+			  ],
+			  "dispositivos": {"juego": true, "app": true},
+			  "app_unida": true,
+			  "creada_en": "2026-11-08T22:40:00.000000Z",
+			  "ultima_actividad": "2026-11-08T23:05:00.000000Z",
+			  "expira_en": "2026-11-09T01:05:00.000000Z",
+			  "eventos": [
+			    {"tipo": "sala.creada", "origen": "juego", "payload": {"codigo": "BACALAR"}, "creado_en": "2026-11-08T22:40:00.000000Z"}
+			  ]
+			}""";
+
+	static final String ERROR_400_ESTADO = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 400, "error": "Bad Request", "codigo": null, \
+			"message": "Valor inválido para 'estado'", "path": "/api/v1/admin/salas", "details": []}""";
+
+	static final String ERROR_404_SALA = """
+			{"timestamp": "2026-11-08T23:10:00.000000Z", "status": 404, "error": "Not Found", "codigo": null, \
+			"message": "No existe la sala 0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21", \
+			"path": "/api/v1/admin/salas/0b6c0b0e-8f6e-4c53-b8f1-6f3a2e6f9b21", "details": []}""";
+
 }

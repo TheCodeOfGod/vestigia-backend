@@ -22,14 +22,18 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 
 import com.vestigia.model.DescubrimientoModel;
 import com.vestigia.model.PuzzleEstadoModel;
+import com.vestigia.dto.CrearUsuarioRequest;
 import com.vestigia.model.SalaModel;
+import com.vestigia.model.UsuarioModel;
 import com.vestigia.service.SalaService;
+import com.vestigia.service.UsuarioService;
 import com.vestigia.ws.ClienteWs;
 
 import tools.jackson.core.JsonParser;
@@ -63,20 +67,28 @@ class JsonDocumentadoIT {
 			"escena", nombres(SalaModel.Escena.values()),
 			"anterior", nombres(SalaModel.Escena.values()),
 			"origen", nombres(DescubrimientoModel.Origen.values()),
-			"rol", nombres(SalaService.Rol.values()));
+			"rol", Stream.concat(nombres(SalaService.Rol.values()).stream(),
+					nombres(UsuarioModel.Rol.values()).stream()).collect(Collectors.toSet()));
 
 	/** Avisos de puzzle: dentro de {@code datos} siempre son booleanos. */
 	private static final Set<String> AVISOS = Set.of("completada", "iniciado", "sintonizada");
 
 	/** Qué respuesta real corresponde a cada operación de /v3/api-docs con 2xx. */
-	private static final Map<String, String> TIPO_POR_OPERACION = Map.of(
-			"GET /api/v1/pueblos", "pueblos",
-			"POST /api/v1/salas", "sala-creada",
-			"POST /api/v1/salas/{codigo}/unirse", "app-unida",
-			"GET /api/v1/salas/{codigo}/estado", "estado",
-			"POST /api/v1/salas/{codigo}/descubrimientos", "descubrimiento",
-			"PUT /api/v1/salas/{codigo}/puzzles/{puzzle}", "puzzle",
-			"PUT /api/v1/salas/{codigo}/escena", "escena");
+	private static final Map<String, String> TIPO_POR_OPERACION = Map.ofEntries(
+			Map.entry("GET /api/v1/pueblos", "pueblos"),
+			Map.entry("POST /api/v1/salas", "sala-creada"),
+			Map.entry("POST /api/v1/salas/{codigo}/unirse", "app-unida"),
+			Map.entry("GET /api/v1/salas/{codigo}/estado", "estado"),
+			Map.entry("POST /api/v1/salas/{codigo}/descubrimientos", "descubrimiento"),
+			Map.entry("PUT /api/v1/salas/{codigo}/puzzles/{puzzle}", "puzzle"),
+			Map.entry("PUT /api/v1/salas/{codigo}/escena", "escena"),
+			Map.entry("POST /api/v1/auth/login", "sesion"),
+			Map.entry("GET /api/v1/auth/yo", "usuario"),
+			Map.entry("GET /api/v1/admin/usuarios", "usuarios"),
+			Map.entry("POST /api/v1/admin/usuarios", "usuario"),
+			Map.entry("PUT /api/v1/admin/usuarios/{id}", "usuario"),
+			Map.entry("GET /api/v1/admin/salas", "salas-admin"),
+			Map.entry("GET /api/v1/admin/salas/{id}", "sala-admin"));
 
 	/** Las respuestas reales se piden una vez para toda la clase. */
 	private static Map<String, JsonNode> reales;
@@ -107,6 +119,12 @@ class JsonDocumentadoIT {
 
 	@Autowired
 	private JsonMapper json;
+
+	@Autowired
+	private UsuarioService usuarios;
+
+	@Autowired
+	private JdbcTemplate jdbc;
 
 	private final HttpClient http = HttpClient.newHttpClient();
 
@@ -238,6 +256,7 @@ class JsonDocumentadoIT {
 		Map<String, JsonNode> reales = new HashMap<>();
 		reales.put("health", ok(enviar("GET", "/actuator/health", null, null), 200));
 		reales.put("pueblos", ok(enviar("GET", "/api/v1/pueblos?disponibles=true", null, null), 200));
+		String admin = sesionAdminReal(reales);
 
 		JsonNode creada = ok(enviar("POST", "/api/v1/salas", "{\"codigo\":\"" + PUEBLO + "\"}", null), 201);
 		reales.put("sala-creada", creada);
@@ -274,12 +293,37 @@ class JsonDocumentadoIT {
 		assertThat(estado.get("descubrimientos")).as("el estado de referencia trae descubrimientos").isNotEmpty();
 		reales.put("estado", estado);
 
+		JsonNode listado = ok(enviar("GET", "/api/v1/admin/salas?estado=activa&tamano=100", null, admin), 200);
+		reales.put("salas-admin", listado);
+		JsonNode suya = null;
+		for (JsonNode sala : listado.get("contenido")) {
+			if (sala.get("codigo").asString().equals(PUEBLO)) {
+				suya = sala;
+			}
+		}
+		assertThat(suya).as("la sala de referencia sale en el listado de admin").isNotNull();
+		reales.put("sala-admin", ok(enviar("GET", "/api/v1/admin/salas/" + suya.get("id").asString(), null, admin), 200));
+		jdbc.update("delete from usuarios where correo = 'documentacion@vestigia.site'");
+
 		wsApp.cerrar();
 		guardar(reales, wsJuego.siguienteDeTipo("dispositivo.desconectado"));
 		assertThat(enviar("DELETE", "/api/v1/salas/" + PUEBLO, null, juego).statusCode()).isEqualTo(204);
 		guardar(reales, wsJuego.siguienteDeTipo("sala.cerrada"));
 		assertThat(wsJuego.cierre().codigo()).isEqualTo(1000);
 		return reales;
+	}
+
+	/** Crea un admin, abre sesión con él y guarda las respuestas de auth y de usuarios. Devuelve el token: sigue abierto y quien lo recibe borra al admin. */
+	private String sesionAdminReal(Map<String, JsonNode> reales) throws Exception {
+		usuarios.crear(new CrearUsuarioRequest("Documentación", "documentacion@vestigia.site", "contraseña-larga",
+				UsuarioModel.Rol.admin));
+		JsonNode sesion = ok(enviar("POST", "/api/v1/auth/login",
+				"{\"correo\":\"documentacion@vestigia.site\",\"password\":\"contraseña-larga\"}", null), 200);
+		reales.put("sesion", sesion);
+		String token = sesion.get("token").asString();
+		reales.put("usuario", ok(enviar("GET", "/api/v1/auth/yo", null, token), 200));
+		reales.put("usuarios", ok(enviar("GET", "/api/v1/admin/usuarios", null, token), 200));
+		return token;
 	}
 
 	private static void guardar(Map<String, JsonNode> reales, JsonNode mensaje) {

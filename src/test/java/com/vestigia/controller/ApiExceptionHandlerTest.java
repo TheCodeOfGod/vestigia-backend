@@ -29,6 +29,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.vestigia.service.AdminSalaService;
+import com.vestigia.service.AuthService;
+import com.vestigia.service.UsuarioService;
 import com.vestigia.service.ApiException;
 import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.PuzzleService;
@@ -46,6 +49,15 @@ class ApiExceptionHandlerTest {
 
 	@MockitoBean
 	private SalaService salaService;
+
+	@MockitoBean
+	private AuthService authService;
+
+	@MockitoBean
+	private UsuarioService usuarioService;
+
+	@MockitoBean
+	private AdminSalaService adminSalaService;
 
 	@MockitoBean
 	private DescubrimientoService descubrimientoService;

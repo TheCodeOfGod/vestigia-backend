@@ -1,6 +1,6 @@
 # Vestigia: plan del backend (documento vivo)
 
-Última actualización: 7 de noviembre de 2026 (P8: las claves del juego solo las manda el juego).
+Última actualización: 8 de noviembre de 2026 (backend desplegado en Railway, CI de GitHub funcionando).
 Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `docs/` y en el contrato de la API. El plan de implementación del Paso 3 en adelante está en [`docs/plan-cambios-backend.md`](plan-cambios-backend.md).
 
 **Estados:** ✅ `Acordado` = confirmado por Raúl · 🟡 `Propuesto` = pendiente de su visto bueno · 🧪 `Provisional` = valor de prototipo que puede cambiar sin migrar la base · ⏸️ `Diferido` = se decidió no hacerlo por ahora.
@@ -17,7 +17,7 @@ Responsable: Raúl. Este archivo es el resumen a la mano; el detalle vive en `do
 | 4 | WebSocket: autenticación, eventos y presencia | ✅ Hecho |
 | 5 | Orientación: reenvío del giroscopio al juego | ⏸️ Diferido |
 | 6 | Cierre: Swagger, guías, página de prueba | ✅ Hecho |
-| 7 | Listo para Railway: imagen, prueba de humo, configuración y pasos del primer despliegue | ✅ Hecho (el despliegue lo hace Raúl) |
+| 7 | Listo para Railway: imagen, prueba de humo, configuración y pasos del primer despliegue | ✅ Hecho y desplegado en Railway (7 de noviembre) |
 
 ---
 
@@ -66,6 +66,7 @@ La PWA solo consultaría el estado de una sala terminada (archivo de evidencias)
 | Expiración en la bitácora | El job guarda `sala.expirada` (origen `servidor`) y emite `sala.cerrada` después del commit (Paso 4). Aprobado por Raúl el 2026-11-06 | ✅ |
 | Swagger UI y `/v3/api-docs` en producción | Raúl decidió el 2026-11-06 dejarlos públicos en producción por ahora. Se publican en todos los entornos, sin token. Solo describen la API; no exponen datos. El Paso 7 comprobó en la imagen que se apagan sin cambiar código, con `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` (D-Swagger en `docs/despliegue.md`) | ✅ |
 | Página de prueba `/prueba-ws.html` en producción | Raúl decidió el 2026-11-06 dejarla pública en producción por ahora. Se sirve en todos los entornos. No guarda ni muestra datos por sí sola: necesita un token. El Paso 7 comprobó que se quita sin cambiar código con `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false`, que no afecta a Swagger UI (D-Prueba) | ✅ |
+| Usuarios de administración de la PWA | Cuentas con correo y contraseña (BCrypt, dependencia `spring-security-crypto` aprobada por Raúl el 2026-11-08) que inician sesión en `POST /auth/login`. Token opaco de sesión de 8 horas, sin renovación, en `Authorization: Bearer`; solo se guarda su hash. Rutas nuevas bajo `/auth` y `/admin`; las de salas no cambian y los dos tipos de token no se mezclan. Límite de 5 intentos fallidos por correo en 15 minutos (429). El primer admin sale de `ADMIN_BOOTSTRAP_EMAIL` y `ADMIN_BOOTSTRAP_PASSWORD` | ✅ (aprobado por Raúl; la dependencia queda anotada para el equipo) |
 | Quién manda cada clave de descubrimiento (P8) | `pescador_dialogo_completo`, `pieza_1`, `pieza_2`, `pieza_3`, `lookout_enabled` y `observatory_enabled` las manda solo el juego. Con el token de la app, `POST /descubrimientos` responde `403` con `codigo: "clave_solo_juego"`, aunque la clave ya exista, sin tocar la sala. Decidido por Raúl e implementado el 2026-11-07 (`DescubrimientoService.CLAVES_DEL_JUEGO`). No cubre `PUT puzzles` (ver P8b) | ✅ |
 | `POST /salas` y `unirse` sin token (P9) | Por diseño: así obtienen su token el juego y la app. Aceptado por Raúl | ✅ |
 | CI/CD | GitHub Actions: pruebas, build de Docker, deploy a Railway | ✅ (definición propuesta) |
@@ -106,6 +107,9 @@ La migración `V3` renombró los ids de puzzle a `photo`, `lookout` y `observato
 | `POST /salas/{codigo}/descubrimientos` | App o juego | Registra una pieza, una bandera, etc. Las claves del juego solo con el token del juego (P8) | ✅ 3a |
 | `PUT /salas/{codigo}/escena` | Juego | Cambia la escena actual | ✅ 3a |
 | `DELETE /salas/{codigo}` | Juego | Cierra la sala | ✅ 3a |
+| `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` | PWA (admin) | Inicia, cierra y consulta la sesión de administración | ✅ 9a |
+| `GET/POST /admin/usuarios`, `PUT/DELETE /admin/usuarios/{id}` | PWA (admin) | Administra los usuarios | ✅ 9a |
+| `GET /admin/salas`, `GET /admin/salas/{id}`, `DELETE /admin/salas/{id}` | PWA (admin) | Ver todas las salas y su detalle, y forzar el cierre de una. Van por `id` porque un código se reutiliza | ✅ 9b |
 
 ## 6. Tiempo real (`/ws`)
 
@@ -208,8 +212,8 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 
 - [ ] **Paso 0:** decidir repo separado, copiar el backend (con historial), configurar acceso y secretos.
 - [x] **Paso 1: Base.** Limpiar el código del laboratorio, Flyway con `V1__esquema.sql`, Dockerfile, configuración por entorno, CI, README y `docs/PLAN.md`.
-  - Pendiente de Raúl: el primer despliegue en Railway y la variable `RAILWAY_PUBLIC_URL` del workflow que revisa `/actuator/health` después del despliegue (el workflow lo agregó el Paso 7; ver `docs/despliegue.md`).
-  - El workflow `ci.yml` se validó con actionlint. Corrió bien en GitHub el 26 de octubre; desde el 5 de noviembre no arranca (O11).
+  - El primer despliegue en Railway se hizo el 7 de noviembre y la variable `RAILWAY_PUBLIC_URL` ya existe (ver `docs/despliegue.md`).
+  - El workflow `ci.yml` se validó con actionlint. Corrió bien en GitHub el 26 de octubre; del 5 al 8 de noviembre no arrancó (O11, resuelto).
 - [x] **Paso 2: Salas.** Catálogo de pueblos (seed aprobado), crear, unirse, estado, expiración, autenticación por token.
   - `V2__seed_pueblos.sql` carga los 101 códigos aprobados por Raúl.
   - Endpoints `GET /pueblos`, `POST /salas`, `POST /salas/{codigo}/unirse` y `GET /salas/{codigo}/estado`. Contrato con ejemplos en `docs/api.md`.
@@ -241,6 +245,9 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
   - `docs/despliegue.md` gana el mapeo de variables desde el Postgres de Railway, las decisiones pendientes (Swagger, página de prueba, O10, P9) y la lista "Primer despliegue: pasos para Raúl". Los nombres de Railway quedan marcados por verificar.
   - `ci.yml` corre también en `push` a `main`, que es lo que espera Railway con "Wait for CI". El workflow nuevo `salud-produccion.yml` revisa `/actuator/health` de la URL real tras cada despliegue (O2), con `scripts/esperar-health.sh`.
   - Evidencia en `docs/pruebas/paso-7-railway.md`.
+- [x] **Paso 9: Administración de la PWA.** Se parte en dos entregas, cada una con su rama, PR y pruebas:
+  - [x] 9a. `V4__usuarios_y_sesiones_admin.sql`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/yo` y `GET/POST/PUT/DELETE /admin/usuarios`. `AdminInterceptor` aparte del de salas, BCrypt, sesión de 8 horas, límite de intentos por correo en memoria, no se puede quitar al último admin activo y administrador inicial por variables de entorno.
+  - [x] 9b. `GET /admin/salas` (filtro `estado`, paginado con `pagina` y `tamano`), `GET /admin/salas/{id}` (con bitácora) y `DELETE /admin/salas/{id}` (cierre forzado idempotente, emite `sala.cerrada`). Por `id` y no por código, porque el código de una sala terminada se reutiliza.
 
 ## 11. Pendientes
 
@@ -266,15 +273,16 @@ La libreta marca el progreso del juego. Los puzzles ya no están todos abiertos 
 
 | # | Pendiente |
 |---|---|
-| O1 | Primer despliegue en Railway y URL de producción |
-| O2 | El workflow "Health de producción" (`salud-produccion.yml`, Paso 7) ya existe: corre tras cada despliegue exitoso (`deployment_status`) o a mano. Falta que Raúl cree la variable del repositorio `RAILWAY_PUBLIC_URL` y compruebe que Railway publica sus despliegues en GitHub |
+| O1 | ✅ Primer despliegue en Railway hecho (7 de noviembre). URL de producción: `https://vestigia-backend-production-745d.up.railway.app`, ya en las guías de integración |
+| O2 | ✅ El workflow "Health de producción" (`salud-produccion.yml`) corre tras cada despliegue exitoso o a mano, y la variable `RAILWAY_PUBLIC_URL` ya existe. Comprobado el 8 de noviembre: revisó `/actuator/health` de producción en `UP` |
 | O3 | La PWA todavía llama a `/api/salas` (CRUD del laboratorio que el Paso 1 retiró; responde `404`), según su código del 6 de noviembre. `docs/integracion-pwa.md` le indica cambiar a `GET /api/v1/pueblos`. Falta que el equipo de la PWA lo cambie |
 | O5 | Entre que `expira_en` pasa y el job corre (hasta un minuto), el código de la sala sigue ocupado (`POST /salas` da `409`). Sus tokens (`401`) y `unirse` (`404`) ya la tratan como terminada desde la entrega 3a |
 | O7 | Convención de nombres de ramas (el equipo no la ha decidido) |
 | O8 | Diseño, no backend: objetivo visual del mirador y condición de apertura de la compuerta del observatorio |
 | O9 | Valores definitivos del canon (AR, DEC, umbrales y rangos del mirador), que dependen de pruebas |
 | O10 | Verificar al desplegar en Railway (revisión del Paso 6, B6; lo retoma el Paso 7). Detrás del proxy TLS de Railway, Tomcat ve la petición como `http` aunque el navegador use `https`. Una página servida por el backend (`/prueba-ws.html`, Swagger UI) manda `Origin: https://…`, que no coincide con el origen `http://…` que ve el servidor: el handshake de `/ws` y `POST /salas` responden `403`, y Swagger anuncia `servers` con `http://`. El Paso 7 lo reprodujo con cabeceras simuladas y comparó tres salidas, ninguna activada y ninguna cambia el comportamiento local: la URL pública en `CORS_ALLOWED_ORIGINS` (arregla la página de prueba), `SERVER_FORWARD_HEADERS_STRATEGY=native` (arregla todo si el proxy llega desde una IP interna, por verificar) o `framework` (arregla todo y acepta cabeceras de cualquier cliente). Decide Raúl; detalle en `docs/despliegue.md`. Unity y Flutter nativos no mandan `Origin` y no se ven afectados |
-| O11 | Desde el 5 de noviembre, todas las ejecuciones del workflow `CI` en GitHub terminan en `startup_failure` sin jobs (`path: BuildFailed`). `ci.yml` no cambió desde la última ejecución buena (26 de octubre) y `actionlint` no le encuentra errores. Apunta a la cuenta o al repositorio (probablemente minutos o facturación de Actions de un repo privado). Paso manual de Raúl en `docs/despliegue.md`, sección CI |
+| O11 | ✅ Resuelto el 8 de noviembre. Todas las ejecuciones del CI terminaban en `startup_failure` sin jobs desde el 5 de noviembre, con el mensaje "recent account payments have failed or your spending limit needs to be increased". La causa era el presupuesto de **Actions en $0 con "Stop usage"** de la cuenta de GitHub (Settings, Billing, Budgets and alerts). Raúl lo subió y el CI volvió a arrancar. Al correr completo por primera vez, una prueba de concurrencia (`ConcurrenciaWebSocketIT.jobContraEscrituraQueRenueva`) fallaba siempre en GitHub por un defecto de la propia prueba (la foto de `pg_stat_activity` que Postgres reutiliza dentro de una transacción); se corrigió en el PR #16 |
+| O12 | Activar "Wait for CI" en Railway ahora que el CI pasa. Mientras esté apagado, cada merge a `main` despliega sin esperar los checks. Paso manual de Raúl |
 
 ## 12. Descartado
 

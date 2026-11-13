@@ -104,6 +104,7 @@ Si tu Postgres usa otras credenciales, copia `application-local.properties.examp
 | `DB_PASSWORD` | Contraseña de Postgres | `postgres` |
 | `PORT` | Puerto HTTP del servidor | `8080` |
 | `CORS_ALLOWED_ORIGINS` | Orígenes permitidos para `/api/**` y para conectarse a `/ws` desde un navegador, separados por comas | `http://localhost:5173,http://localhost:4173` |
+| `ADMIN_BOOTSTRAP_EMAIL` y `ADMIN_BOOTSTRAP_PASSWORD` | Correo y contraseña del primer administrador de la PWA. Solo se usan si la tabla `usuarios` está vacía | (vacías: no se crea nada) |
 
 Cada valor se busca primero en las variables de entorno, luego en `application-local.properties` y al final se usa el valor de desarrollo. Por eso `application-local.properties` declara `DB_URL`, `DB_USER` y `DB_PASSWORD`, no `spring.datasource.*`. Con `spring.datasource.*`, el archivo local taparía a las variables de entorno.
 

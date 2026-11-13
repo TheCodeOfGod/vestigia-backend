@@ -33,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.vestigia.config.JacksonConfig;
 import com.vestigia.dto.Sala;
 import com.vestigia.model.DescubrimientoModel;
+import com.vestigia.service.AuthService;
 import com.vestigia.service.ApiException;
 import com.vestigia.service.DescubrimientoService;
 import com.vestigia.service.SalaService;
@@ -48,6 +49,9 @@ class DescubrimientoControllerTest {
 
 	@MockitoBean
 	private DescubrimientoService descubrimientoService;
+
+	@MockitoBean
+	private AuthService authService;
 
 	@MockitoBean
 	private SalaService salaService;

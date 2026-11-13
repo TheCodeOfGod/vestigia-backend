@@ -702,7 +702,7 @@ Future<void> borrarSesion() async {
 
 El token sirve solo para su sala y solo mientras la sala esté viva. Si nadie escribe nada en 2 horas, la sala vence.
 
-**Qué hacer con un `401`.** El token ya no sirve: la sala se cerró, venció o el token está mal. Borra la sesión y vuelve al inicio. Un `401` puede llegar aunque no haya llegado `sala.cerrada`; trátalo igual.
+**Qué hacer con un `401`.** El token ya no sirve: la sala se cerró (el juego o un administrador), venció o el token está mal. Borra la sesión y vuelve al inicio. Un `401` puede llegar aunque no haya llegado `sala.cerrada`; trátalo igual. Las rutas `/auth/*` y `/admin/*` son de la PWA de administración y usan otro tipo de sesión: el token de una sala no sirve ahí ni el de un administrador sirve en `/salas/{codigo}/**`; no las llames desde aquí.
 
 **Qué hacer con un `403`.** El token es válido pero no te deja hacer eso: es de otra sala, o es una ruta del juego (escena, cierre), o mandaste una clave que solo crea el servidor, o una clave que solo manda el juego (`codigo: "clave_solo_juego"`). Es un error de programación: regístralo y no reintentes.
 
@@ -757,7 +757,7 @@ Cada mensaje es un texto JSON `{"type": "...", "payload": {...}}`.
 | `puzzle.actualizado` | Un puzzle cambió de estado | Actualiza ese puzzle y la burbuja (sección 6) |
 | `descubrimiento.nuevo` | Se registró un descubrimiento nuevo | Agrégalo a la libreta |
 | `escena.cambiada` | El juego cambió de escena | Actualiza "Estás en…". Solo la app recibe este mensaje |
-| `sala.cerrada` | La sala se cerró (`finalizada`) o expiró (`expirada`) | Borra la sesión y muestra el cierre. No reconectes |
+| `sala.cerrada` | La sala se cerró (`finalizada`) o expiró (`expirada`). `finalizada` también llega si un administrador la cierra desde la PWA | Borra la sesión y muestra el cierre (di "La partida terminó", sin atribuirlo al juego). No reconectes |
 | `error` | Mandaste algo que no es `auth` o un `auth` repetido | Regístralo en el log. La conexión sigue abierta |
 
 Ejemplos reales de cada uno:

@@ -38,11 +38,11 @@ Cada respuesta de ejemplo salió de correr el backend real. El cliente de la sec
 
 Vestigia es un juego de misterio para PC con una app móvil que hace de libreta. La PWA **no participa en la partida**: no crea salas, no se une a ellas y no juega puzzles. Es la cara web del proyecto y solo consulta información complementaria.
 
-Hoy lo único que puede pedirle al backend es el **catálogo de pueblos** (los nombres de sala) y saber cuáles están libres. El plan contempla que, más adelante, muestre el archivo de partidas terminadas, pero ese endpoint **todavía no existe** (sección 4, "Todavía no existe, no lo implementes").
+Sin iniciar sesión, solo puede pedirle el **catálogo de pueblos** (los nombres de sala) y saber cuáles están libres. Con una cuenta de administrador también ve y cierra salas y administra usuarios (sección 5). El plan contempla que, más adelante, muestre el archivo de partidas terminadas, pero ese endpoint **todavía no existe** (sección 4, "Todavía no existe, no lo implementes").
 
 ```
  Navegador (PWA) ── fetch ──▶ GET /api/v1/pueblos ──▶ Backend ──▶ PostgreSQL
-                    sin token, sin WebSocket, solo lectura
+                    sin token de sala, sin WebSocket; las pantallas de administración usan una sesión propia
 
  Juego (PC) y app (teléfono) ── REST + WebSocket ──▶ Backend      (la PWA no habla con ellos)
 ```
@@ -121,7 +121,7 @@ Si el origen está permitido, la respuesta trae `Access-Control-Allow-Origin: ht
 |---|---|
 | Sala | Una partida en curso. Junta el juego de PC y la app del teléfono. La PWA no entra a salas |
 | Código de sala | El nombre de un pueblo del catálogo, en mayúsculas, sin acentos ni ñ y de una sola palabra: `BACALAR`. Mientras una sala lo usa, el pueblo está ocupado (`"libre": false`) |
-| Token | Una contraseña larga que el backend le da al juego y a la app para su sala. **La PWA no tiene token** ni debe pedirlo |
+| Token | Una contraseña larga que el backend le da al juego y a la app para su sala. **La PWA no tiene token de sala** ni debe pedirlo. Para administrar usa una sesión aparte (sección 5) |
 | Rol | Quién es cada cliente para el backend: `juego` o `app`, según su token. La PWA no tiene rol: solo usa rutas públicas |
 | Puzzle | Uno de los cuatro retos de la partida: `radio`, `photo`, `lookout` y `observatory`. La PWA no los ve hoy |
 | Estado | En qué punto está un puzzle (`bloqueado`, `disponible`, `en_curso`, `resuelto`) o una sala (`esperando_app`, `activa`, `finalizada`, `expirada`) |
@@ -148,6 +148,9 @@ Si el origen está permitido, la respuesta trae `Access-Control-Allow-Origin: ht
 |---|---|---|
 | Catálogo de pueblos | `GET /api/v1/pueblos` | Navegador (`fetch`) |
 | Solo los pueblos libres | `GET /api/v1/pueblos?disponibles=true` | Navegador (`fetch`) |
+| Iniciar sesión (solo pantallas de administración) | `POST /api/v1/auth/login`, y después `GET /auth/yo` y `POST /auth/logout` con `Authorization` | Navegador (`fetch`) |
+| Administrar usuarios | `GET/POST /api/v1/admin/usuarios`, `PUT/DELETE /api/v1/admin/usuarios/{id}` | Navegador, con la sesión de administrador |
+| Ver y cerrar salas | `GET /api/v1/admin/salas?pagina=&tamano=&estado=` (paginado), `GET` y `DELETE /api/v1/admin/salas/{id}` | Navegador, con la sesión de administrador |
 | Saber si el backend está vivo | `GET /actuator/health` | Terminal (`curl`) o el proxy de Vite. Desde el navegador en otro origen el navegador bloquea la respuesta (no tiene CORS) |
 
 **Lo que la PWA no debe usar:**
@@ -389,16 +392,75 @@ Cuando se decida, esta guía se actualiza con la ruta, su JSON y sus errores.
 
 ## 5. Autenticación
 
-La PWA **no usa token**. Las únicas rutas que necesita son públicas.
+Hay **dos** tipos de pantalla.
 
-- No pidas, no guardes y no mandes el encabezado `Authorization`.
-- No guardes tokens del juego o de la app en `localStorage` ni en ningún otro lado: son de cada partida y no son de la PWA.
-- Si alguna vez recibes `401` o `403` en una ruta de la PWA, es que llamaste a una ruta que no le toca (sección 3) o que tu origen no está en CORS (paso 6).
+- **Las públicas** (la lista de pueblos) no usan token: no mandes `Authorization`.
+- **Las de administración** (Usuarios y Salas) piden iniciar sesión con una cuenta. El detalle de cada ruta está en `docs/api.md`, sección "Sesión y administración".
 
-| Respuesta | Qué significa para la PWA | Qué hacer |
+Nunca guardes ni mandes el token de una sala (juego o app) desde la PWA: son de cada partida y no sirven en `/admin`.
+
+### Iniciar sesión
+
+```js
+const base = import.meta.env.VITE_API_URL; // https://…/api/v1
+
+async function iniciarSesion(correo, password) {
+  const r = await fetch(`${base}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correo, password }),
+  });
+  const cuerpo = await r.json();
+  if (r.status === 401) throw new Error('Correo o contraseña incorrectos');
+  if (r.status === 429) throw new Error('Demasiados intentos, espera unos minutos');
+  if (!r.ok) throw new Error(cuerpo.message);
+  sessionStorage.setItem('vestigia.sesion', JSON.stringify(cuerpo)); // { token, expira_en, usuario }
+  return cuerpo;
+}
+```
+
+Guardar el token en `sessionStorage` lo conserva al recargar y lo pierde al cerrar la pestaña. La sesión dura 8 horas y no se renueva.
+
+### Llamar a las rutas de administración
+
+```js
+async function api(ruta, opciones = {}) {
+  const sesion = JSON.parse(sessionStorage.getItem('vestigia.sesion') ?? 'null');
+  const r = await fetch(`${base}${ruta}`, {
+    ...opciones,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sesion && { Authorization: `Bearer ${sesion.token}` }),
+      ...opciones.headers,
+    },
+  });
+  if (r.status === 401) {
+    sessionStorage.removeItem('vestigia.sesion');
+    window.location.assign('/login');
+  }
+  return r;
+}
+```
+
+Al abrir la PWA, si hay un token guardado, llama a `GET /auth/yo`: `200` es que sigue vigente y `401` que hay que volver a `/login`.
+
+| Respuesta | Qué significa | Qué hacer |
 |---|---|---|
-| `401` | Llamaste una ruta con candado (salas) | No la uses. La PWA solo usa `GET /api/v1/pueblos` |
+| `401` en `/admin/**` o `/auth/yo` | Sin sesión, sesión vencida, o mandaste un token de sala | Borra la sesión y manda a `/login` |
+| `401` en `/auth/login` | Correo o contraseña incorrectos | Muestra el mensaje; no distingas cuál falló |
+| `429` en `/auth/login` | Cinco intentos fallidos con ese correo | Pide esperar unos minutos |
+| `403` | El rol no tiene permiso | Muestra "No tienes permiso"; no cierres la sesión |
 | `403` con texto `Invalid CORS request` | Tu origen no está permitido | Paso 6 |
+| `409` con `codigo: "correo_duplicado"` o `"ultimo_admin"` | Regla del backend | Muestra el `message` |
+
+### Pantalla Salas
+
+- El listado sale de `GET /admin/salas`, paginado: pide `?pagina=0&tamano=20` y lee `contenido`, `total` y `total_paginas` (el tamaño máximo es 100). Para "En partida" pide `?estado=activa` y `?estado=esperando_app` y suma el `total` de cada una; para "Libres", usa `GET /pueblos?disponibles=true` (público).
+- Un código puede repetirse en el listado (la sala vigente y las ya terminadas). Identifica cada fila por `id`.
+- El detalle y el cierre usan ese `id`: `GET /admin/salas/{id}` y `DELETE /admin/salas/{id}`. Cerrar una sala ya terminada también da `204`, así que no hace falta ocultar el botón por eso.
+- Trata una respuesta vacía o con error como lista vacía; no leas `.length` de algo que puede ser `null`.
+
+Proteger una ruta en React (`RutaProtegida`) solo evita pantallas vacías. Lo que protege de verdad es el backend, que revisa el token en cada petición a `/admin`.
 
 ## 6. Estados de un puzzle
 
@@ -593,7 +655,9 @@ export function usePueblos(soloLibres: boolean) {
 - [ ] La PWA llama a `/api/v1/pueblos` y ya no a `/api/salas`.
 - [ ] Distingo "el backend respondió un error" de "no hubo respuesta", y muestro un mensaje para cada caso.
 - [ ] Cada petición tiene un límite de tiempo y se cancela si el componente se desmonta.
-- [ ] La PWA no manda `Authorization`, no guarda tokens y no abre WebSocket.
+- [ ] Las pantallas públicas (pueblos) no mandan `Authorization`. Solo las de administración lo mandan, con el token de `POST /auth/login`, y nunca el de una sala. La PWA no abre WebSocket.
+- [ ] La sesión se guarda en `sessionStorage`; un `401` la borra y manda a `/login`, y `429` en el login muestra "espera unos minutos".
+- [ ] El listado de salas se pide por páginas (`pagina`, `tamano`) y se lee `contenido`, `total` y `total_paginas`.
 - [ ] La PWA no llama a `POST /api/v1/salas` ni a `/unirse`.
 - [ ] La caché del service worker no sirve `/api/v1/pueblos` viejo cuando hay red.
 - [ ] Le mandé a Raúl el origen exacto de producción para `CORS_ALLOWED_ORIGINS`.

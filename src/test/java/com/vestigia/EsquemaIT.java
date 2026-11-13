@@ -31,7 +31,7 @@ class EsquemaIT {
 	private JdbcTemplate jdbc;
 
 	@Test
-	void flywayAplicaV1YCreaLasCincoTablas() {
+	void flywayAplicaV1YCreaLasTablas() {
 		List<String> tablas = jdbc.queryForList("""
 				SELECT table_name FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
@@ -40,7 +40,7 @@ class EsquemaIT {
 				"SELECT success FROM flyway_schema_history WHERE version = '1'", Boolean.class);
 
 		assertThat(tablas).containsExactlyInAnyOrder("codigos_pueblo", "salas", "puzzles_estado", "descubrimientos",
-				"eventos");
+				"eventos", "usuarios", "sesiones_admin");
 		assertThat(v1Aplicada).isTrue();
 	}
 

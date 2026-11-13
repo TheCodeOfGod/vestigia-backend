@@ -39,6 +39,17 @@ La plantilla de Postgres de Railway publica sus datos como variables del servici
 - Usa el host de la red privada de Railway, no el proxy público de la base **(por verificar en Railway)**. Si solo funcionara el público y pidiera SSL, agrega `?sslmode=require` al final de `DB_URL`.
 - No copies la contraseña a mano en el panel ni la pegues en un chat o en el repo: la variable de referencia la toma del servicio de Postgres.
 
+### Primer administrador
+
+El inicio de sesión de la PWA necesita al menos un usuario, y crear usuarios exige ser admin. Para el primero, define en el servicio del backend:
+
+| Variable | Valor |
+|---|---|
+| `ADMIN_BOOTSTRAP_EMAIL` | El correo del primer administrador |
+| `ADMIN_BOOTSTRAP_PASSWORD` | Su contraseña, de 8 a 72 caracteres |
+
+Al arrancar, si la tabla `usuarios` está vacía y las dos variables existen, el backend crea un administrador llamado `Administrador`. Si ya hay algún usuario no hace nada, así que dejarlas puestas no pisa cambios. Una vez que entres y crees las cuentas del equipo, conviene **borrar la contraseña de la variable**. Escríbela directo en el panel de Railway: no la pegues en el chat ni en el repo.
+
 ### Variables opcionales
 
 Spring Boot lee cualquier propiedad como variable de entorno (en mayúsculas, con `_` en lugar de `.` y sin `-`). Estas sirven para las decisiones de la sección siguiente. Hoy no se define ninguna.
@@ -48,6 +59,7 @@ Spring Boot lee cualquier propiedad como variable de entorno (en mayúsculas, co
 | `SPRINGDOC_API_DOCS_ENABLED=false` y `SPRINGDOC_SWAGGER_UI_ENABLED=false` | Apagan `/v3/api-docs` y Swagger UI (`404` con el cuerpo de error uniforme). El resto de la API sigue igual | ✅ |
 | `SPRING_WEB_RESOURCES_ADD_MAPPINGS=false` | Deja de servir los archivos estáticos: `/prueba-ws.html` da `404`. Swagger UI no se ve afectado (tiene su propio manejador) | ✅ |
 | `SERVER_FORWARD_HEADERS_STRATEGY=native` o `framework` | El backend toma el esquema y el host de las cabeceras `X-Forwarded-*` del proxy de Railway (ver O10) | ✅ con cabeceras simuladas |
+| `VESTIGIA_AUTH_SESION`, `VESTIGIA_AUTH_INTENTOS_MAX`, `VESTIGIA_AUTH_INTENTOS_VENTANA` | Vigencia de la sesión de administración (`PT8H`) y el límite de intentos fallidos de inicio de sesión por correo (5 en `PT15M`) | No hizo falta |
 | `VESTIGIA_SALAS_EXPIRACION`, `VESTIGIA_PUZZLES_COORDENADAS_AR`, … | Las propiedades de `vestigia.*` del README | No hizo falta |
 
 ## Decisiones de Raúl antes de publicar la URL
@@ -148,6 +160,8 @@ Todo contra la imagen construida con el `Dockerfile` (`docker build`), corriendo
 
 ## Primer despliegue: pasos para Raúl
 
+> **Hecho el 7 de noviembre de 2026.** El backend corre en `https://vestigia-backend-production-745d.up.railway.app` y la variable `RAILWAY_PUBLIC_URL` ya existe. La lista queda como guía para repetir el despliegue (por ejemplo, en otro entorno).
+
 Cada paso es manual. Marca cada casilla al terminarlo.
 
 **Antes de empezar**
@@ -228,7 +242,7 @@ scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR  # o uno en c
 
 `.github/workflows/ci.yml` corre en cada PR a `develop` y `main` y en cada `push` a `main` (lo que espera Railway con "Wait for CI"): Java 21 (Temurin) con caché de Maven, `./mvnw -B verify` (incluye las `*IT` con Postgres de Testcontainers y la prueba de humo, que usa `bash`, `curl` y `jq` del runner) y, si pasa, `docker build`. Usa `actions/checkout@v7` y `actions/setup-java@v6`, que existen (últimas: v7.0.1 y v6.2.0). `actionlint` 1.7.7 no encuentra errores en `ci.yml` ni en `salud-produccion.yml`, y `shellcheck` 0.10.0 tampoco en `scripts/esperar-health.sh` ni en `scripts/smoke-test.sh`.
 
-**Desde el 5 de noviembre de 2026 ninguna ejecución arranca.** Todas terminan en `startup_failure` sin jobs, con el workflow sin nombre (`path: BuildFailed`), también las de PR que ya se mezclaron. La última ejecución buena fue el 26 de octubre (rama `feature/base`), y `ci.yml` no cambió desde entonces. El repositorio es privado, Actions está habilitado y permite todas las acciones. Apunta a la cuenta o al repositorio, no al YAML: lo más probable son los minutos o la facturación de Actions de un repo privado.
+**O11, resuelto el 8 de noviembre de 2026.** Del 5 al 8 de noviembre ninguna ejecución arrancaba: todas terminaban en `startup_failure` sin jobs, con el mensaje "recent account payments have failed or your spending limit needs to be increased". La causa era el presupuesto de **Actions en $0 con "Stop usage"** de la cuenta de GitHub (**Settings → Billing and licensing → Budgets and alerts**). Se subió y el CI volvió a arrancar. Si vuelve a pasar, abre la ejecución fallida en la pestaña **Actions**: el motivo aparece arriba.
 
 ### Health de producción
 
@@ -239,10 +253,10 @@ scripts/smoke-test.sh https://<tu-servicio>.up.railway.app BACALAR  # o uno en c
 - Si Railway no publica sus despliegues en GitHub, el workflow no se dispara solo: lánzalo a mano después de cada despliegue, o queda para otro paso cambiarlo a `workflow_run` del `CI`.
 - Solo comprueba que el servicio responde `UP`, no qué commit corre: actuator no expone la versión.
 
-Paso manual de Raúl: en GitHub, revisa **Settings → Billing and plans** de la cuenta dueña del repo (límite de gasto y minutos de Actions) y **Settings → Actions** del repo, y abre una ejecución fallida en la pestaña **Actions** para leer el motivo. Mientras tanto, el CI no protege `main`: corre `./mvnw verify` en local antes de cada merge.
+Un job de CI que se vuelve a ejecutar con **Re-run** usa el mismo código de la primera vez: no recoge cambios nuevos de `develop`. Para que un PR vea un arreglo, actualiza su rama con un push.
 
 ## Pendiente
 
-- El primer despliegue (O1).
-- Crear la variable `RAILWAY_PUBLIC_URL` para que corra el workflow "Health de producción" (O2), y comprobar que Railway publica sus despliegues en GitHub.
-- Que el CI vuelva a arrancar en GitHub.
+- Activar "Wait for CI" en Railway (el CI ya pasa; O12 en `docs/PLAN.md`). Mientras esté apagado, cada merge a `main` despliega sin esperar los checks.
+- O10: para usar `/prueba-ws.html` en producción, agregar la URL del backend a `CORS_ALLOWED_ORIGINS`.
+- C6: agregar el origen de la PWA a `CORS_ALLOWED_ORIGINS` cuando tenga URL.

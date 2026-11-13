@@ -34,6 +34,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.vestigia.config.JacksonConfig;
 import com.vestigia.dto.Sala;
 import com.vestigia.model.PuzzleEstadoModel;
+import com.vestigia.service.AuthService;
 import com.vestigia.service.ApiException;
 import com.vestigia.service.PuzzleService;
 import com.vestigia.service.SalaService;
@@ -49,6 +50,9 @@ class PuzzleControllerTest {
 
 	@MockitoBean
 	private PuzzleService puzzleService;
+
+	@MockitoBean
+	private AuthService authService;
 
 	@MockitoBean
 	private SalaService salaService;
